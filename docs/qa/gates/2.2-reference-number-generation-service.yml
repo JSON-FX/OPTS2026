@@ -1,0 +1,50 @@
+# Quality Gate Decision
+# Story 2.2: Reference Number Generation Service
+
+schema: 1
+story: '2.2'
+story_title: 'Reference Number Generation Service'
+gate: CONCERNS
+status_reason: 'Lock timeout requirement (AC#6) not enforced at 5 seconds and concurrency validation (AC#11) exercised sequentially; both need remediation before PASS.'
+reviewer: 'Quinn (Test Architect & Quality Advisor)'
+updated: '2025-10-31T00:00:00Z'
+
+waiver: { active: false }
+
+top_issues:
+  - id: 'RN-001'
+    severity: medium
+    finding: 'Service retries transactions but never aborts at the mandated 5-second lock timeout, deferring to database defaults.'
+    suggested_action: 'Add explicit timing/lock fail handling so `ReferenceNumberException` is raised after ~5 seconds of contention.'
+  - id: 'RN-002'
+    severity: medium
+    finding: 'Integration test loops sequentially, so the “100 concurrent requests” acceptance criterion is not validated.'
+    suggested_action: 'Rework the feature test to trigger simultaneous generation (jobs/parallel testing) and confirm unique outputs.'
+
+quality_score: 74
+
+evidence:
+  tests_reviewed: 120
+  risks_identified: 2
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 7, 8, 9, 10, 12]
+    ac_gaps: [6, 11]
+
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 2
+    low: 0
+  recommendations:
+    must_fix:
+      - 'Meet AC#6 timeout handling and AC#11 concurrency validation before promoting this build.'
+    monitor: []
+
+recommendations:
+  immediate:
+    - action: 'Implement bounded lock wait logic that surfaces a `ReferenceNumberException` after ~5 seconds.'
+      refs: ['app/Services/ReferenceNumberService.php:37']
+    - action: 'Update concurrency testing to simulate parallel requests per AC#11.'
+      refs: ['tests/Feature/Services/ReferenceNumberServiceConcurrencyTest.php:17']
+  future: []

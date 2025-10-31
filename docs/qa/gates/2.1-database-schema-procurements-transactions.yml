@@ -1,0 +1,39 @@
+# Quality Gate Decision
+# Story 2.1: Database Schema - Procurements & Transactions Tables
+
+schema: 1
+story: '2.1'
+story_title: 'Database Schema - Procurements & Transactions Tables'
+gate: PASS
+status_reason: 'Seed data now buckets workflow IDs by category, keeping PR/PO/VCH transactions aligned with their respective workflows.'
+reviewer: 'Quinn (Test Architect & Quality Advisor)'
+updated: '2025-10-31T00:00:00Z'
+
+waiver: { active: false }
+
+top_issues: []
+
+quality_score: 92
+
+evidence:
+  tests_reviewed: 16
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    ac_gaps: []
+
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 0
+    low: 0
+  recommendations:
+    must_fix: []
+    monitor: []
+
+recommendations:
+  immediate:
+    - action: 'Keep sqlite-based `migrate:fresh --seed` verification in regression suites to guard future workflow-related seed changes.'
+      refs: ['database/seeders/TransactionSeeder.php']
+  future: []

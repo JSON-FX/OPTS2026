@@ -22,3 +22,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+# BMAD (local only)
+.bmad-core/
+.bmad-*/

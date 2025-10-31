@@ -37,6 +37,11 @@ class FundTypeSeeder extends Seeder
             ],
         ];
 
-        DB::table('fund_types')->insert($fundTypes);
+        foreach ($fundTypes as $fundType) {
+            DB::table('fund_types')->updateOrInsert(
+                ['abbreviation' => $fundType['abbreviation']],
+                $fundType
+            );
+        }
     }
 }

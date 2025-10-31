@@ -2,16 +2,20 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import { Link, usePage } from '@inertiajs/react';
-import { PropsWithChildren, ReactNode, useState } from 'react';
+import { Toaster } from '@/Components/ui/toaster';
+import { useToast } from '@/Components/ui/use-toast';
 import type { PageProps } from '@/types';
+import { Link, usePage } from '@inertiajs/react';
 import { Bell } from 'lucide-react';
+import { PropsWithChildren, ReactNode, useEffect, useState } from 'react';
 
 export default function Authenticated({
     header,
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
     const user = usePage<PageProps>().props.auth.user;
+    const flash = usePage<PageProps>().props.flash;
+    const { toast } = useToast();
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
@@ -24,6 +28,15 @@ export default function Authenticated({
     const hasAnyRole = (...roleNames: string[]): boolean => {
         return user.roles?.some(role => roleNames.includes(role.name)) ?? false;
     };
+
+    useEffect(() => {
+        if (flash?.success) {
+            toast({ description: flash.success, variant: 'success' });
+        }
+        if (flash?.error) {
+            toast({ description: flash.error, variant: 'destructive' });
+        }
+    }, [flash, toast]);
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -43,6 +56,13 @@ export default function Authenticated({
                                     active={route().current('dashboard')}
                                 >
                                     Dashboard
+                                </NavLink>
+
+                                <NavLink
+                                    href={route('procurements.index')}
+                                    active={route().current('procurements.*')}
+                                >
+                                    Procurements
                                 </NavLink>
 
                                 {/* Administrator Only - Admin Dropdown */}
@@ -228,6 +248,13 @@ export default function Authenticated({
                             Dashboard
                         </ResponsiveNavLink>
 
+                        <ResponsiveNavLink
+                            href={route('procurements.index')}
+                            active={route().current('procurements.*')}
+                        >
+                            Procurements
+                        </ResponsiveNavLink>
+
                         {/* Administrator Only - Admin Menu */}
                         {hasRole('Administrator') && (
                             <>
@@ -306,6 +333,7 @@ export default function Authenticated({
             )}
 
             <main>{children}</main>
+            <Toaster />
         </div>
     );
 }

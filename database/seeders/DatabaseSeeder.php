@@ -28,6 +28,8 @@ class DatabaseSeeder extends Seeder
         // Seed users with different roles (depends on offices and roles)
         $this->call([
             UserSeeder::class,
+            ProcurementSeeder::class,
+            TransactionSeeder::class,
         ]);
     }
 }

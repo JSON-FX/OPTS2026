@@ -57,4 +57,9 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Office::class);
     }
+
+    public function procurements()
+    {
+        return $this->hasMany(Procurement::class, 'created_by_user_id');
+    }
 }

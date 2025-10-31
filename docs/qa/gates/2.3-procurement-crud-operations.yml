@@ -1,0 +1,39 @@
+# Quality Gate Decision
+# Story 2.3: Procurement CRUD Operations
+
+schema: 1
+story: '2.3'
+story_title: 'Procurement CRUD Operations'
+gate: PASS
+status_reason: 'Tooltip requirement met; locked selects now expose contextual guidance alongside banner messaging.'
+reviewer: 'Quinn (Test Architect & Quality Advisor)'
+updated: '2025-10-31T00:00:00Z'
+
+waiver: { active: false }
+
+top_issues: []
+
+quality_score: 92
+
+evidence:
+  tests_reviewed: 125
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+    ac_gaps: []
+
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 0
+    low: 0
+  recommendations:
+    must_fix: []
+    monitor: []
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Maintain contextual tooltips for other locked field scenarios to reinforce UX expectations.'
+      refs: ['resources/js/Pages/Procurements/Edit.tsx']

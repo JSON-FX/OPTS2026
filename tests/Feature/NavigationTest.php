@@ -143,4 +143,5 @@ class NavigationTest extends TestCase
         // Bell icon should be visible in the layout (Lucide React component)
         $response->assertSee('Dashboard');
     }
+
 }
