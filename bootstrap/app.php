@@ -23,5 +23,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->respond(function ($response, $exception, $request) {
+            if ($response->getStatusCode() === 403 && $request->header('X-Inertia')) {
+                return \Inertia\Inertia::render('Errors/403')
+                    ->toResponse($request)
+                    ->setStatusCode(403);
+            }
+
+            return $response;
+        });
     })->create();

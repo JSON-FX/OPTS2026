@@ -4,15 +4,26 @@ import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState } from 'react';
+import type { PageProps } from '@/types';
+import { Bell } from 'lucide-react';
 
 export default function Authenticated({
     header,
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
-    const user = usePage().props.auth.user;
+    const user = usePage<PageProps>().props.auth.user;
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
+
+    // Helper functions to check user roles
+    const hasRole = (roleName: string): boolean => {
+        return user.roles?.some(role => role.name === roleName) ?? false;
+    };
+
+    const hasAnyRole = (...roleNames: string[]): boolean => {
+        return user.roles?.some(role => roleNames.includes(role.name)) ?? false;
+    };
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -33,10 +44,75 @@ export default function Authenticated({
                                 >
                                     Dashboard
                                 </NavLink>
+
+                                {/* Administrator Only - Admin Dropdown */}
+                                {hasRole('Administrator') && (
+                                    <div className="relative flex items-center">
+                                        <Dropdown>
+                                            <Dropdown.Trigger>
+                                                <button
+                                                    type="button"
+                                                    className="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium leading-5 text-gray-500 transition duration-150 ease-in-out hover:border-gray-300 hover:text-gray-700 focus:border-gray-300 focus:text-gray-700 focus:outline-none"
+                                                >
+                                                    Admin
+                                                    <svg
+                                                        className="-me-0.5 ms-1 h-4 w-4"
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        viewBox="0 0 20 20"
+                                                        fill="currentColor"
+                                                    >
+                                                        <path
+                                                            fillRule="evenodd"
+                                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                            clipRule="evenodd"
+                                                        />
+                                                    </svg>
+                                                </button>
+                                            </Dropdown.Trigger>
+
+                                            <Dropdown.Content>
+                                                <Dropdown.Link href={route('admin.users.index')}>
+                                                    Users
+                                                </Dropdown.Link>
+
+                                                <div className="border-t border-gray-100" />
+
+                                                <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase">
+                                                    Repositories
+                                                </div>
+                                                <Dropdown.Link href={route('admin.repositories.offices.index')}>
+                                                    Offices
+                                                </Dropdown.Link>
+                                                <Dropdown.Link href={route('admin.repositories.suppliers.index')}>
+                                                    Suppliers
+                                                </Dropdown.Link>
+                                                <Dropdown.Link href={route('admin.repositories.particulars.index')}>
+                                                    Particulars
+                                                </Dropdown.Link>
+                                                <Dropdown.Link href={route('admin.repositories.fund-types.index')}>
+                                                    Fund Types
+                                                </Dropdown.Link>
+                                                <Dropdown.Link href={route('admin.repositories.action-taken.index')}>
+                                                    Action Taken
+                                                </Dropdown.Link>
+                                            </Dropdown.Content>
+                                        </Dropdown>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                         <div className="hidden sm:ms-6 sm:flex sm:items-center">
+                            {/* Notification Bell Icon Placeholder */}
+                            <button
+                                type="button"
+                                className="relative rounded-full p-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                            >
+                                <Bell className="h-6 w-6" />
+                                {/* Placeholder badge for unread notifications (Epic 4) */}
+                                <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+                            </button>
+
                             <div className="relative ms-3">
                                 <Dropdown>
                                     <Dropdown.Trigger>
@@ -64,6 +140,20 @@ export default function Authenticated({
                                     </Dropdown.Trigger>
 
                                     <Dropdown.Content>
+                                        <div className="px-4 py-2 border-b border-gray-100">
+                                            <div className="font-medium text-gray-800">{user.name}</div>
+                                            <div className="text-sm text-gray-500">{user.email}</div>
+                                            {user.roles && user.roles.length > 0 && (
+                                                <div className="text-sm text-gray-500">
+                                                    Role: {user.roles[0].name}
+                                                </div>
+                                            )}
+                                            {user.office && (
+                                                <div className="text-sm text-gray-500">
+                                                    Office: {user.office.name}
+                                                </div>
+                                            )}
+                                        </div>
                                         <Dropdown.Link
                                             href={route('profile.edit')}
                                         >
@@ -137,6 +227,38 @@ export default function Authenticated({
                         >
                             Dashboard
                         </ResponsiveNavLink>
+
+                        {/* Administrator Only - Admin Menu */}
+                        {hasRole('Administrator') && (
+                            <>
+                                <div className="border-t border-gray-200 pt-2">
+                                    <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase">
+                                        Admin
+                                    </div>
+                                    <ResponsiveNavLink href={route('admin.users.index')}>
+                                        Users
+                                    </ResponsiveNavLink>
+                                    <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase">
+                                        Repositories
+                                    </div>
+                                    <ResponsiveNavLink href={route('admin.repositories.offices.index')}>
+                                        Offices
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={route('admin.repositories.suppliers.index')}>
+                                        Suppliers
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={route('admin.repositories.particulars.index')}>
+                                        Particulars
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={route('admin.repositories.fund-types.index')}>
+                                        Fund Types
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={route('admin.repositories.action-taken.index')}>
+                                        Action Taken
+                                    </ResponsiveNavLink>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="border-t border-gray-200 pb-1 pt-4">
@@ -147,6 +269,16 @@ export default function Authenticated({
                             <div className="text-sm font-medium text-gray-500">
                                 {user.email}
                             </div>
+                            {user.roles && user.roles.length > 0 && (
+                                <div className="text-sm font-medium text-gray-500">
+                                    Role: {user.roles[0].name}
+                                </div>
+                            )}
+                            {user.office && (
+                                <div className="text-sm font-medium text-gray-500">
+                                    Office: {user.office.name}
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-3 space-y-1">
