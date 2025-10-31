@@ -4,11 +4,13 @@ import { Head } from '@inertiajs/react';
 import DeleteUserForm from './Partials/DeleteUserForm';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
+import { Office } from '@/types/models';
 
 export default function Edit({
     mustVerifyEmail,
     status,
-}: PageProps<{ mustVerifyEmail: boolean; status?: string }>) {
+    offices,
+}: PageProps<{ mustVerifyEmail: boolean; status?: string; offices: Office[] }>) {
     return (
         <AuthenticatedLayout
             header={
@@ -25,6 +27,7 @@ export default function Edit({
                         <UpdateProfileInformationForm
                             mustVerifyEmail={mustVerifyEmail}
                             status={status}
+                            offices={offices}
                             className="max-w-xl"
                         />
                     </div>

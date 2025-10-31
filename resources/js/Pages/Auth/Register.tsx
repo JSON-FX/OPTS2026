@@ -5,13 +5,15 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
+import { Office } from '@/types/models';
 
-export default function Register() {
+export default function Register({ offices }: { offices: Office[] }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         email: '',
         password: '',
         password_confirmation: '',
+        office_id: '',
     });
 
     const submit: FormEventHandler = (e) => {
@@ -101,6 +103,27 @@ export default function Register() {
                         message={errors.password_confirmation}
                         className="mt-2"
                     />
+                </div>
+
+                <div className="mt-4">
+                    <InputLabel htmlFor="office_id" value="Office (Optional)" />
+
+                    <select
+                        id="office_id"
+                        name="office_id"
+                        value={data.office_id}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        onChange={(e) => setData('office_id', e.target.value)}
+                    >
+                        <option value="">Select an office</option>
+                        {offices.map((office) => (
+                            <option key={office.id} value={office.id}>
+                                {office.name} ({office.abbreviation})
+                            </option>
+                        ))}
+                    </select>
+
+                    <InputError message={errors.office_id} className="mt-2" />
                 </div>
 
                 <div className="mt-4 flex items-center justify-end">

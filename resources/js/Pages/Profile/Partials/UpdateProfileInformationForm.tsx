@@ -5,14 +5,17 @@ import TextInput from '@/Components/TextInput';
 import { Transition } from '@headlessui/react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
+import { Office } from '@/types/models';
 
 export default function UpdateProfileInformation({
     mustVerifyEmail,
     status,
+    offices,
     className = '',
 }: {
     mustVerifyEmail: boolean;
     status?: string;
+    offices: Office[];
     className?: string;
 }) {
     const user = usePage().props.auth.user;
@@ -21,6 +24,7 @@ export default function UpdateProfileInformation({
         useForm({
             name: user.name,
             email: user.email,
+            office_id: user.office_id || '',
         });
 
     const submit: FormEventHandler = (e) => {
@@ -72,6 +76,27 @@ export default function UpdateProfileInformation({
                     />
 
                     <InputError className="mt-2" message={errors.email} />
+                </div>
+
+                <div>
+                    <InputLabel htmlFor="office_id" value="Office (Optional)" />
+
+                    <select
+                        id="office_id"
+                        name="office_id"
+                        value={data.office_id}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        onChange={(e) => setData('office_id', e.target.value)}
+                    >
+                        <option value="">Select an office</option>
+                        {offices.map((office) => (
+                            <option key={office.id} value={office.id}>
+                                {office.name} ({office.abbreviation})
+                            </option>
+                        ))}
+                    </select>
+
+                    <InputError className="mt-2" message={errors.office_id} />
                 </div>
 
                 {mustVerifyEmail && user.email_verified_at === null && (

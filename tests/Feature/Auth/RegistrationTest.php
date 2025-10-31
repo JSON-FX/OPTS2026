@@ -3,11 +3,20 @@
 namespace Tests\Feature\Auth;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Seed roles required for registration
+        Role::create(['name' => 'Viewer', 'guard_name' => 'web']);
+    }
 
     public function test_registration_screen_can_be_rendered(): void
     {
