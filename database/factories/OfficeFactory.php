@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Factories;
 
 use App\Models\Office;
@@ -15,7 +17,7 @@ class OfficeFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => $this->faker->unique()->company . ' Office',
+            'name' => $this->faker->unique()->company.' Office',
             'type' => $this->faker->randomElement(['Administrative', 'Executive', 'Financial']),
             'abbreviation' => strtoupper($this->faker->lexify('???')),
             'is_active' => true,

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -46,4 +48,3 @@ class PurchaseOrder extends Model
         return $this->belongsTo(Transaction::class);
     }
 }
-

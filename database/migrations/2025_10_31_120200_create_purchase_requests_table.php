@@ -18,15 +18,11 @@ return new class extends Migration
                 ->constrained('transactions')
                 ->unique()
                 ->restrictOnDelete();
-            $table->foreignId('supplier_id')
-                ->constrained('suppliers')
+            $table->foreignId('fund_type_id')
+                ->constrained('fund_types')
                 ->restrictOnDelete();
-            $table->text('purpose');
-            $table->decimal('estimated_budget', 15, 2)->unsigned();
-            $table->date('date_of_pr');
             $table->timestamps();
-
-            $table->unique('transaction_id');
+            $table->softDeletes();
         });
     }
 

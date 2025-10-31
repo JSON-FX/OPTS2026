@@ -42,6 +42,23 @@ export interface Supplier {
     deleted_at?: string;
 }
 
+/**
+ * Business rule validation response for procurement transaction dependencies.
+ * Used by frontend to check if transaction creation/deletion is allowed.
+ *
+ * @example
+ * ```ts
+ * const validation: BusinessRuleValidation = {
+ *   canProceed: false,
+ *   errorMessage: 'You must create a Purchase Request before adding a Purchase Order'
+ * };
+ * ```
+ */
+export interface BusinessRuleValidation {
+    canProceed: boolean;
+    errorMessage?: string;
+}
+
 export interface Particular {
     id: number;
     description: string;
@@ -128,12 +145,14 @@ export interface Procurement {
 
 /**
  * Story 2.1 - Base transaction record shared by PR/PO/VCH.
+ * Story 2.6 - Added is_continuation field for manual reference numbers.
  */
 export interface Transaction {
     id: number;
     procurement_id: number;
     category: TransactionCategory;
     reference_number: string;
+    is_continuation: boolean;
     status: TransactionStatus;
     workflow_id: number | null;
     current_office_id: number | null;
@@ -145,17 +164,17 @@ export interface Transaction {
 }
 
 /**
- * Story 2.1 - Purchase Request specific fields.
+ * Story 2.5 - Purchase Request specific fields.
+ * Extends Transaction via transaction_id FK.
  */
 export interface PurchaseRequest {
     id: number;
     transaction_id: number;
-    supplier_id: number;
-    purpose: string;
-    estimated_budget: number;
-    date_of_pr: string;
+    fund_type_id: number;
     created_at: string;
     updated_at: string;
+    transaction?: Transaction;
+    fund_type?: FundType;
 }
 
 /**

@@ -11,8 +11,8 @@ use Tests\TestCase;
 
 class StatusHistoryTablesTest extends TestCase
 {
-    use RefreshDatabase;
     use MigrationTestHelper;
+    use RefreshDatabase;
 
     public function test_procurement_status_history_table_structure(): void
     {
@@ -98,4 +98,3 @@ class StatusHistoryTablesTest extends TestCase
         $this->assertDatabaseMissing('transaction_status_history', ['id' => $historyId]);
     }
 }
-

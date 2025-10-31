@@ -22,9 +22,9 @@ class UpdateOfficeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255', 'unique:offices,name,' . $this->office?->id],
+            'name' => ['required', 'string', 'max:255', 'unique:offices,name,'.$this->office?->id],
             'type' => ['required', 'string', 'max:100'],
-            'abbreviation' => ['required', 'string', 'max:10', 'unique:offices,abbreviation,' . $this->office?->id],
+            'abbreviation' => ['required', 'string', 'max:10', 'unique:offices,abbreviation,'.$this->office?->id],
             'is_active' => ['boolean'],
         ];
     }

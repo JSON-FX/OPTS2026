@@ -57,4 +57,3 @@ class ReferenceSequencesTableTest extends TestCase
         ]);
     }
 }
-

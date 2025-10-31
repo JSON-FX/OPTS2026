@@ -1,40 +1,34 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PurchaseRequest extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     /**
      * @var list<string>
      */
     protected $fillable = [
         'transaction_id',
-        'supplier_id',
-        'purpose',
-        'estimated_budget',
-        'date_of_pr',
+        'fund_type_id',
     ];
-
-    /**
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'date_of_pr' => 'date',
-            'estimated_budget' => 'decimal:2',
-        ];
-    }
 
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
     }
-}
 
+    public function fundType(): BelongsTo
+    {
+        return $this->belongsTo(FundType::class);
+    }
+}

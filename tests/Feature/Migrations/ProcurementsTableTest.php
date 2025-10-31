@@ -11,8 +11,8 @@ use Tests\TestCase;
 
 class ProcurementsTableTest extends TestCase
 {
-    use RefreshDatabase;
     use MigrationTestHelper;
+    use RefreshDatabase;
 
     public function test_procurements_table_structure(): void
     {
@@ -65,4 +65,3 @@ class ProcurementsTableTest extends TestCase
         );
     }
 }
-

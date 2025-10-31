@@ -22,8 +22,8 @@ class UpdateFundTypeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255', 'unique:fund_types,name,' . $this->fundType?->id],
-            'abbreviation' => ['required', 'string', 'max:20', 'unique:fund_types,abbreviation,' . $this->fundType?->id],
+            'name' => ['required', 'string', 'max:255', 'unique:fund_types,name,'.$this->fundType?->id],
+            'abbreviation' => ['required', 'string', 'max:20', 'unique:fund_types,abbreviation,'.$this->fundType?->id],
             'is_active' => ['boolean'],
         ];
     }

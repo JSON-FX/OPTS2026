@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +16,9 @@ class Transaction extends Model
     use SoftDeletes;
 
     public const CATEGORY_PURCHASE_REQUEST = 'PR';
+
     public const CATEGORY_PURCHASE_ORDER = 'PO';
+
     public const CATEGORY_VOUCHER = 'VCH';
 
     /**
@@ -24,6 +28,7 @@ class Transaction extends Model
         'procurement_id',
         'category',
         'reference_number',
+        'is_continuation',
         'status',
         'workflow_id',
         'current_office_id',
@@ -61,5 +66,9 @@ class Transaction extends Model
     {
         return $this->hasOne(Voucher::class);
     }
-}
 
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+}

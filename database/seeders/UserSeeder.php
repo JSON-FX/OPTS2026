@@ -16,7 +16,7 @@ class UserSeeder extends Seeder
     {
         // Get first office for assignment (or create if none exist)
         $office = Office::first();
-        if (!$office) {
+        if (! $office) {
             $office = Office::create([
                 'name' => 'Main Office',
                 'abbreviation' => 'MAIN',

@@ -13,7 +13,7 @@ trait MigrationTestHelper
         $now = Carbon::now();
 
         return DB::table('offices')->insertGetId(array_merge([
-            'name' => $overrides['name'] ?? 'Office ' . Str::uuid(),
+            'name' => $overrides['name'] ?? 'Office '.Str::uuid(),
             'type' => $overrides['type'] ?? 'Administrative',
             'abbreviation' => $overrides['abbreviation'] ?? Str::upper(Str::random(6)),
             'is_active' => $overrides['is_active'] ?? true,
@@ -28,7 +28,7 @@ trait MigrationTestHelper
         $now = Carbon::now();
 
         return DB::table('particulars')->insertGetId(array_merge([
-            'description' => $overrides['description'] ?? 'Particular ' . Str::uuid(),
+            'description' => $overrides['description'] ?? 'Particular '.Str::uuid(),
             'is_active' => $overrides['is_active'] ?? true,
             'created_at' => $overrides['created_at'] ?? $now,
             'updated_at' => $overrides['updated_at'] ?? $now,
@@ -55,7 +55,7 @@ trait MigrationTestHelper
         $now = Carbon::now();
 
         return DB::table('suppliers')->insertGetId(array_merge([
-            'name' => $overrides['name'] ?? 'Supplier ' . Str::uuid(),
+            'name' => $overrides['name'] ?? 'Supplier '.Str::uuid(),
             'address' => $overrides['address'] ?? '123 Supplier Street',
             'contact_person' => $overrides['contact_person'] ?? null,
             'contact_number' => $overrides['contact_number'] ?? null,
@@ -72,8 +72,8 @@ trait MigrationTestHelper
         $officeId = $overrides['office_id'] ?? $this->createOffice();
 
         return DB::table('users')->insertGetId(array_merge([
-            'name' => $overrides['name'] ?? 'User ' . Str::uuid(),
-            'email' => $overrides['email'] ?? Str::slug('user-' . Str::uuid()) . '@example.com',
+            'name' => $overrides['name'] ?? 'User '.Str::uuid(),
+            'email' => $overrides['email'] ?? Str::slug('user-'.Str::uuid()).'@example.com',
             'email_verified_at' => $overrides['email_verified_at'] ?? $now,
             'password' => $overrides['password'] ?? bcrypt('password'),
             'office_id' => $officeId,

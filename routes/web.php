@@ -24,6 +24,40 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::resource('procurements', \App\Http\Controllers\ProcurementController::class);
+
+    // Purchase Request - view (all authenticated users)
+    Route::get('/purchase-requests/{id}', [\App\Http\Controllers\PurchaseRequestController::class, 'show'])
+        ->name('purchase-requests.show');
+
+    // Purchase Order - view (all authenticated users)
+    Route::get('/purchase-orders/{id}', [\App\Http\Controllers\PurchaseOrderController::class, 'show'])
+        ->name('purchase-orders.show');
+});
+
+Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
+    // Purchase Request - create/edit/delete (Endorser/Administrator only)
+    Route::get('/procurements/{procurement}/purchase-requests/create', [\App\Http\Controllers\PurchaseRequestController::class, 'create'])
+        ->name('procurements.purchase-requests.create');
+    Route::post('/procurements/{procurement}/purchase-requests', [\App\Http\Controllers\PurchaseRequestController::class, 'store'])
+        ->name('procurements.purchase-requests.store');
+    Route::get('/purchase-requests/{id}/edit', [\App\Http\Controllers\PurchaseRequestController::class, 'edit'])
+        ->name('purchase-requests.edit');
+    Route::put('/purchase-requests/{id}', [\App\Http\Controllers\PurchaseRequestController::class, 'update'])
+        ->name('purchase-requests.update');
+    Route::delete('/purchase-requests/{id}', [\App\Http\Controllers\PurchaseRequestController::class, 'destroy'])
+        ->name('purchase-requests.destroy');
+
+    // Purchase Order - create/edit/delete (Endorser/Administrator only)
+    Route::get('/procurements/{procurement}/purchase-orders/create', [\App\Http\Controllers\PurchaseOrderController::class, 'create'])
+        ->name('procurements.purchase-orders.create');
+    Route::post('/procurements/{procurement}/purchase-orders', [\App\Http\Controllers\PurchaseOrderController::class, 'store'])
+        ->name('procurements.purchase-orders.store');
+    Route::get('/purchase-orders/{id}/edit', [\App\Http\Controllers\PurchaseOrderController::class, 'edit'])
+        ->name('purchase-orders.edit');
+    Route::put('/purchase-orders/{id}', [\App\Http\Controllers\PurchaseOrderController::class, 'update'])
+        ->name('purchase-orders.update');
+    Route::delete('/purchase-orders/{id}', [\App\Http\Controllers\PurchaseOrderController::class, 'destroy'])
+        ->name('purchase-orders.destroy');
 });
 
 Route::middleware(['auth', 'role:Administrator'])->group(function () {

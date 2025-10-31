@@ -38,4 +38,3 @@ return new class extends Migration
         Schema::dropIfExists('procurement_status_history');
     }
 };
-

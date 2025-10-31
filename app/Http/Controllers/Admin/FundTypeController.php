@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreFundTypeRequest;
 use App\Http\Requests\UpdateFundTypeRequest;
 use App\Models\FundType;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Http\RedirectResponse;
 
 class FundTypeController extends Controller
 {

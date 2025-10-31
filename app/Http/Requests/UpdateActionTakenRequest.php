@@ -22,7 +22,7 @@ class UpdateActionTakenRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'description' => ['required', 'string', 'max:255', 'unique:action_taken,description,' . $this->actionTaken?->id],
+            'description' => ['required', 'string', 'max:255', 'unique:action_taken,description,'.$this->actionTaken?->id],
             'is_active' => ['boolean'],
         ];
     }

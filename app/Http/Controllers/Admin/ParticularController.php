@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreParticularRequest;
 use App\Http\Requests\UpdateParticularRequest;
 use App\Models\Particular;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Http\RedirectResponse;
 
 class ParticularController extends Controller
 {

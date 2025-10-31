@@ -110,4 +110,70 @@ class ReferenceNumberServiceTest extends TestCase
 
         $service->generateReferenceNumber('PR');
     }
+
+    public function test_validate_unique_reference_returns_true_for_available_reference(): void
+    {
+        $service = app(ReferenceNumberService::class);
+
+        $isUnique = $service->validateUniqueReference('PR-GAA-2025-10-001');
+
+        $this->assertTrue($isUnique);
+    }
+
+    public function test_validate_unique_reference_returns_false_for_existing_reference(): void
+    {
+        $procurement = \App\Models\Procurement::factory()->create();
+        $user = \App\Models\User::factory()->create();
+
+        \App\Models\Transaction::create([
+            'procurement_id' => $procurement->id,
+            'category' => 'PR',
+            'reference_number' => 'PR-GAA-2025-10-001',
+            'is_continuation' => false,
+            'status' => 'Created',
+            'created_by_user_id' => $user->id,
+        ]);
+
+        $service = app(ReferenceNumberService::class);
+
+        $isUnique = $service->validateUniqueReference('PR-GAA-2025-10-001');
+
+        $this->assertFalse($isUnique);
+    }
+
+    public function test_build_pr_reference_number_formats_correctly_without_continuation(): void
+    {
+        $service = app(ReferenceNumberService::class);
+
+        $result = $service->buildPRReferenceNumber('GAA', '2025', '10', '001', false);
+
+        $this->assertSame('PR-GAA-2025-10-001', $result);
+    }
+
+    public function test_build_pr_reference_number_formats_correctly_with_continuation(): void
+    {
+        $service = app(ReferenceNumberService::class);
+
+        $result = $service->buildPRReferenceNumber('SEF', '2024', '12', '9999', true);
+
+        $this->assertSame('CONT-PR-SEF-2024-12-9999', $result);
+    }
+
+    public function test_build_po_reference_number_formats_correctly_without_continuation(): void
+    {
+        $service = app(ReferenceNumberService::class);
+
+        $result = $service->buildPOReferenceNumber('2025', '10', '001', false);
+
+        $this->assertSame('PO-2025-10-001', $result);
+    }
+
+    public function test_build_po_reference_number_formats_correctly_with_continuation(): void
+    {
+        $service = app(ReferenceNumberService::class);
+
+        $result = $service->buildPOReferenceNumber('2024', '12', '9999', true);
+
+        $this->assertSame('CONT-PO-2024-12-9999', $result);
+    }
 }

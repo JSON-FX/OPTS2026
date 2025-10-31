@@ -27,6 +27,7 @@ interface Props extends PageProps {
     can: {
         manage: boolean;
     };
+    canCreatePR?: boolean;
 }
 
 const currencyFormatter = new Intl.NumberFormat('en-PH', {
@@ -35,7 +36,7 @@ const currencyFormatter = new Intl.NumberFormat('en-PH', {
     minimumFractionDigits: 2,
 });
 
-export default function Show({ auth, procurement, can }: Props) {
+export default function Show({ auth, procurement, can, canCreatePR }: Props) {
     return (
         <AuthenticatedLayout
             header={
@@ -115,18 +116,65 @@ export default function Show({ auth, procurement, can }: Props) {
 
                         <div className="border-b border-gray-200 p-6">
                             <h3 className="text-lg font-medium text-gray-900">Linked Transactions</h3>
-                            <div className="mt-4 space-y-3 text-sm text-gray-700">
-                                <div>
-                                    <span className="font-semibold">Purchase Request:</span>{' '}
-                                    {procurement.purchase_request ? 'Created' : 'Not yet created'}
+                            <div className="mt-4 space-y-4">
+                                {/* Purchase Request */}
+                                <div className="rounded-lg border border-gray-200 p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="font-semibold text-gray-900">Purchase Request:</span>
+                                            {procurement.purchase_request ? (
+                                                <div className="mt-2 space-y-1">
+                                                    <div>
+                                                        <Link
+                                                            href={route(
+                                                                'purchase-requests.show',
+                                                                procurement.purchase_request.id
+                                                            )}
+                                                            className="text-blue-600 hover:underline"
+                                                        >
+                                                            {procurement.purchase_request.transaction?.reference_number}
+                                                        </Link>
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        Fund Type:{' '}
+                                                        {procurement.purchase_request.fund_type?.name || 'N/A'}
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        Status: {procurement.purchase_request.transaction?.status}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-2 text-sm text-gray-500">Not yet created</div>
+                                            )}
+                                        </div>
+                                        {!procurement.purchase_request && canCreatePR && can.manage && (
+                                            <Link
+                                                href={route(
+                                                    'procurements.purchase-requests.create',
+                                                    procurement.id
+                                                )}
+                                                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                                            >
+                                                Add Purchase Request
+                                            </Link>
+                                        )}
+                                    </div>
                                 </div>
-                                <div>
-                                    <span className="font-semibold">Purchase Order:</span>{' '}
-                                    {procurement.purchase_order ? 'Created' : 'Not yet created'}
+
+                                {/* Purchase Order */}
+                                <div className="rounded-lg border border-gray-200 p-4 bg-gray-50">
+                                    <span className="font-semibold text-gray-900">Purchase Order:</span>
+                                    <div className="mt-2 text-sm text-gray-500">
+                                        {procurement.purchase_order ? 'Created' : 'Not yet created'}
+                                    </div>
                                 </div>
-                                <div>
-                                    <span className="font-semibold">Voucher:</span>{' '}
-                                    {procurement.voucher ? 'Created' : 'Not yet created'}
+
+                                {/* Voucher */}
+                                <div className="rounded-lg border border-gray-200 p-4 bg-gray-50">
+                                    <span className="font-semibold text-gray-900">Voucher:</span>
+                                    <div className="mt-2 text-sm text-gray-500">
+                                        {procurement.voucher ? 'Created' : 'Not yet created'}
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -11,8 +11,8 @@ use Tests\TestCase;
 
 class TypeSpecificTablesTest extends TestCase
 {
-    use RefreshDatabase;
     use MigrationTestHelper;
+    use RefreshDatabase;
 
     public function test_purchase_requests_table_structure_and_constraints(): void
     {

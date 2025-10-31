@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreProcurementRequest;
@@ -7,6 +9,7 @@ use App\Http\Requests\UpdateProcurementRequest;
 use App\Models\Office;
 use App\Models\Particular;
 use App\Models\Procurement;
+use App\Services\ProcurementBusinessRules;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,7 +17,7 @@ use Inertia\Response;
 
 class ProcurementController extends Controller
 {
-    public function __construct()
+    public function __construct(private readonly ProcurementBusinessRules $businessRules)
     {
         $this->middleware(['auth']);
         $this->middleware('role:Endorser|Administrator')->except(['index', 'show']);
@@ -127,7 +130,8 @@ class ProcurementController extends Controller
             'endUser:id,name,abbreviation',
             'particular:id,description',
             'creator:id,name',
-            'purchaseRequest',
+            'purchaseRequest.transaction',
+            'purchaseRequest.fundType',
             'purchaseOrder',
             'voucher',
             'statusHistory' => fn ($query) => $query->with('changedBy:id,name')->orderByDesc('created_at'),
@@ -138,6 +142,7 @@ class ProcurementController extends Controller
             'can' => [
                 'manage' => request()->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false,
             ],
+            'canCreatePR' => $this->businessRules->canCreatePR($procurement),
         ]);
     }
 

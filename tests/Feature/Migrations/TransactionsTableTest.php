@@ -12,8 +12,8 @@ use Tests\TestCase;
 
 class TransactionsTableTest extends TestCase
 {
-    use RefreshDatabase;
     use MigrationTestHelper;
+    use RefreshDatabase;
 
     public function test_transactions_table_structure_and_indexes(): void
     {
@@ -109,4 +109,3 @@ class TransactionsTableTest extends TestCase
         );
     }
 }
-

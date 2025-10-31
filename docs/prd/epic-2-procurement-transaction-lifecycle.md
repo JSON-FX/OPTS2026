@@ -2,7 +2,7 @@
 
 **Epic Goal:**
 
-Build the core domain models and user interfaces for creating and managing Procurements and their three dependent transactions (Purchase Request, Purchase Order, Voucher). Implement the reference number generation service with database-level uniqueness constraints and atomic sequence management, enforce business rule dependencies (PO requires existing PR, VCH requires existing PO), and provide CRUD operations with role-based access control. This epic delivers the complete procurement lifecycle tracking capability allowing Endorsers and Administrators to create procurements, add dependent transactions sequentially, view procurement and transaction details with progressive disclosure of linked data, and track basic status transitions (Created → In Progress → Completed). By epic completion, users can manage the full procurement record structure without workflow routing (workflow engine delivered in Epic 3).
+Build the core domain models and user interfaces for creating and managing Procurements and their three dependent transactions (Purchase Request, Purchase Order, Voucher). Implement manual reference number input with fund type and continuation tracking for PR/PO transactions, enforce database-level uniqueness constraints, enforce business rule dependencies (PO requires existing PR, VCH requires existing PO), and provide CRUD operations with role-based access control. This epic delivers the complete procurement lifecycle tracking capability allowing Endorsers and Administrators to create procurements with custom reference numbering schemes, add dependent transactions sequentially, view procurement and transaction details with progressive disclosure of linked data, and track basic status transitions (Created → In Progress → Completed). By epic completion, users can manage the full procurement record structure without workflow routing (workflow engine delivered in Epic 3).
 
 ## Story 2.1: Database Schema - Procurements & Transactions Tables
 
@@ -34,7 +34,7 @@ so that the data model supports the procurement lifecycle with proper relationsh
 - Separate type-specific tables (`purchase_requests`, `purchase_orders`, `vouchers`) have FK to `transactions.id` for additional fields
 - Laravel models: Transaction (base model), PurchaseRequest/PurchaseOrder/Voucher (extend Transaction with hasOne relationship to type-specific table)
 
-## Story 2.2: Reference Number Generation Service
+## Story 2.2: Reference Number Generation Service (Foundation)
 
 As a **Developer**,
 I want to implement a reference number generation service with atomic sequence management,
@@ -54,6 +54,8 @@ so that transactions have unique, sequential reference numbers by category and y
 10. Unit tests validate: sequential generation, year rollover, unique constraints, exception handling
 11. Integration test validates: 100 concurrent requests generate 100 unique reference numbers with no duplicates
 12. Service is injectable via Laravel service container (singleton binding)
+
+**Note:** This service is repurposed in Story 2.6 to support manual reference number input with validation instead of auto-generation for PR/PO transactions.
 
 ## Story 2.3: Procurement CRUD Operations
 
@@ -120,7 +122,7 @@ so that I can initiate the PR phase of the procurement lifecycle.
 4. From Procurement detail page (`/procurements/{id}`), "Add Purchase Request" button visible only if: (a) no PR exists yet AND (b) user is Endorser or Administrator
 5. Button uses business rule service: `ProcurementBusinessRules::canCreatePR()` to determine enabled state
 6. PR creation form at `/procurements/{id}/purchase-requests/create` displays: Procurement Summary section (read-only: ID, End User, Particular, Purpose, ABC Amount), Fund Type (dropdown from active fund_types, required), Workflow (dropdown from workflows filtered by category='PR', nullable for Epic 2, required in Epic 3)
-7. On PR form submission, system calls `ReferenceNumberService::generateReferenceNumber('PR')` to get unique reference number
+7. On PR form submission, system calls `ReferenceNumberService::generateReferenceNumber('PR')` to get unique reference number (Note: Story 2.6 replaces auto-generation with manual input)
 8. Transaction creation is atomic using database transaction: (a) Create Transaction record with procurement_id, category='PR', reference_number, status='Created', workflow_id (nullable), created_by_user_id, (b) Create PurchaseRequest record with transaction_id, fund_type_id, (c) Commit or rollback on any failure
 9. After successful PR creation, procurement status transitions to 'In Progress' if current status is 'Created' (automatic status update)
 10. User redirected to Procurement detail page (`/procurements/{id}`) showing newly created PR in Purchase Request section
@@ -135,7 +137,47 @@ so that I can initiate the PR phase of the procurement lifecycle.
 
 **Story Dependencies:** Requires Story 2.4 (Business Rules) to be completed first for validation service.
 
-## Story 2.6: Purchase Order (PO) Transaction Management
+## Story 2.6: Enhanced Reference Number with Manual Input & Continuation Flag
+
+As an **Endorser or Administrator**,
+I want to manually input reference numbers with fund type and continuation flags,
+so that I can maintain custom reference numbering schemes and track continuation transactions from previous years.
+
+**Acceptance Criteria:**
+
+1. PR reference number format changed from `PR-YYYY-NNNNNN` to `PR-{FundType}-{Year}-{Month}-{Number}` (e.g., `PR-GAA-2025-10-001`)
+2. PO reference number format changed from `PO-YYYY-NNNNNN` to `PO-{Year}-{Month}-{Number}` (e.g., `PO-2025-10-001`)
+3. Continuation PR format: `CONT-PR-{FundType}-{Year}-{Month}-{Number}` (e.g., `CONT-PR-GAA-2024-12-9999`)
+4. Continuation PO format: `CONT-PO-{Year}-{Month}-{Number}` (e.g., `CONT-PO-2024-12-9999`)
+5. PR creation form includes manual input fields: Year (4-digit text input), Month (2-digit text input), Number (text input)
+6. PR creation form includes checkbox: "☐ This is a continuation PR from a previous year" (unchecked by default)
+7. When continuation checkbox checked, system adds `CONT-` prefix to generated reference number
+8. PO creation form includes same manual input fields (Year, Month, Number) and continuation checkbox
+9. Reference number preview displayed in real-time as user types, showing full formatted reference (e.g., `PR-GAA-2025-10-001` or `CONT-PR-GAA-2024-12-9999`)
+10. Form validation: Year must be 4 digits (e.g., 2024, 2025); Month must be 01-12; Number is freeform text (user can enter 001, 9999, ABC, etc.)
+11. Uniqueness validation: Before creating transaction, system checks `transactions.reference_number` for exact match; if duplicate found, return 422 error: "Reference number {reference_number} already exists. Please enter a different number."
+12. Uniqueness is enforced across ALL transaction types (PR, PO, VCH) - a PO cannot use a reference number already used by a PR
+13. Database unique constraint on `transactions.reference_number` column prevents duplicates at database level
+14. `ReferenceNumberService` repurposed from auto-generator to validator: method `validateUniqueReference(string $referenceNumber): bool` checks if reference number is available
+15. `ReferenceNumberService` no longer generates reference numbers automatically for PR/PO; all reference number construction done in controllers using manual inputs (VCH may still use auto-generation)
+16. `reference_sequences` table no longer used for PR/PO creation; table retained for VCH and audit/historical purposes
+17. Transaction model adds field `is_continuation` (boolean, default false) to track continuation transactions
+18. Migration adds `is_continuation` column to `transactions` table
+19. PR/PO edit forms allow updating reference number components (Year, Month, Number, Continuation flag) with same validation rules
+20. Edit reference number validation: if new reference number differs from current, check uniqueness; if matches another transaction, show error
+21. PR/PO detail pages display full reference number prominently (e.g., `CONT-PR-GAA-2024-12-9999`) with continuation badge if applicable
+22. TypeScript interfaces updated: `Transaction` interface includes `is_continuation: boolean` field
+23. RBAC enforced: Only Endorser and Administrator can create/edit transactions with manual reference numbers; Viewer can view only
+24. Success/error toast notifications: "Purchase Request CONT-PR-GAA-2024-12-9999 created successfully", "Error: Reference number PR-GAA-2025-10-001 already exists"
+
+**Story Dependencies:** Requires Story 2.2 (Reference Number Service Foundation), Story 2.4 (Business Rules), Story 2.5 (PR Management).
+
+**Breaking Changes:**
+- Story 2.2's `generateReferenceNumber()` method repurposed for validation only
+- Existing PR/PO creation tests need updates to provide manual reference number inputs
+- `reference_sequences` table no longer used for PR/PO (VCH still uses it)
+
+## Story 2.7: Purchase Order (PO) Transaction Management
 
 As an **Endorser or Administrator**,
 I want to create and manage Purchase Order (PO) transactions linked to procurements,
@@ -148,24 +190,24 @@ so that I can record supplier contracts and advance procurement to PO phase.
 3. PurchaseOrder fillable fields: transaction_id, supplier_id, supplier_address, contract_price
 4. From Procurement detail page, "Add Purchase Order" button visible only if: (a) PR exists (b) no PO exists yet AND (c) user is Endorser or Administrator
 5. Button uses business rule service: `ProcurementBusinessRules::canCreatePO()` to determine enabled state; disabled with tooltip "Purchase Request required before creating Purchase Order" if PR missing
-6. PO creation form at `/procurements/{id}/purchase-orders/create` displays: Procurement Summary (read-only), PR Reference Number (read-only, clickable link), Supplier (dropdown from active suppliers, required, with search), Supplier Address (text field, auto-populated when supplier selected, read-only), Contract Price (currency input ₱#,###.##, required, min 0.01), Workflow (dropdown for category='PO', nullable)
+6. PO creation form at `/procurements/{id}/purchase-orders/create` displays: Procurement Summary (read-only), PR Reference Number (read-only, clickable link), Manual Reference Number fields (Year, Month, Number, Continuation checkbox per Story 2.6), Supplier (dropdown from active suppliers, required, with search), Supplier Address (text field, auto-populated when supplier selected, read-only), Contract Price (currency input ₱#,###.##, required, min 0.01), Workflow (dropdown for category='PO', nullable)
 7. Supplier dropdown triggers JavaScript to fetch supplier.address and populate Supplier Address field on selection change
-8. On PO form submission, system calls `ReferenceNumberService::generateReferenceNumber('PO')`
-9. Transaction creation atomic: (a) Create Transaction with category='PO', (b) Create PurchaseOrder with supplier_id, supplier_address (snapshot from supplier at creation time), contract_price
+8. On PO form submission, system builds reference number using manual inputs per Story 2.6 format: `PO-{Year}-{Month}-{Number}` or `CONT-PO-{Year}-{Month}-{Number}`
+9. Transaction creation atomic: (a) Create Transaction with category='PO', reference_number (built from manual input), is_continuation flag, (b) Create PurchaseOrder with supplier_id, supplier_address (snapshot from supplier at creation time), contract_price
 10. Supplier address is immutable snapshot: changes to supplier.address after PO creation do NOT update PO supplier_address (ensures audit trail integrity)
 11. After successful PO creation, procurement status remains 'In Progress' (or transitions from 'Created' if somehow still Created)
 12. User redirected to Procurement detail page showing both PR and PO sections populated
-13. PO can be edited via `/purchase-orders/{id}/edit` with fields: Supplier (can update, triggers address refresh), Contract Price (can update), Workflow
+13. PO can be edited via `/purchase-orders/{id}/edit` with fields: Reference Number components (Year, Month, Number, Continuation), Supplier (can update, triggers address refresh), Contract Price (can update), Workflow
 14. Edit validation: If supplier changed, supplier_address auto-updates to new supplier's current address with confirmation modal "Changing supplier will update address to: {new_address}. Continue?"
 15. PO soft delete validation: checks `canDeletePO()` business rule - fails with error if Voucher exists: "Cannot delete Purchase Order because Voucher {VCH-ref} exists. Delete the Voucher first."
-16. PO detail view at `/purchase-orders/{id}` displays: Reference Number, Supplier Name, Supplier Address (read-only), Contract Price (formatted ₱#,###.##), Status badge, Created By, Created Date, Related PR (clickable link), Related Procurement (clickable link)
+16. PO detail view at `/purchase-orders/{id}` displays: Reference Number (with continuation badge if applicable), Supplier Name, Supplier Address (read-only), Contract Price (formatted ₱#,###.##), Status badge, Created By, Created Date, Related PR (clickable link), Related Procurement (clickable link)
 17. RBAC enforced: Endorser and Administrator can create/edit PO; Viewer can view PO details (read-only)
 18. Currency formatting: Contract Price displays with PHP peso symbol (₱) prefix and thousand separators; input validation allows up to 2 decimal places
 19. TypeScript interface defined: `PurchaseOrder extends Transaction` with supplier_id, supplier_address, contract_price fields
 
-**Story Dependencies:** Requires Story 2.4 (Business Rules) and Story 2.5 (PR Management).
+**Story Dependencies:** Requires Story 2.4 (Business Rules), Story 2.5 (PR Management), Story 2.6 (Enhanced Reference Numbers).
 
-## Story 2.7: Voucher (VCH) Transaction Management
+## Story 2.8: Voucher (VCH) Transaction Management
 
 As an **Endorser or Administrator**,
 I want to create and manage Voucher (VCH) transactions linked to procurements,
@@ -191,9 +233,11 @@ so that I can record payment vouchers and complete the procurement lifecycle.
 16. Success/error toast notifications: "Voucher {reference_number} created successfully for Payee: {payee}"
 17. TypeScript interface defined: `Voucher extends Transaction` with payee field
 
-**Story Dependencies:** Requires Story 2.4 (Business Rules), Story 2.5 (PR), Story 2.6 (PO).
+**Story Dependencies:** Requires Story 2.4 (Business Rules), Story 2.5 (PR), Story 2.7 (PO).
 
-## Story 2.8: Procurement Detail View with Linked Transactions
+**Note:** VCH may continue to use auto-generated reference numbers from Story 2.2's `generateReferenceNumber('VCH')` method, or adopt manual input in a future iteration.
+
+## Story 2.9: Procurement Detail View with Linked Transactions
 
 As a **User**,
 I want to view procurement details with all linked transactions (PR, PO, VCH) in a single page,
@@ -218,7 +262,7 @@ so that I can understand the complete procurement lifecycle at a glance.
 15. Loading state: Skeleton components displayed while fetching procurement and transaction data (Shadcn/UI Skeleton)
 16. Status History section displays timeline of latest 5 status changes with "View All History" link to full history modal
 
-## Story 2.9: Transaction List & Search Functionality
+## Story 2.10: Transaction List & Search Functionality
 
 As a **User**,
 I want to view and search all transactions across procurements,
@@ -242,7 +286,7 @@ so that I can find specific PRs, POs, or VCHs quickly.
 14. TypeScript interfaces: `TransactionListItem` (flattened transaction with procurement fields), `TransactionSearchFilters` (filter form values)
 15. Mobile responsive: table scrolls horizontally on small screens, filters collapse into expandable panel, search bar stacks vertically
 
-## Story 2.10: Status Transition & History Tracking
+## Story 2.11: Status Transition & History Tracking
 
 As an **Endorser or Administrator**,
 I want to transition procurement and transaction statuses with reason tracking,

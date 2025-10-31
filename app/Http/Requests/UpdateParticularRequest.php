@@ -22,7 +22,7 @@ class UpdateParticularRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'description' => ['required', 'string', 'max:500', 'unique:particulars,description,' . $this->particular?->id],
+            'description' => ['required', 'string', 'max:500', 'unique:particulars,description,'.$this->particular?->id],
             'is_active' => ['boolean'],
         ];
     }

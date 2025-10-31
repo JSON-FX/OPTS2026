@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,9 +17,13 @@ class Procurement extends Model
     use SoftDeletes;
 
     public const STATUS_CREATED = 'Created';
+
     public const STATUS_IN_PROGRESS = 'In Progress';
+
     public const STATUS_COMPLETED = 'Completed';
+
     public const STATUS_ON_HOLD = 'On Hold';
+
     public const STATUS_CANCELLED = 'Cancelled';
 
     public const STATUSES = [
@@ -112,4 +118,3 @@ class Procurement extends Model
         return $this->transactions()->exists();
     }
 }
-

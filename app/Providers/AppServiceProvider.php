@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\Facades\Vite;
@@ -20,6 +21,8 @@ class AppServiceProvider extends ServiceProvider
 
             return new ReferenceNumberService($databaseManager->connection());
         });
+
+        $this->app->singleton(ProcurementBusinessRules::class);
     }
 
     /**

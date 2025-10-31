@@ -38,4 +38,3 @@ return new class extends Migration
         Schema::dropIfExists('transaction_status_history');
     }
 };
-

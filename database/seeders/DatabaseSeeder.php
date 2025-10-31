@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -29,7 +28,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             UserSeeder::class,
             ProcurementSeeder::class,
-            TransactionSeeder::class,
+            // TransactionSeeder::class, // Temporarily disabled until schema updated for Story 2.5
         ]);
     }
 }
