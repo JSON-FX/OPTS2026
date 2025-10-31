@@ -7,8 +7,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Create the vouchers table that records VCH-specific payment details linked
-     * one-to-one with the base transactions table.
+     * Story 2.8 - Create vouchers table with simplified schema.
+     * Only stores transaction FK and free-text payee field.
+     * Reference numbers are auto-generated (unlike PR/PO manual input).
      */
     public function up(): void
     {
@@ -16,18 +17,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('transaction_id')
                 ->constrained('transactions')
-                ->unique()
                 ->restrictOnDelete();
-            $table->foreignId('purchase_order_id')
-                ->constrained('purchase_orders')
-                ->restrictOnDelete();
-            $table->foreignId('supplier_id')
-                ->constrained('suppliers')
-                ->restrictOnDelete();
-            $table->string('obr_number', 50)->nullable();
-            $table->text('particulars');
-            $table->decimal('gross_amount', 15, 2)->unsigned();
+            $table->string('payee', 255);
             $table->timestamps();
+            $table->softDeletes();
 
             $table->unique('transaction_id');
         });

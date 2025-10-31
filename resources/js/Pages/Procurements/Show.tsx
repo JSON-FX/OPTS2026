@@ -28,6 +28,8 @@ interface Props extends PageProps {
         manage: boolean;
     };
     canCreatePR?: boolean;
+    canCreatePO?: boolean;
+    canCreateVCH?: boolean;
 }
 
 const currencyFormatter = new Intl.NumberFormat('en-PH', {
@@ -36,7 +38,7 @@ const currencyFormatter = new Intl.NumberFormat('en-PH', {
     minimumFractionDigits: 2,
 });
 
-export default function Show({ auth, procurement, can, canCreatePR }: Props) {
+export default function Show({ auth, procurement, can, canCreatePR, canCreatePO, canCreateVCH }: Props) {
     return (
         <AuthenticatedLayout
             header={
@@ -162,18 +164,120 @@ export default function Show({ auth, procurement, can, canCreatePR }: Props) {
                                 </div>
 
                                 {/* Purchase Order */}
-                                <div className="rounded-lg border border-gray-200 p-4 bg-gray-50">
-                                    <span className="font-semibold text-gray-900">Purchase Order:</span>
-                                    <div className="mt-2 text-sm text-gray-500">
-                                        {procurement.purchase_order ? 'Created' : 'Not yet created'}
+                                <div className="rounded-lg border border-gray-200 p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="font-semibold text-gray-900">Purchase Order:</span>
+                                            {procurement.purchase_order ? (
+                                                <div className="mt-2 space-y-1">
+                                                    <div>
+                                                        <Link
+                                                            href={route(
+                                                                'purchase-orders.show',
+                                                                procurement.purchase_order.id
+                                                            )}
+                                                            className="text-blue-600 hover:underline"
+                                                        >
+                                                            {procurement.purchase_order.transaction?.reference_number}
+                                                        </Link>
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        Supplier: {procurement.purchase_order.supplier?.name || 'N/A'}
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        Contract Price:{' '}
+                                                        {currencyFormatter.format(
+                                                            Number(procurement.purchase_order.contract_price)
+                                                        )}
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        Status: {procurement.purchase_order.transaction?.status}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-2 text-sm text-gray-500">Not yet created</div>
+                                            )}
+                                        </div>
+                                        {!procurement.purchase_order && can.manage && (
+                                            <div className="relative">
+                                                <Link
+                                                    href={route(
+                                                        'procurements.purchase-orders.create',
+                                                        procurement.id
+                                                    )}
+                                                    className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm ${
+                                                        canCreatePO
+                                                            ? 'bg-indigo-600 text-white hover:bg-indigo-500'
+                                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                    }`}
+                                                    onClick={(e) => {
+                                                        if (!canCreatePO) {
+                                                            e.preventDefault();
+                                                        }
+                                                    }}
+                                                    title={
+                                                        !canCreatePO
+                                                            ? 'Purchase Request required before creating Purchase Order'
+                                                            : ''
+                                                    }
+                                                >
+                                                    Add Purchase Order
+                                                </Link>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
                                 {/* Voucher */}
-                                <div className="rounded-lg border border-gray-200 p-4 bg-gray-50">
-                                    <span className="font-semibold text-gray-900">Voucher:</span>
-                                    <div className="mt-2 text-sm text-gray-500">
-                                        {procurement.voucher ? 'Created' : 'Not yet created'}
+                                <div className="rounded-lg border border-gray-200 p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="font-semibold text-gray-900">Voucher:</span>
+                                            {procurement.voucher ? (
+                                                <div className="mt-2 space-y-1">
+                                                    <div>
+                                                        <Link
+                                                            href={route('vouchers.show', procurement.voucher.id)}
+                                                            className="text-blue-600 hover:underline"
+                                                        >
+                                                            {procurement.voucher.transaction?.reference_number}
+                                                        </Link>
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        Payee: {procurement.voucher.payee}
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        Status: {procurement.voucher.transaction?.status}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-2 text-sm text-gray-500">Not yet created</div>
+                                            )}
+                                        </div>
+                                        {!procurement.voucher && can.manage && (
+                                            <div className="relative">
+                                                <Link
+                                                    href={route('procurements.vouchers.create', procurement.id)}
+                                                    className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm ${
+                                                        canCreateVCH
+                                                            ? 'bg-indigo-600 text-white hover:bg-indigo-500'
+                                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                    }`}
+                                                    onClick={(e) => {
+                                                        if (!canCreateVCH) {
+                                                            e.preventDefault();
+                                                        }
+                                                    }}
+                                                    title={
+                                                        !canCreateVCH
+                                                            ? 'Purchase Order required before creating Voucher'
+                                                            : ''
+                                                    }
+                                                >
+                                                    Add Voucher
+                                                </Link>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

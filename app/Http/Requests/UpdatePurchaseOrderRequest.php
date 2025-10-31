@@ -17,7 +17,8 @@ class UpdatePurchaseOrderRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
+     * Story 2.7 AC#13-14 - Validation for PO update with supplier change support.
+     * Note: supplier_address is auto-updated from supplier model if supplier changes.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
@@ -27,9 +28,8 @@ class UpdatePurchaseOrderRequest extends FormRequest
         $transactionId = $purchaseOrder->transaction_id;
 
         return [
-            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
-            'supplier_address' => ['required', 'string', 'max:1000'],
-            'contract_price' => ['required', 'numeric', 'min:0.01', 'max:999999999999.99'],
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id,deleted_at,NULL'],
+            'contract_price' => ['required', 'numeric', 'min:0.01', 'max:999999999999.99', 'decimal:0,2'],
             'ref_year' => 'required|digits:4|integer|min:2000|max:9999',
             'ref_month' => 'required|digits:2|integer|min:1|max:12',
             'ref_number' => [

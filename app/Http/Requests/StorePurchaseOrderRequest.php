@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Rules\RequiresPurchaseRequest;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StorePurchaseOrderRequest extends FormRequest
@@ -18,17 +17,16 @@ class StorePurchaseOrderRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
+     * Story 2.7 AC#6,8,18 - Validation for manual reference numbers and contract price.
+     * Note: Procurement comes from route binding, supplier_address is fetched from supplier model.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'procurement_id' => ['required', 'integer', 'exists:procurements,id', app(RequiresPurchaseRequest::class)],
-            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
-            'supplier_address' => ['required', 'string', 'max:1000'],
-            'contract_price' => ['required', 'numeric', 'min:0.01', 'max:999999999999.99'],
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id,deleted_at,NULL'],
+            'contract_price' => ['required', 'numeric', 'min:0.01', 'max:999999999999.99', 'decimal:0,2'],
             'ref_year' => 'required|digits:4|integer|min:2000|max:9999',
             'ref_month' => 'required|digits:2|integer|min:1|max:12',
             'ref_number' => [

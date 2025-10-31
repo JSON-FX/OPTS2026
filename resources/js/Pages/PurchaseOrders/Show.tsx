@@ -23,14 +23,35 @@ interface Transaction {
 interface PurchaseOrder {
     id: number;
     transaction: Transaction;
+    supplier?: {
+        id: number;
+        name: string;
+    };
+    supplier_address: string;
+    contract_price: number;
+}
+
+interface PurchaseRequest {
+    id: number;
+    transaction?: {
+        id: number;
+        reference_number: string;
+    };
 }
 
 interface Props {
     purchaseOrder: PurchaseOrder;
+    purchaseRequest?: PurchaseRequest;
     canEdit: boolean;
 }
 
-export default function Show({ purchaseOrder, canEdit }: Props) {
+export default function Show({ purchaseOrder, purchaseRequest, canEdit }: Props) {
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: 'PHP',
+        }).format(amount);
+    };
     const handleDelete = () => {
         if (confirm('Deleting this Purchase Order will prevent Voucher creation. This action will be logged. Continue?')) {
             router.delete(route('purchase-orders.destroy', purchaseOrder.id));
@@ -77,6 +98,55 @@ export default function Show({ purchaseOrder, canEdit }: Props) {
                         </div>
                     </div>
 
+                    {/* Purchase Order Details */}
+                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                        <div className="p-6 border-b border-gray-200">
+                            <h3 className="text-lg font-medium">Purchase Order Details</h3>
+                        </div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-2 gap-6">
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">Supplier</p>
+                                    <p className="font-medium text-lg">{purchaseOrder.supplier?.name || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">Contract Price</p>
+                                    <p className="font-medium text-lg text-green-600">
+                                        {formatCurrency(purchaseOrder.contract_price)}
+                                    </p>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-sm text-gray-600 mb-1">Supplier Address (Snapshot)</p>
+                                    <p className="font-medium">{purchaseOrder.supplier_address}</p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        This is a snapshot of the supplier's address at the time of PO creation
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Related Purchase Request */}
+                    {purchaseRequest && (
+                        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                            <div className="p-6 border-b border-gray-200">
+                                <h3 className="text-lg font-medium">Related Purchase Request</h3>
+                            </div>
+                            <div className="p-6">
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">PR Reference Number</p>
+                                    <Link
+                                        href={route('purchase-requests.show', purchaseRequest.id)}
+                                        className="text-blue-600 hover:underline font-medium text-lg"
+                                    >
+                                        {purchaseRequest.transaction?.reference_number || 'N/A'}
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Procurement Details */}
                     {purchaseOrder.transaction.procurement && (
                         <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                             <div className="p-6 border-b border-gray-200">

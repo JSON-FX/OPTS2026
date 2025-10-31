@@ -161,6 +161,10 @@ export interface Transaction {
     created_at: string;
     updated_at: string;
     deleted_at: string | null;
+
+    // Relationships
+    procurement?: Procurement;
+    created_by?: User;
 }
 
 /**
@@ -180,38 +184,35 @@ export interface PurchaseRequest {
 /**
  * Story 2.1 - Purchase Order specific fields.
  */
+/**
+ * Story 2.6/2.7 - Purchase Order transaction with manual reference numbers.
+ */
 export interface PurchaseOrder {
     id: number;
     transaction_id: number;
     supplier_id: number;
-    supplier_address: string;
-    purchase_request_id: number;
-    particulars: string;
-    fund_type_id: number;
-    total_cost: number;
-    date_of_po: string;
-    delivery_date: string | null;
-    delivery_term: number | null;
-    payment_term: number | null;
-    amount_in_words: string;
-    mode_of_procurement: string;
+    supplier_address: string; // Snapshot, immutable after creation
+    contract_price: number;
     created_at: string;
     updated_at: string;
+
+    // Relationships
+    transaction?: Transaction;
+    supplier?: Supplier;
 }
 
 /**
- * Story 2.1 - Voucher specific fields.
+ * Story 2.8 - Voucher transaction with auto-generated reference numbers.
  */
 export interface Voucher {
     id: number;
     transaction_id: number;
-    purchase_order_id: number;
-    supplier_id: number;
-    obr_number: string | null;
-    particulars: string;
-    gross_amount: number;
+    payee: string; // Free-text field, max 255 chars
     created_at: string;
     updated_at: string;
+
+    // Relationships
+    transaction?: Transaction;
 }
 
 /**

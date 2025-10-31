@@ -32,6 +32,10 @@ Route::middleware('auth')->group(function () {
     // Purchase Order - view (all authenticated users)
     Route::get('/purchase-orders/{id}', [\App\Http\Controllers\PurchaseOrderController::class, 'show'])
         ->name('purchase-orders.show');
+
+    // Voucher - view (all authenticated users)
+    Route::get('/vouchers/{id}', [\App\Http\Controllers\VoucherController::class, 'show'])
+        ->name('vouchers.show');
 });
 
 Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
@@ -58,6 +62,18 @@ Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
         ->name('purchase-orders.update');
     Route::delete('/purchase-orders/{id}', [\App\Http\Controllers\PurchaseOrderController::class, 'destroy'])
         ->name('purchase-orders.destroy');
+
+    // Voucher - create/edit/delete (Endorser/Administrator only)
+    Route::get('/procurements/{procurement}/vouchers/create', [\App\Http\Controllers\VoucherController::class, 'create'])
+        ->name('procurements.vouchers.create');
+    Route::post('/procurements/{procurement}/vouchers', [\App\Http\Controllers\VoucherController::class, 'store'])
+        ->name('procurements.vouchers.store');
+    Route::get('/vouchers/{id}/edit', [\App\Http\Controllers\VoucherController::class, 'edit'])
+        ->name('vouchers.edit');
+    Route::put('/vouchers/{id}', [\App\Http\Controllers\VoucherController::class, 'update'])
+        ->name('vouchers.update');
+    Route::delete('/vouchers/{id}', [\App\Http\Controllers\VoucherController::class, 'destroy'])
+        ->name('vouchers.destroy');
 });
 
 Route::middleware(['auth', 'role:Administrator'])->group(function () {

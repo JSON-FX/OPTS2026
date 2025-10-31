@@ -132,8 +132,9 @@ class ProcurementController extends Controller
             'creator:id,name',
             'purchaseRequest.transaction',
             'purchaseRequest.fundType',
-            'purchaseOrder',
-            'voucher',
+            'purchaseOrder.transaction',
+            'purchaseOrder.supplier:id,name',
+            'voucher.transaction',
             'statusHistory' => fn ($query) => $query->with('changedBy:id,name')->orderByDesc('created_at'),
         ])->loadCount('transactions');
 
@@ -143,6 +144,8 @@ class ProcurementController extends Controller
                 'manage' => request()->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false,
             ],
             'canCreatePR' => $this->businessRules->canCreatePR($procurement),
+            'canCreatePO' => $this->businessRules->canCreatePO($procurement),
+            'canCreateVCH' => $this->businessRules->canCreateVCH($procurement),
         ]);
     }
 

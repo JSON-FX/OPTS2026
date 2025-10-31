@@ -43,7 +43,7 @@ so that transactions have unique, sequential reference numbers by category and y
 **Acceptance Criteria:**
 
 1. Service class created: `app/Services/ReferenceNumberService.php`
-2. Method `generateReferenceNumber(category: string): string` generates reference numbers in format: `{CATEGORY}-{YYYY}-{NNNNNN}` (e.g., PR-2025-000001, PO-2025-000042, VCH-2025-000123)
+2. Method `generateReferenceNumber(category: string): string` generates reference numbers in format: `{CATEGORY}-{YYYY}-{NNNNNN}` (e.g., VCH-2025-000123). Note: After Story 2.6, this method is repurposed for validation only; PR/PO/VCH all use manual input.
 3. Sequence counter resets to 000001 at start of each calendar year per category
 4. Service uses `reference_sequences` table (created in Story 2.1) with database transaction and row-level locking (`lockForUpdate()`) to ensure atomicity
 5. Concurrent request handling: multiple simultaneous requests for same category/year generate different sequential numbers without collision
@@ -159,7 +159,7 @@ so that I can maintain custom reference numbering schemes and track continuation
 12. Uniqueness is enforced across ALL transaction types (PR, PO, VCH) - a PO cannot use a reference number already used by a PR
 13. Database unique constraint on `transactions.reference_number` column prevents duplicates at database level
 14. `ReferenceNumberService` repurposed from auto-generator to validator: method `validateUniqueReference(string $referenceNumber): bool` checks if reference number is available
-15. `ReferenceNumberService` no longer generates reference numbers automatically for PR/PO; all reference number construction done in controllers using manual inputs (VCH may still use auto-generation)
+15. `ReferenceNumberService` no longer generates reference numbers automatically for PR/PO/VCH; all reference number construction done in controllers using manual inputs per brief.md requirements
 16. `reference_sequences` table no longer used for PR/PO creation; table retained for VCH and audit/historical purposes
 17. Transaction model adds field `is_continuation` (boolean, default false) to track continuation transactions
 18. Migration adds `is_continuation` column to `transactions` table
@@ -220,13 +220,13 @@ so that I can record payment vouchers and complete the procurement lifecycle.
 3. Voucher fillable fields: transaction_id, payee
 4. From Procurement detail page, "Add Voucher" button visible only if: (a) PO exists (b) no VCH exists yet AND (c) user is Endorser or Administrator
 5. Button uses business rule service: `ProcurementBusinessRules::canCreateVCH()`; disabled with tooltip "Purchase Order required before creating Voucher" if PO missing
-6. VCH creation form at `/procurements/{id}/vouchers/create` displays: Procurement Summary (read-only), PR Reference Number (read-only link), PO Reference Number (read-only link), Payee (text input, required, max 255 chars), Workflow (dropdown for category='VCH', nullable)
+6. VCH creation form at `/procurements/{id}/vouchers/create` displays: Procurement Summary (read-only), PR Reference Number (read-only link), PO Reference Number (read-only link), Reference Number (text input, required, max 50 chars, free-text format per brief.md), Payee (text input, required, max 255 chars), Workflow (dropdown for category='VCH', nullable)
 7. Payee field is free-text input; no validation against PO supplier name (allows flexibility for payment recipient different from supplier, e.g., third-party payment processors)
-8. On VCH form submission, system calls `ReferenceNumberService::generateReferenceNumber('VCH')`
+8. On VCH form submission, system validates reference number uniqueness via `ReferenceNumberService::validateUniqueReference($referenceNumber)` (manual input, free-text format per brief.md allowing admin-defined yearly patterns)
 9. Transaction creation atomic: (a) Create Transaction with category='VCH', (b) Create Voucher with payee
 10. After successful VCH creation, procurement status remains 'In Progress' (status transitions to Completed handled manually in Story 2.9)
 11. User redirected to Procurement detail page showing PR, PO, and VCH sections all populated
-12. VCH can be edited via `/vouchers/{id}/edit` with fields: Payee (can update), Workflow
+12. VCH can be edited via `/vouchers/{id}/edit` with fields: Reference Number (can update, validated for uniqueness), Payee (can update), Workflow
 13. VCH soft delete: Delete button available but shows strong warning modal "Deleting vouchers may violate audit trail requirements. Are you sure? This action creates a deletion record." Soft delete only, never hard delete.
 14. VCH detail view at `/vouchers/{id}` displays: Reference Number, Payee, Status badge, Created By, Created Date, Related PO (link), Related PR (link), Related Procurement (link)
 15. RBAC enforced: Endorser and Administrator can create/edit VCH; Viewer can view VCH details (read-only)
@@ -235,7 +235,7 @@ so that I can record payment vouchers and complete the procurement lifecycle.
 
 **Story Dependencies:** Requires Story 2.4 (Business Rules), Story 2.5 (PR), Story 2.7 (PO).
 
-**Note:** VCH may continue to use auto-generated reference numbers from Story 2.2's `generateReferenceNumber('VCH')` method, or adopt manual input in a future iteration.
+**Note:** VCH uses free-text manual input per brief.md Section 7 requirements ("VCH: free text (admin-defined yearly patterns allowed)"), aligning with PR/PO manual input pattern from Story 2.6.
 
 ## Story 2.9: Procurement Detail View with Linked Transactions
 

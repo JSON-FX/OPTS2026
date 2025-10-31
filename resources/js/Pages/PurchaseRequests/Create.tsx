@@ -15,7 +15,7 @@ interface FundType {
 interface Procurement {
     id: number;
     end_user?: { name: string };
-    particular?: { name: string };
+    particular?: { description: string };
     purpose: string;
     abc_amount: number;
 }
@@ -92,13 +92,19 @@ export default function Create({ procurement, fundTypes }: Props) {
                         </div>
                         <div className="p-6 space-y-2">
                             <div>
-                                <span className="font-semibold">Procurement ID:</span> #{procurement.id}
+                                <span className="font-semibold">Procurement ID:</span>{' '}
+                                <Link
+                                    href={route('procurements.show', procurement.id)}
+                                    className="text-indigo-600 hover:text-indigo-900"
+                                >
+                                    #{procurement.id}
+                                </Link>
                             </div>
                             <div>
                                 <span className="font-semibold">End User:</span> {procurement.end_user?.name || 'N/A'}
                             </div>
                             <div>
-                                <span className="font-semibold">Particular:</span> {procurement.particular?.name || 'N/A'}
+                                <span className="font-semibold">Particular:</span> {procurement.particular?.description || 'N/A'}
                             </div>
                             <div>
                                 <span className="font-semibold">Purpose:</span> {procurement.purpose}

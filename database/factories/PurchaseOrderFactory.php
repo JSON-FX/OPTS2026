@@ -16,6 +16,8 @@ class PurchaseOrderFactory extends Factory
     protected $model = PurchaseOrder::class;
 
     /**
+     * Story 2.6/2.7 - Purchase Order with manual reference numbers and supplier address snapshot.
+     *
      * @return array<string, mixed>
      */
     public function definition(): array
@@ -24,16 +26,7 @@ class PurchaseOrderFactory extends Factory
             'transaction_id' => Transaction::factory(),
             'supplier_id' => \App\Models\Supplier::factory(),
             'supplier_address' => fake()->address(),
-            'purchase_request_id' => \App\Models\PurchaseRequest::factory(),
-            'particulars' => fake()->sentence(),
-            'fund_type_id' => \App\Models\FundType::factory(),
-            'total_cost' => fake()->randomFloat(2, 1000, 100000),
-            'date_of_po' => fake()->date(),
-            'delivery_date' => fake()->optional()->date(),
-            'delivery_term' => fake()->optional()->numberBetween(1, 90),
-            'payment_term' => fake()->optional()->numberBetween(1, 90),
-            'amount_in_words' => fake()->words(5, true),
-            'mode_of_procurement' => fake()->randomElement(['Public Bidding', 'Shopping', 'Direct Contracting']),
+            'contract_price' => fake()->randomFloat(2, 1000, 100000),
         ];
     }
 }

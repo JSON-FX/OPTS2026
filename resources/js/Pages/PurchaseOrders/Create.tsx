@@ -9,29 +9,36 @@ import PrimaryButton from '@/Components/PrimaryButton';
 interface Procurement {
     id: number;
     purpose: string;
+    abc_amount: number;
     end_user?: { name: string };
-    particular?: { name: string };
+    particular?: { description: string };
+}
+
+interface PurchaseRequest {
+    id: number;
+    transaction?: {
+        id: number;
+        reference_number: string;
+    };
+}
+
+interface Supplier {
+    id: number;
+    name: string;
+    address: string;
 }
 
 interface Props {
     procurement: Procurement;
+    purchaseRequest?: PurchaseRequest;
+    suppliers: Supplier[];
 }
 
-export default function Create({ procurement }: Props) {
+export default function Create({ procurement, purchaseRequest, suppliers }: Props) {
     const currentDate = new Date();
     const { data, setData, post, processing, errors } = useForm({
         supplier_id: '',
-        supplier_address: '',
-        purchase_request_id: '',
-        particulars: '',
-        fund_type_id: '',
-        total_cost: '',
-        date_of_po: '',
-        delivery_date: '',
-        delivery_term: '',
-        payment_term: '',
-        amount_in_words: '',
-        mode_of_procurement: '',
+        contract_price: '',
         is_continuation: false,
         ref_year: currentDate.getFullYear().toString(),
         ref_month: String(currentDate.getMonth() + 1).padStart(2, '0'),
@@ -42,6 +49,13 @@ export default function Create({ procurement }: Props) {
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('procurements.purchase-orders.store', procurement.id));
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: 'PHP',
+        }).format(amount);
     };
 
     const formatReferencePreview = () => {
@@ -83,22 +97,52 @@ export default function Create({ procurement }: Props) {
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                         <div className="p-6 border-b border-gray-200">
                             <h3 className="text-lg font-medium">Procurement Summary</h3>
+                            <p className="text-sm text-gray-600">Read-only procurement information</p>
                         </div>
                         <div className="p-6 space-y-2">
                             <div>
-                                <span className="font-semibold">Procurement ID:</span> #{procurement.id}
+                                <span className="font-semibold">Procurement ID:</span>{' '}
+                                <Link
+                                    href={route('procurements.show', procurement.id)}
+                                    className="text-indigo-600 hover:text-indigo-900"
+                                >
+                                    #{procurement.id}
+                                </Link>
                             </div>
                             <div>
                                 <span className="font-semibold">End User:</span> {procurement.end_user?.name || 'N/A'}
                             </div>
                             <div>
-                                <span className="font-semibold">Particular:</span> {procurement.particular?.name || 'N/A'}
+                                <span className="font-semibold">Particular:</span> {procurement.particular?.description || 'N/A'}
                             </div>
                             <div>
                                 <span className="font-semibold">Purpose:</span> {procurement.purpose}
                             </div>
+                            <div>
+                                <span className="font-semibold">ABC Amount:</span> {formatCurrency(procurement.abc_amount)}
+                            </div>
                         </div>
                     </div>
+
+                    {/* Purchase Request Details */}
+                    {purchaseRequest && (
+                        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                            <div className="p-6 border-b border-gray-200">
+                                <h3 className="text-lg font-medium">Related Purchase Request</h3>
+                            </div>
+                            <div className="p-6 space-y-2">
+                                <div>
+                                    <span className="font-semibold">PR Reference Number:</span>{' '}
+                                    <Link
+                                        href={route('purchase-requests.show', purchaseRequest.id)}
+                                        className="text-indigo-600 hover:text-indigo-900"
+                                    >
+                                        {purchaseRequest.transaction?.reference_number || 'N/A'}
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* PO Form */}
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
@@ -107,6 +151,41 @@ export default function Create({ procurement }: Props) {
                         </div>
                         <div className="p-6">
                             <form onSubmit={submit} className="space-y-6">
+                                <div>
+                                    <InputLabel htmlFor="supplier_id" value="Supplier *" />
+                                    <select
+                                        id="supplier_id"
+                                        value={data.supplier_id}
+                                        onChange={(e) => setData('supplier_id', e.target.value)}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        required
+                                    >
+                                        <option value="">Select a supplier</option>
+                                        {suppliers.map((supplier) => (
+                                            <option key={supplier.id} value={supplier.id}>
+                                                {supplier.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <InputError message={errors.supplier_id} className="mt-2" />
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="contract_price" value="Contract Price *" />
+                                    <TextInput
+                                        id="contract_price"
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        value={data.contract_price}
+                                        onChange={(e) => setData('contract_price', e.target.value)}
+                                        className="mt-1 block w-full"
+                                        placeholder="0.00"
+                                        required
+                                    />
+                                    <InputError message={errors.contract_price} className="mt-2" />
+                                </div>
+
                                 <div className="space-y-4">
                                     <div className="flex items-center">
                                         <input

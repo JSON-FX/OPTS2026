@@ -1,0 +1,1 @@
+- for BMAD Dev Agent, always update the story tasks and status "Ready for review" if all tasks is completed. Otherwise "In Progress" if not completed or some of the task are completed.
