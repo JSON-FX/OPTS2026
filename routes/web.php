@@ -25,6 +25,10 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('procurements', \App\Http\Controllers\ProcurementController::class);
 
+    // Transactions - view all (all authenticated users)
+    Route::get('/transactions', [\App\Http\Controllers\TransactionController::class, 'index'])
+        ->name('transactions.index');
+
     // Purchase Request - view (all authenticated users)
     Route::get('/purchase-requests/{id}', [\App\Http\Controllers\PurchaseRequestController::class, 'show'])
         ->name('purchase-requests.show');

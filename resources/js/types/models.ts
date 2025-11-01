@@ -254,3 +254,33 @@ export interface ReferenceSequence {
 export type ProcurementFormFields = 'end_user_id' | 'particular_id' | 'purpose' | 'abc_amount' | 'date_of_entry';
 
 export type ProcurementFormData = Record<ProcurementFormFields, string>;
+
+/**
+ * Story 2.10 - Flattened transaction list item combining transaction + procurement fields.
+ */
+export interface TransactionListItem {
+    id: number;
+    reference_number: string;
+    category: TransactionCategory;
+    status: TransactionStatus;
+    procurement_id: number;
+    procurement_end_user_name: string;
+    procurement_purpose: string;
+    created_by_name: string;
+    created_at: string;
+}
+
+/**
+ * Story 2.10 - Transaction search filter form values.
+ */
+export interface TransactionSearchFilters {
+    reference_number?: string;
+    category?: TransactionCategory | '';
+    status?: TransactionStatus | '';
+    date_from?: string;
+    date_to?: string;
+    end_user_id?: number | '';
+    created_by_me?: boolean;
+    sort_by?: string;
+    sort_direction?: 'asc' | 'desc';
+}

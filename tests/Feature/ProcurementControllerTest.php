@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\FundType;
 use App\Models\Office;
 use App\Models\Particular;
 use App\Models\Procurement;
+use App\Models\ProcurementStatusHistory;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequest;
+use App\Models\Supplier;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\Voucher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -138,5 +144,153 @@ class ProcurementControllerTest extends TestCase
 
         $response->assertRedirect(route('procurements.index'));
         $this->assertSoftDeleted('procurements', ['id' => $procurement->id]);
+    }
+
+    /** Story 2.9 - Procurement Detail View Tests */
+    public function test_procurement_show_page_displays_complete_information(): void
+    {
+        $endorser = User::factory()->create();
+        $endorser->assignRole('Endorser');
+
+        $procurement = Procurement::factory()->create([
+            'created_by_user_id' => $endorser->id,
+        ]);
+
+        // Create full procurement chain: PR -> PO -> VCH
+        $fundType = FundType::factory()->create();
+        $supplier = Supplier::factory()->create();
+
+        $prTransaction = Transaction::factory()->create([
+            'procurement_id' => $procurement->id,
+            'category' => Transaction::CATEGORY_PURCHASE_REQUEST,
+            'reference_number' => 'PR-GAA-2025-10-001',
+            'status' => 'In Progress',
+            'created_by_user_id' => $endorser->id,
+        ]);
+        PurchaseRequest::factory()->create([
+            'transaction_id' => $prTransaction->id,
+            'fund_type_id' => $fundType->id,
+        ]);
+
+        $poTransaction = Transaction::factory()->create([
+            'procurement_id' => $procurement->id,
+            'category' => Transaction::CATEGORY_PURCHASE_ORDER,
+            'reference_number' => 'PO-2025-10-001',
+            'status' => 'In Progress',
+            'created_by_user_id' => $endorser->id,
+        ]);
+        PurchaseOrder::factory()->create([
+            'transaction_id' => $poTransaction->id,
+            'supplier_id' => $supplier->id,
+            'supplier_address' => $supplier->address,
+            'contract_price' => 100000.00,
+        ]);
+
+        $vchTransaction = Transaction::factory()->create([
+            'procurement_id' => $procurement->id,
+            'category' => Transaction::CATEGORY_VOUCHER,
+            'reference_number' => 'VCH-2025-001',
+            'status' => 'Completed',
+            'created_by_user_id' => $endorser->id,
+        ]);
+        Voucher::factory()->create([
+            'transaction_id' => $vchTransaction->id,
+            'payee' => 'Acme Corp',
+        ]);
+
+        // Create status history
+        ProcurementStatusHistory::create([
+            'procurement_id' => $procurement->id,
+            'old_status' => null,
+            'new_status' => 'Created',
+            'changed_by_user_id' => $endorser->id,
+            'created_at' => now()->subDays(2),
+        ]);
+
+        $response = $this->actingAs($endorser)->get(route('procurements.show', $procurement));
+
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Procurements/Show')
+            ->has('procurement.purchase_request')
+            ->has('procurement.purchase_order')
+            ->has('procurement.voucher')
+            ->has('procurement.status_history')
+            ->where('canCreatePR', false)
+            ->where('canCreatePO', false)
+            ->where('canCreateVCH', false)
+            ->where('can.manage', true)
+        );
+    }
+
+    public function test_procurement_show_displays_not_created_cards_when_transactions_missing(): void
+    {
+        $endorser = User::factory()->create();
+        $endorser->assignRole('Endorser');
+
+        $procurement = Procurement::factory()->create([
+            'created_by_user_id' => $endorser->id,
+        ]);
+
+        $response = $this->actingAs($endorser)->get(route('procurements.show', $procurement));
+
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Procurements/Show')
+            ->where('procurement.purchase_request', null)
+            ->where('procurement.purchase_order', null)
+            ->where('procurement.voucher', null)
+            ->where('canCreatePR', true)
+            ->where('canCreatePO', false)
+            ->where('canCreateVCH', false)
+            ->where('can.manage', true)
+        );
+    }
+
+    public function test_viewer_sees_read_only_procurement_detail(): void
+    {
+        $viewer = User::factory()->create();
+        $viewer->assignRole('Viewer');
+
+        $procurement = Procurement::factory()->create();
+
+        $response = $this->actingAs($viewer)->get(route('procurements.show', $procurement));
+
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Procurements/Show')
+            ->where('can.manage', false)
+        );
+    }
+
+    public function test_endorser_can_see_action_buttons(): void
+    {
+        $endorser = User::factory()->create();
+        $endorser->assignRole('Endorser');
+
+        $procurement = Procurement::factory()->create([
+            'created_by_user_id' => $endorser->id,
+        ]);
+
+        // Create PR only
+        $prTransaction = Transaction::factory()->create([
+            'procurement_id' => $procurement->id,
+            'category' => Transaction::CATEGORY_PURCHASE_REQUEST,
+            'created_by_user_id' => $endorser->id,
+        ]);
+        PurchaseRequest::factory()->create([
+            'transaction_id' => $prTransaction->id,
+        ]);
+
+        $response = $this->actingAs($endorser)->get(route('procurements.show', $procurement));
+
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Procurements/Show')
+            ->where('can.manage', true)
+            ->where('canCreatePR', false)
+            ->where('canCreatePO', true)
+            ->where('canCreateVCH', false)
+        );
     }
 }

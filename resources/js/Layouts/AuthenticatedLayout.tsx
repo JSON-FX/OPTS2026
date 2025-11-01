@@ -65,6 +65,13 @@ export default function Authenticated({
                                     Procurements
                                 </NavLink>
 
+                                <NavLink
+                                    href={route('transactions.index')}
+                                    active={route().current('transactions.*')}
+                                >
+                                    Transactions
+                                </NavLink>
+
                                 {/* Administrator Only - Admin Dropdown */}
                                 {hasRole('Administrator') && (
                                     <div className="relative flex items-center">
@@ -253,6 +260,13 @@ export default function Authenticated({
                             active={route().current('procurements.*')}
                         >
                             Procurements
+                        </ResponsiveNavLink>
+
+                        <ResponsiveNavLink
+                            href={route('transactions.index')}
+                            active={route().current('transactions.*')}
+                        >
+                            Transactions
                         </ResponsiveNavLink>
 
                         {/* Administrator Only - Admin Menu */}

@@ -130,16 +130,19 @@ class ProcurementController extends Controller
             'endUser:id,name,abbreviation',
             'particular:id,description',
             'creator:id,name',
-            'purchaseRequest.transaction',
-            'purchaseRequest.fundType',
-            'purchaseOrder.transaction',
+            'purchaseRequest.transaction:id,reference_number,status,created_by_user_id,created_at',
+            'purchaseRequest.transaction.createdBy:id,name',
+            'purchaseRequest.fundType:id,name,abbreviation',
+            'purchaseOrder.transaction:id,reference_number,status,created_by_user_id,created_at',
+            'purchaseOrder.transaction.createdBy:id,name',
             'purchaseOrder.supplier:id,name',
-            'voucher.transaction',
-            'statusHistory' => fn ($query) => $query->with('changedBy:id,name')->orderByDesc('created_at'),
+            'voucher.transaction:id,reference_number,status,created_by_user_id,created_at',
+            'voucher.transaction.createdBy:id,name',
+            'statusHistory' => fn ($query) => $query->with('changedBy:id,name')->orderByDesc('created_at')->limit(5),
         ])->loadCount('transactions');
 
         return Inertia::render('Procurements/Show', [
-            'procurement' => $procurement,
+            'procurement' => $procurement->makeVisible(['abc_amount']),
             'can' => [
                 'manage' => request()->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false,
             ],
