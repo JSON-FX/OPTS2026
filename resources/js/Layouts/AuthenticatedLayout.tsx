@@ -1,12 +1,32 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
-import Dropdown from '@/Components/Dropdown';
-import NavLink from '@/Components/NavLink';
-import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
+import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
+import { Button } from '@/Components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/Components/ui/dropdown-menu';
+import {
+    NavigationMenu,
+    NavigationMenuItem,
+    NavigationMenuLink,
+    NavigationMenuList,
+    navigationMenuTriggerStyle,
+} from '@/Components/ui/navigation-menu';
+import { Separator } from '@/Components/ui/separator';
+import {
+    Sheet,
+    SheetContent,
+    SheetTrigger,
+} from '@/Components/ui/sheet';
 import { Toaster } from '@/Components/ui/toaster';
 import { useToast } from '@/Components/ui/use-toast';
 import type { PageProps } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Bell } from 'lucide-react';
+import { Bell, ChevronDown, Menu } from 'lucide-react';
 import { PropsWithChildren, ReactNode, useEffect, useState } from 'react';
 
 export default function Authenticated({
@@ -17,8 +37,7 @@ export default function Authenticated({
     const flash = usePage<PageProps>().props.flash;
     const { toast } = useToast();
 
-    const [showingNavigationDropdown, setShowingNavigationDropdown] =
-        useState(false);
+    const [sheetOpen, setSheetOpen] = useState(false);
 
     // Helper functions to check user roles
     const hasRole = (roleName: string): boolean => {
@@ -50,289 +69,289 @@ export default function Authenticated({
                                 </Link>
                             </div>
 
-                            <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                                <NavLink
-                                    href={route('dashboard')}
-                                    active={route().current('dashboard')}
-                                >
-                                    Dashboard
-                                </NavLink>
-
-                                <NavLink
-                                    href={route('procurements.index')}
-                                    active={route().current('procurements.*')}
-                                >
-                                    Procurements
-                                </NavLink>
-
-                                <NavLink
-                                    href={route('transactions.index')}
-                                    active={route().current('transactions.*')}
-                                >
-                                    Transactions
-                                </NavLink>
-
-                                {/* Administrator Only - Admin Dropdown */}
-                                {hasRole('Administrator') && (
-                                    <div className="relative flex items-center">
-                                        <Dropdown>
-                                            <Dropdown.Trigger>
-                                                <button
-                                                    type="button"
-                                                    className="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium leading-5 text-gray-500 transition duration-150 ease-in-out hover:border-gray-300 hover:text-gray-700 focus:border-gray-300 focus:text-gray-700 focus:outline-none"
+                            {/* Desktop Navigation with NavigationMenu */}
+                            <div className="hidden md:ms-10 md:flex md:items-center">
+                                <NavigationMenu>
+                                    <NavigationMenuList>
+                                        <NavigationMenuItem>
+                                            <Link href={route('dashboard')}>
+                                                <NavigationMenuLink
+                                                    className={navigationMenuTriggerStyle()}
+                                                    active={route().current('dashboard')}
                                                 >
-                                                    Admin
-                                                    <svg
-                                                        className="-me-0.5 ms-1 h-4 w-4"
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        viewBox="0 0 20 20"
-                                                        fill="currentColor"
-                                                    >
-                                                        <path
-                                                            fillRule="evenodd"
-                                                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                            clipRule="evenodd"
-                                                        />
-                                                    </svg>
-                                                </button>
-                                            </Dropdown.Trigger>
+                                                    Dashboard
+                                                </NavigationMenuLink>
+                                            </Link>
+                                        </NavigationMenuItem>
 
-                                            <Dropdown.Content>
-                                                <Dropdown.Link href={route('admin.users.index')}>
-                                                    Users
-                                                </Dropdown.Link>
+                                        <NavigationMenuItem>
+                                            <Link href={route('procurements.index')}>
+                                                <NavigationMenuLink
+                                                    className={navigationMenuTriggerStyle()}
+                                                    active={route().current('procurements.*')}
+                                                >
+                                                    Procurements
+                                                </NavigationMenuLink>
+                                            </Link>
+                                        </NavigationMenuItem>
 
-                                                <div className="border-t border-gray-100" />
+                                        <NavigationMenuItem>
+                                            <Link href={route('transactions.index')}>
+                                                <NavigationMenuLink
+                                                    className={navigationMenuTriggerStyle()}
+                                                    active={route().current('transactions.*')}
+                                                >
+                                                    Transactions
+                                                </NavigationMenuLink>
+                                            </Link>
+                                        </NavigationMenuItem>
 
-                                                <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase">
-                                                    Repositories
-                                                </div>
-                                                <Dropdown.Link href={route('admin.repositories.offices.index')}>
-                                                    Offices
-                                                </Dropdown.Link>
-                                                <Dropdown.Link href={route('admin.repositories.suppliers.index')}>
-                                                    Suppliers
-                                                </Dropdown.Link>
-                                                <Dropdown.Link href={route('admin.repositories.particulars.index')}>
-                                                    Particulars
-                                                </Dropdown.Link>
-                                                <Dropdown.Link href={route('admin.repositories.fund-types.index')}>
-                                                    Fund Types
-                                                </Dropdown.Link>
-                                                <Dropdown.Link href={route('admin.repositories.action-taken.index')}>
-                                                    Action Taken
-                                                </Dropdown.Link>
-                                            </Dropdown.Content>
-                                        </Dropdown>
-                                    </div>
-                                )}
+                                        {/* Administrator Only - Admin Dropdown */}
+                                        {hasRole('Administrator') && (
+                                            <NavigationMenuItem>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <button
+                                                            className={navigationMenuTriggerStyle()}
+                                                        >
+                                                            Admin
+                                                            <ChevronDown className="ml-1 h-4 w-4" />
+                                                        </button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="start">
+                                                        <DropdownMenuItem asChild>
+                                                            <Link href={route('admin.users.index')}>
+                                                                Users
+                                                            </Link>
+                                                        </DropdownMenuItem>
+
+                                                        <DropdownMenuSeparator />
+
+                                                        <DropdownMenuLabel>
+                                                            Repositories
+                                                        </DropdownMenuLabel>
+                                                        <DropdownMenuItem asChild>
+                                                            <Link href={route('admin.repositories.offices.index')}>
+                                                                Offices
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem asChild>
+                                                            <Link href={route('admin.repositories.suppliers.index')}>
+                                                                Suppliers
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem asChild>
+                                                            <Link href={route('admin.repositories.particulars.index')}>
+                                                                Particulars
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem asChild>
+                                                            <Link href={route('admin.repositories.fund-types.index')}>
+                                                                Fund Types
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem asChild>
+                                                            <Link href={route('admin.repositories.action-taken.index')}>
+                                                                Action Taken
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </NavigationMenuItem>
+                                        )}
+                                    </NavigationMenuList>
+                                </NavigationMenu>
                             </div>
                         </div>
 
-                        <div className="hidden sm:ms-6 sm:flex sm:items-center">
+                        <div className="hidden md:ms-6 md:flex md:items-center md:space-x-4">
                             {/* Notification Bell Icon Placeholder */}
-                            <button
-                                type="button"
-                                className="relative rounded-full p-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="relative"
                             >
                                 <Bell className="h-6 w-6" />
                                 {/* Placeholder badge for unread notifications (Epic 4) */}
                                 <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
-                            </button>
+                            </Button>
 
-                            <div className="relative ms-3">
-                                <Dropdown>
-                                    <Dropdown.Trigger>
-                                        <span className="inline-flex rounded-md">
-                                            <button
-                                                type="button"
-                                                className="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
-                                            >
-                                                {user.name}
-
-                                                <svg
-                                                    className="-me-0.5 ms-2 h-4 w-4"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clipRule="evenodd"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </span>
-                                    </Dropdown.Trigger>
-
-                                    <Dropdown.Content>
-                                        <div className="px-4 py-2 border-b border-gray-100">
-                                            <div className="font-medium text-gray-800">{user.name}</div>
-                                            <div className="text-sm text-gray-500">{user.email}</div>
-                                            {user.roles && user.roles.length > 0 && (
-                                                <div className="text-sm text-gray-500">
-                                                    Role: {user.roles[0].name}
-                                                </div>
-                                            )}
-                                            {user.office && (
-                                                <div className="text-sm text-gray-500">
-                                                    Office: {user.office.name}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <Dropdown.Link
-                                            href={route('profile.edit')}
-                                        >
+                            {/* User Dropdown with Avatar */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="flex items-center gap-2">
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                                {user.name.substring(0, 2).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <span className="hidden lg:inline-block">{user.name}</span>
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56">
+                                    <div className="px-2 py-2">
+                                        <div className="font-medium text-sm">{user.name}</div>
+                                        <div className="text-xs text-muted-foreground">{user.email}</div>
+                                        {user.roles && user.roles.length > 0 && (
+                                            <div className="text-xs text-muted-foreground">
+                                                Role: {user.roles[0].name}
+                                            </div>
+                                        )}
+                                        {user.office && (
+                                            <div className="text-xs text-muted-foreground">
+                                                Office: {user.office.name}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem asChild>
+                                        <Link href={route('profile.edit')}>
                                             Profile
-                                        </Dropdown.Link>
-                                        <Dropdown.Link
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <Link
                                             href={route('logout')}
                                             method="post"
                                             as="button"
+                                            className="w-full"
                                         >
                                             Log Out
-                                        </Dropdown.Link>
-                                    </Dropdown.Content>
-                                </Dropdown>
-                            </div>
+                                        </Link>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
 
-                        <div className="-me-2 flex items-center sm:hidden">
-                            <button
-                                onClick={() =>
-                                    setShowingNavigationDropdown(
-                                        (previousState) => !previousState,
-                                    )
-                                }
-                                className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
-                            >
-                                <svg
-                                    className="h-6 w-6"
-                                    stroke="currentColor"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        className={
-                                            !showingNavigationDropdown
-                                                ? 'inline-flex'
-                                                : 'hidden'
-                                        }
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M4 6h16M4 12h16M4 18h16"
-                                    />
-                                    <path
-                                        className={
-                                            showingNavigationDropdown
-                                                ? 'inline-flex'
-                                                : 'hidden'
-                                        }
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                        {/* Mobile Navigation with Sheet */}
+                        <div className="flex items-center md:hidden">
+                            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                                <SheetTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                        <Menu className="h-6 w-6" />
+                                        <span className="sr-only">Open navigation menu</span>
+                                    </Button>
+                                </SheetTrigger>
+                                <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                                    <nav className="flex flex-col gap-4">
+                                        {/* Mobile User Info */}
+                                        <div className="flex items-center gap-3 pb-4 border-b">
+                                            <Avatar className="h-10 w-10">
+                                                <AvatarFallback className="bg-primary text-primary-foreground">
+                                                    {user.name.substring(0, 2).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-medium text-sm truncate">{user.name}</div>
+                                                <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                                            </div>
+                                        </div>
 
-                <div
-                    className={
-                        (showingNavigationDropdown ? 'block' : 'hidden') +
-                        ' sm:hidden'
-                    }
-                >
-                    <div className="space-y-1 pb-3 pt-2">
-                        <ResponsiveNavLink
-                            href={route('dashboard')}
-                            active={route().current('dashboard')}
-                        >
-                            Dashboard
-                        </ResponsiveNavLink>
+                                        {/* Mobile Navigation Links */}
+                                        <div className="flex flex-col gap-2">
+                                            <Link
+                                                href={route('dashboard')}
+                                                onClick={() => setSheetOpen(false)}
+                                                className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                            >
+                                                Dashboard
+                                            </Link>
+                                            <Link
+                                                href={route('procurements.index')}
+                                                onClick={() => setSheetOpen(false)}
+                                                className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                            >
+                                                Procurements
+                                            </Link>
+                                            <Link
+                                                href={route('transactions.index')}
+                                                onClick={() => setSheetOpen(false)}
+                                                className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                            >
+                                                Transactions
+                                            </Link>
 
-                        <ResponsiveNavLink
-                            href={route('procurements.index')}
-                            active={route().current('procurements.*')}
-                        >
-                            Procurements
-                        </ResponsiveNavLink>
+                                            {/* Administrator Only - Mobile Admin Menu */}
+                                            {hasRole('Administrator') && (
+                                                <>
+                                                    <Separator className="my-2" />
+                                                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                                                        Admin
+                                                    </div>
+                                                    <Link
+                                                        href={route('admin.users.index')}
+                                                        onClick={() => setSheetOpen(false)}
+                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                    >
+                                                        Users
+                                                    </Link>
+                                                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                                                        Repositories
+                                                    </div>
+                                                    <Link
+                                                        href={route('admin.repositories.offices.index')}
+                                                        onClick={() => setSheetOpen(false)}
+                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                    >
+                                                        Offices
+                                                    </Link>
+                                                    <Link
+                                                        href={route('admin.repositories.suppliers.index')}
+                                                        onClick={() => setSheetOpen(false)}
+                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                    >
+                                                        Suppliers
+                                                    </Link>
+                                                    <Link
+                                                        href={route('admin.repositories.particulars.index')}
+                                                        onClick={() => setSheetOpen(false)}
+                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                    >
+                                                        Particulars
+                                                    </Link>
+                                                    <Link
+                                                        href={route('admin.repositories.fund-types.index')}
+                                                        onClick={() => setSheetOpen(false)}
+                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                    >
+                                                        Fund Types
+                                                    </Link>
+                                                    <Link
+                                                        href={route('admin.repositories.action-taken.index')}
+                                                        onClick={() => setSheetOpen(false)}
+                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                    >
+                                                        Action Taken
+                                                    </Link>
+                                                </>
+                                            )}
+                                        </div>
 
-                        <ResponsiveNavLink
-                            href={route('transactions.index')}
-                            active={route().current('transactions.*')}
-                        >
-                            Transactions
-                        </ResponsiveNavLink>
+                                        <Separator className="my-2" />
 
-                        {/* Administrator Only - Admin Menu */}
-                        {hasRole('Administrator') && (
-                            <>
-                                <div className="border-t border-gray-200 pt-2">
-                                    <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase">
-                                        Admin
-                                    </div>
-                                    <ResponsiveNavLink href={route('admin.users.index')}>
-                                        Users
-                                    </ResponsiveNavLink>
-                                    <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase">
-                                        Repositories
-                                    </div>
-                                    <ResponsiveNavLink href={route('admin.repositories.offices.index')}>
-                                        Offices
-                                    </ResponsiveNavLink>
-                                    <ResponsiveNavLink href={route('admin.repositories.suppliers.index')}>
-                                        Suppliers
-                                    </ResponsiveNavLink>
-                                    <ResponsiveNavLink href={route('admin.repositories.particulars.index')}>
-                                        Particulars
-                                    </ResponsiveNavLink>
-                                    <ResponsiveNavLink href={route('admin.repositories.fund-types.index')}>
-                                        Fund Types
-                                    </ResponsiveNavLink>
-                                    <ResponsiveNavLink href={route('admin.repositories.action-taken.index')}>
-                                        Action Taken
-                                    </ResponsiveNavLink>
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="border-t border-gray-200 pb-1 pt-4">
-                        <div className="px-4">
-                            <div className="text-base font-medium text-gray-800">
-                                {user.name}
-                            </div>
-                            <div className="text-sm font-medium text-gray-500">
-                                {user.email}
-                            </div>
-                            {user.roles && user.roles.length > 0 && (
-                                <div className="text-sm font-medium text-gray-500">
-                                    Role: {user.roles[0].name}
-                                </div>
-                            )}
-                            {user.office && (
-                                <div className="text-sm font-medium text-gray-500">
-                                    Office: {user.office.name}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mt-3 space-y-1">
-                            <ResponsiveNavLink href={route('profile.edit')}>
-                                Profile
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink
-                                method="post"
-                                href={route('logout')}
-                                as="button"
-                            >
-                                Log Out
-                            </ResponsiveNavLink>
+                                        {/* Mobile User Actions */}
+                                        <div className="flex flex-col gap-2">
+                                            <Link
+                                                href={route('profile.edit')}
+                                                onClick={() => setSheetOpen(false)}
+                                                className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                            >
+                                                Profile
+                                            </Link>
+                                            <Link
+                                                href={route('logout')}
+                                                method="post"
+                                                as="button"
+                                                onClick={() => setSheetOpen(false)}
+                                                className="block w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                            >
+                                                Log Out
+                                            </Link>
+                                        </div>
+                                    </nav>
+                                </SheetContent>
+                            </Sheet>
                         </div>
                     </div>
                 </div>
