@@ -2,6 +2,18 @@
 
 Below is the high-level epic structure for OPTS. Each epic represents a significant, deployable increment of functionality that builds upon previous work while delivering tangible value.
 
+**Epic 0.1: shadcn/ui Foundation & Global Components** *(Brownfield Enhancement)*
+
+Establish the shadcn/ui component foundation by installing all required components via Claude MCP tools, migrating global layouts (AuthenticatedLayout, GuestLayout) to shadcn NavigationMenu/Sheet/DropdownMenu, integrating global Toaster for flash messages, and updating all authentication pages (Login, Register, ForgotPassword, ResetPassword) to use shadcn Form components. This foundation epic creates the baseline for all subsequent UI migrations with zero functionality regression.
+
+**Epic 0.2: shadcn/ui Administrative Interfaces** *(Brownfield Enhancement)*
+
+Migrate all administrative CRUD interfaces—User Management and 6 repository types (Offices, Suppliers, Particulars, Departments, FundTypes, Workflows)—to shadcn DataTable and Form components. Standardize table features (sort, filter, paginate, select) and ensure consistent admin UX across all repository management pages. Establishes the DataTable pattern for domain pages.
+
+**Epic 0.3: shadcn/ui Procurement & Finalization** *(Brownfield Enhancement)*
+
+Complete the shadcn/ui migration by updating all procurement and transaction management pages (Procurements, Purchase Requests, Purchase Orders, Vouchers, Procurement Detail, Transaction Search, Dashboard) with DataTable and Form components. Run comprehensive Playwright testing, execute MCP audit, update documentation, and remove all legacy components. Delivers 100% component standardization across the application.
+
 **Epic 1: Foundation, Authentication & Repository Management**
 
 Establish the project infrastructure (Laravel 12.x + React 19 + TypeScript + Inertia), implement authentication and user management, and provide administrative interfaces for managing all master reference data (Offices, Suppliers, Particulars, Fund Types, etc.). This foundational epic enables administrators to log in, manage users/roles, and populate the system with organizational data required for procurement operations.
