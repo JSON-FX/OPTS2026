@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
+use App\Services\WorkflowService;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -23,6 +24,8 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(ProcurementBusinessRules::class);
+
+        $this->app->singleton(WorkflowService::class);
     }
 
     /**

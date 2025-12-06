@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             SupplierSeeder::class,
             ParticularSeeder::class,
             ActionTakenSeeder::class,
+            WorkflowSeeder::class,
         ]);
 
         // Seed users with different roles (depends on offices and roles)

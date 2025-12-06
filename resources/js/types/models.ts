@@ -284,3 +284,42 @@ export interface TransactionSearchFilters {
     sort_by?: string;
     sort_direction?: 'asc' | 'desc';
 }
+
+/**
+ * Story 3.1 - Workflow definition for transaction routing.
+ *
+ * A workflow defines the ordered sequence of offices that a transaction
+ * must pass through, with expected completion days per step.
+ */
+export interface Workflow {
+    id: number;
+    category: TransactionCategory;
+    name: string;
+    description: string | null;
+    is_active: boolean;
+    created_by_user_id: number | null;
+    created_at: string;
+    updated_at: string;
+    steps?: WorkflowStep[];
+    steps_count?: number;
+    created_by?: User;
+}
+
+/**
+ * Story 3.1 - Individual step within a workflow.
+ *
+ * Each step represents an office in the transaction routing sequence,
+ * with an expected number of days to complete the step.
+ */
+export interface WorkflowStep {
+    id: number;
+    workflow_id: number;
+    office_id: number;
+    step_order: number;
+    expected_days: number;
+    is_final_step: boolean;
+    created_at: string;
+    updated_at: string;
+    workflow?: Workflow;
+    office?: Office;
+}
