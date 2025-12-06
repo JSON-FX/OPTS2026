@@ -120,6 +120,11 @@ export default function Authenticated({
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="start">
                                                         <DropdownMenuItem asChild>
+                                                            <Link href={route('admin.workflows.index')}>
+                                                                Workflows
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem asChild>
                                                             <Link href={route('admin.users.index')}>
                                                                 Users
                                                             </Link>
@@ -279,6 +284,13 @@ export default function Authenticated({
                                                     <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
                                                         Admin
                                                     </div>
+                                                    <Link
+                                                        href={route('admin.workflows.index')}
+                                                        onClick={() => setSheetOpen(false)}
+                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                    >
+                                                        Workflows
+                                                    </Link>
                                                     <Link
                                                         href={route('admin.users.index')}
                                                         onClick={() => setSheetOpen(false)}

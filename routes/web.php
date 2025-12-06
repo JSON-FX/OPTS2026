@@ -81,6 +81,16 @@ Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:Administrator'])->group(function () {
+    Route::resource('admin/workflows', App\Http\Controllers\Admin\WorkflowController::class)->names([
+        'index' => 'admin.workflows.index',
+        'create' => 'admin.workflows.create',
+        'store' => 'admin.workflows.store',
+        'show' => 'admin.workflows.show',
+        'edit' => 'admin.workflows.edit',
+        'update' => 'admin.workflows.update',
+        'destroy' => 'admin.workflows.destroy',
+    ]);
+
     Route::resource('admin/users', App\Http\Controllers\Admin\UserController::class)->names([
         'index' => 'admin.users.index',
         'create' => 'admin.users.create',
