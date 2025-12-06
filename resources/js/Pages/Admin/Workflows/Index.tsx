@@ -43,8 +43,8 @@ interface Props extends PageProps {
 
 export default function Index({ auth, workflows, filters }: Props) {
     const [search, setSearch] = useState(filters.search || '');
-    const [category, setCategory] = useState(filters.category || '');
-    const [status, setStatus] = useState(filters.status || '');
+    const [category, setCategory] = useState(filters.category || 'all');
+    const [status, setStatus] = useState(filters.status || 'all');
 
     const handleSearch = () => {
         router.get(
@@ -61,10 +61,11 @@ export default function Index({ auth, workflows, filters }: Props) {
     };
 
     const handleFilterChange = (key: 'category' | 'status', value: string) => {
+        const filterValue = value === 'all' ? '' : value;
         const newFilters = {
             search,
-            category: key === 'category' ? value : category,
-            status: key === 'status' ? value : status,
+            category: key === 'category' ? filterValue : (category === 'all' ? '' : category),
+            status: key === 'status' ? filterValue : (status === 'all' ? '' : status),
             sort: filters.sort,
             direction: filters.direction,
         };
@@ -174,7 +175,7 @@ export default function Index({ auth, workflows, filters }: Props) {
                                             <SelectValue placeholder="Category" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">All</SelectItem>
+                                            <SelectItem value="all">All</SelectItem>
                                             <SelectItem value="PR">PR</SelectItem>
                                             <SelectItem value="PO">PO</SelectItem>
                                             <SelectItem value="VCH">VCH</SelectItem>
@@ -188,7 +189,7 @@ export default function Index({ auth, workflows, filters }: Props) {
                                             <SelectValue placeholder="Status" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">All</SelectItem>
+                                            <SelectItem value="all">All</SelectItem>
                                             <SelectItem value="active">Active</SelectItem>
                                             <SelectItem value="inactive">Inactive</SelectItem>
                                         </SelectContent>
