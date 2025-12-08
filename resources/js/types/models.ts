@@ -146,6 +146,7 @@ export interface Procurement {
 /**
  * Story 2.1 - Base transaction record shared by PR/PO/VCH.
  * Story 2.6 - Added is_continuation field for manual reference numbers.
+ * Story 3.3 - Added tracking columns and actions relationship.
  */
 export interface Transaction {
     id: number;
@@ -157,6 +158,9 @@ export interface Transaction {
     workflow_id: number | null;
     current_office_id: number | null;
     current_user_id: number | null;
+    current_step_id: number | null;
+    received_at: string | null;
+    endorsed_at: string | null;
     created_by_user_id: number;
     created_at: string;
     updated_at: string;
@@ -165,6 +169,8 @@ export interface Transaction {
     // Relationships
     procurement?: Procurement;
     created_by?: User;
+    current_step?: WorkflowStep;
+    actions?: TransactionAction[];
 }
 
 /**
@@ -322,4 +328,41 @@ export interface WorkflowStep {
     updated_at: string;
     workflow?: Workflow;
     office?: Office;
+}
+
+/**
+ * Story 3.3 - Action type for transaction actions.
+ */
+export type ActionType = 'endorse' | 'receive' | 'complete' | 'hold' | 'cancel' | 'bypass';
+
+/**
+ * Story 3.3 - Transaction action record for endorsement history and audit trail.
+ *
+ * Each action captures who did what, from where to where, when, and at what
+ * workflow step the action occurred.
+ */
+export interface TransactionAction {
+    id: number;
+    transaction_id: number;
+    action_type: ActionType;
+    action_taken_id: number | null;
+    from_office_id: number | null;
+    to_office_id: number | null;
+    from_user_id: number;
+    to_user_id: number | null;
+    workflow_step_id: number | null;
+    is_out_of_workflow: boolean;
+    notes: string | null;
+    reason: string | null;
+    ip_address: string | null;
+    created_at: string;
+
+    // Relationships
+    transaction?: Transaction;
+    action_taken?: ActionTaken;
+    from_office?: Office;
+    to_office?: Office;
+    from_user?: User;
+    to_user?: User;
+    workflow_step?: WorkflowStep;
 }

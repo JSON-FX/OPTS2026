@@ -30,6 +30,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             ProcurementSeeder::class,
             // TransactionSeeder::class, // Temporarily disabled until schema updated for Story 2.5
+            TransactionActionSeeder::class, // Story 3.3 - Seed sample transaction actions
         ]);
     }
 }
