@@ -10,6 +10,7 @@ use App\Models\FundType;
 use App\Models\Procurement;
 use App\Models\PurchaseRequest;
 use App\Models\Transaction;
+use App\Services\EndorsementService;
 use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,8 @@ class PurchaseRequestController extends Controller
 {
     public function __construct(
         private readonly ReferenceNumberService $refNumberService,
-        private readonly ProcurementBusinessRules $businessRules
+        private readonly ProcurementBusinessRules $businessRules,
+        private readonly EndorsementService $endorsementService
     ) {}
 
     public function create(Procurement $procurement): Response|RedirectResponse
@@ -93,17 +95,25 @@ class PurchaseRequestController extends Controller
             'transaction.procurement.endUser',
             'transaction.procurement.particular',
             'transaction.procurement', // Ensure procurement is fully loaded
+            'transaction.currentStep.office',
             'fundType',
             'transaction.createdBy',
         ])->findOrFail($id);
 
-        $canEdit = auth()->user()->hasAnyRole(['Endorser', 'Administrator']);
-        $canDelete = $canEdit && $this->businessRules->canDeletePR($purchaseRequest->transaction->procurement);
+        $user = auth()->user();
+        $transaction = $purchaseRequest->transaction;
+
+        $canEdit = $user->hasAnyRole(['Endorser', 'Administrator']);
+        $canDelete = $canEdit && $this->businessRules->canDeletePR($transaction->procurement);
+        $canEndorse = $this->endorsementService->canEndorse($transaction, $user);
+        $cannotEndorseReason = $canEndorse ? null : $this->endorsementService->getCannotEndorseReason($transaction, $user);
 
         return Inertia::render('PurchaseRequests/Show', [
             'purchaseRequest' => $purchaseRequest,
             'canEdit' => $canEdit,
             'canDelete' => $canDelete,
+            'canEndorse' => $canEndorse,
+            'cannotEndorseReason' => $cannotEndorseReason,
         ]);
     }
 

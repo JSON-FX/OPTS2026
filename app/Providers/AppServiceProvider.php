@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\EndorsementService;
 use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
 use App\Services\WorkflowService;
@@ -26,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ProcurementBusinessRules::class);
 
         $this->app->singleton(WorkflowService::class);
+
+        $this->app->singleton(EndorsementService::class);
     }
 
     /**

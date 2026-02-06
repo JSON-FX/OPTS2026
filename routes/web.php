@@ -43,6 +43,12 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
+    // Transaction endorsement routes
+    Route::get('/transactions/{transaction}/endorse', [\App\Http\Controllers\TransactionEndorseController::class, 'create'])
+        ->name('transactions.endorse.create');
+    Route::post('/transactions/{transaction}/endorse', [\App\Http\Controllers\TransactionEndorseController::class, 'store'])
+        ->name('transactions.endorse.store');
+
     // Purchase Request - create/edit/delete (Endorser/Administrator only)
     Route::get('/procurements/{procurement}/purchase-requests/create', [\App\Http\Controllers\PurchaseRequestController::class, 'create'])
         ->name('procurements.purchase-requests.create');

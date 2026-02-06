@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Policies;
+
+use App\Models\Transaction;
+use App\Models\User;
+use App\Services\EndorsementService;
+
+/**
+ * Policy for Transaction authorization.
+ *
+ * Story 3.4 - Endorse Action Implementation
+ */
+class TransactionPolicy
+{
+    public function __construct(
+        private readonly EndorsementService $endorsementService
+    ) {}
+
+    /**
+     * Determine if the user can endorse the transaction.
+     */
+    public function endorse(User $user, Transaction $transaction): bool
+    {
+        return $this->endorsementService->canEndorse($transaction, $user);
+    }
+
+    /**
+     * Determine if the user can view the transaction.
+     */
+    public function view(User $user, Transaction $transaction): bool
+    {
+        // All authenticated users can view transactions
+        return true;
+    }
+}
