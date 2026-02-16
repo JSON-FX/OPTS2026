@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import {
+    ActivityTimelineEntry,
     Office,
     Particular,
     Procurement,
@@ -13,6 +14,7 @@ import {
 import StatusBadge from '@/Components/StatusBadge';
 import RelativeTime from '@/Components/RelativeTime';
 import ExpandableText from '@/Components/ExpandableText';
+import TransactionActivityTimeline from '@/Components/TransactionActivityTimeline';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/Components/ui/tooltip';
 import { ArrowRight } from 'lucide-react';
 
@@ -32,6 +34,7 @@ interface Props extends PageProps {
     can: {
         manage: boolean;
     };
+    activityTimeline: ActivityTimelineEntry[];
     canCreatePR?: boolean;
     canCreatePO?: boolean;
     canCreateVCH?: boolean;
@@ -43,7 +46,7 @@ const currencyFormatter = new Intl.NumberFormat('en-PH', {
     minimumFractionDigits: 2,
 });
 
-export default function Show({ auth, procurement, can, canCreatePR, canCreatePO, canCreateVCH }: Props) {
+export default function Show({ auth, procurement, can, activityTimeline, canCreatePR, canCreatePO, canCreateVCH }: Props) {
     return (
         <AuthenticatedLayout
             header={
@@ -394,6 +397,9 @@ export default function Show({ auth, procurement, can, canCreatePR, canCreatePO,
                             </div>
                         </div>
                     </div>
+
+                    {/* Transaction Activity Timeline */}
+                    <TransactionActivityTimeline entries={activityTimeline} />
                 </div>
             </div>
         </AuthenticatedLayout>

@@ -3,6 +3,35 @@ import { Head, Link, router } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import { User, Role, Office, PaginatedData } from '@/types/models';
 import { useState } from 'react';
+import { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/Components/DataTable';
+import { Badge } from '@/Components/ui/badge';
+import { Button } from '@/Components/ui/button';
+import { Input } from '@/Components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/Components/ui/select';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/Components/ui/dropdown-menu';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/Components/ui/alert-dialog';
+import { MoreHorizontal, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
 
 interface Props extends PageProps {
     users: PaginatedData<User>;
@@ -10,23 +39,139 @@ interface Props extends PageProps {
     offices: Office[];
 }
 
-export default function Index({ auth, users, roles, offices }: Props) {
+export default function Index({ users, roles, offices }: Props) {
     const [search, setSearch] = useState('');
-    const [roleFilter, setRoleFilter] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
+    const [officeFilter, setOfficeFilter] = useState('all');
+    const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
 
     const handleDelete = (userId: number) => {
-        if (confirm('Are you sure you want to delete this user?')) {
-            router.delete(route('admin.users.destroy', userId), {
+        setDeleteUserId(userId);
+    };
+
+    const confirmDelete = () => {
+        if (deleteUserId) {
+            router.delete(route('admin.users.destroy', deleteUserId), {
                 preserveScroll: true,
+                onSuccess: () => setDeleteUserId(null),
             });
         }
     };
 
-    const filteredUsers = users.data.filter(user => {
-        const matchesSearch = user.name.toLowerCase().includes(search.toLowerCase()) ||
-                             user.email.toLowerCase().includes(search.toLowerCase());
-        const matchesRole = !roleFilter || user.roles?.[0]?.name === roleFilter;
-        return matchesSearch && matchesRole;
+    const columns: ColumnDef<User>[] = [
+        {
+            accessorKey: 'name',
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                >
+                    Name
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+        },
+        {
+            accessorKey: 'email',
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                >
+                    Email
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+        },
+        {
+            id: 'role',
+            accessorFn: (row) => row.roles?.[0]?.name || 'No role',
+            header: 'Role',
+            cell: ({ row }) => {
+                const role = row.original.roles?.[0]?.name || 'No role';
+                const variant =
+                    role === 'Administrator'
+                        ? 'default'
+                        : role === 'Endorser'
+                          ? 'secondary'
+                          : 'outline';
+                return <Badge variant={variant}>{role}</Badge>;
+            },
+            filterFn: (row, _id, filterValue) => {
+                if (!filterValue || filterValue === 'all') return true;
+                return row.original.roles?.[0]?.name === filterValue;
+            },
+        },
+        {
+            id: 'office',
+            accessorFn: (row) => row.office?.name || '',
+            header: 'Office',
+            cell: ({ row }) => row.original.office?.name || '-',
+            filterFn: (row, _id, filterValue) => {
+                if (!filterValue || filterValue === 'all') return true;
+                return String(row.original.office_id) === filterValue;
+            },
+        },
+        {
+            accessorKey: 'created_at',
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                >
+                    Created
+                    <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+            ),
+            cell: ({ row }) =>
+                new Date(row.getValue('created_at')).toLocaleDateString(),
+        },
+        {
+            id: 'actions',
+            cell: ({ row }) => (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Open menu</span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                            onClick={() =>
+                                router.visit(
+                                    route('admin.users.edit', row.original.id)
+                                )
+                            }
+                        >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={() => handleDelete(row.original.id)}
+                            className="text-destructive focus:text-destructive"
+                        >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            ),
+        },
+    ];
+
+    // Apply client-side filters to the current page data
+    const filteredData = users.data.filter((user) => {
+        const matchesSearch =
+            !search ||
+            user.name.toLowerCase().includes(search.toLowerCase()) ||
+            user.email.toLowerCase().includes(search.toLowerCase());
+        const matchesRole =
+            roleFilter === 'all' || user.roles?.[0]?.name === roleFilter;
+        const matchesOffice =
+            officeFilter === 'all' ||
+            String(user.office_id) === officeFilter;
+        return matchesSearch && matchesRole && matchesOffice;
     });
 
     return (
@@ -43,83 +188,89 @@ export default function Index({ auth, users, roles, offices }: Props) {
                 <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         <div className="p-6">
-                            <div className="mb-6 flex items-center justify-between">
-                                <div className="flex gap-4">
-                                    <input
-                                        type="text"
+                            <DataTable columns={columns} data={filteredData}>
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                                    <Input
                                         placeholder="Search by name or email..."
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
-                                        className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        className="max-w-sm"
                                     />
-                                    <select
+                                    <Select
                                         value={roleFilter}
-                                        onChange={(e) => setRoleFilter(e.target.value)}
-                                        className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        onValueChange={setRoleFilter}
                                     >
-                                        <option value="">All Roles</option>
-                                        {roles.map(role => (
-                                            <option key={role.id} value={role.name}>{role.name}</option>
-                                        ))}
-                                    </select>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="All Roles" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">
+                                                All Roles
+                                            </SelectItem>
+                                            {roles.map((role) => (
+                                                <SelectItem
+                                                    key={role.id}
+                                                    value={role.name}
+                                                >
+                                                    {role.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Select
+                                        value={officeFilter}
+                                        onValueChange={setOfficeFilter}
+                                    >
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="All Offices" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">
+                                                All Offices
+                                            </SelectItem>
+                                            {offices.map((office) => (
+                                                <SelectItem
+                                                    key={office.id}
+                                                    value={String(office.id)}
+                                                >
+                                                    {office.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                                <Link
-                                    href={route('admin.users.create')}
-                                    className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-                                >
-                                    Create User
+                                <Link href={route('admin.users.create')}>
+                                    <Button>Create User</Button>
                                 </Link>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-300">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
-                                            <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Email</th>
-                                            <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Role</th>
-                                            <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Office</th>
-                                            <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
-                                            <th className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200 bg-white">
-                                        {filteredUsers.map((user) => (
-                                            <tr key={user.id}>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{user.name}</td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{user.email}</td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                                    {user.roles?.[0]?.name || 'No role'}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                                    {user.office?.name || '-'}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                                    {new Date(user.created_at).toLocaleDateString()}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-medium">
-                                                    <Link
-                                                        href={route('admin.users.edit', user.id)}
-                                                        className="text-indigo-600 hover:text-indigo-900 mr-4"
-                                                    >
-                                                        Edit
-                                                    </Link>
-                                                    <button
-                                                        onClick={() => handleDelete(user.id)}
-                                                        className="text-red-600 hover:text-red-900"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                            </DataTable>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <AlertDialog
+                open={deleteUserId !== null}
+                onOpenChange={(open) => !open && setDeleteUserId(null)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently
+                            delete the user account.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDelete}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </AuthenticatedLayout>
     );
 }

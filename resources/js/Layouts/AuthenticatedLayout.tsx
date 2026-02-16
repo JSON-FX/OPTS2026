@@ -26,7 +26,8 @@ import { Toaster } from '@/Components/ui/toaster';
 import { useToast } from '@/Components/ui/use-toast';
 import type { PageProps } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Bell, ChevronDown, Menu } from 'lucide-react';
+import { NotificationBell } from '@/Components/NotificationBell';
+import { ChevronDown, Menu } from 'lucide-react';
 import { PropsWithChildren, ReactNode, useEffect, useState } from 'react';
 
 export default function Authenticated({
@@ -35,6 +36,7 @@ export default function Authenticated({
 }: PropsWithChildren<{ header?: ReactNode }>) {
     const user = usePage<PageProps>().props.auth.user;
     const flash = usePage<PageProps>().props.flash;
+    const pendingReceiptsCount = usePage<PageProps>().props.pendingReceiptsCount ?? 0;
     const { toast } = useToast();
 
     const [sheetOpen, setSheetOpen] = useState(false);
@@ -99,12 +101,30 @@ export default function Authenticated({
                                             <Link href={route('transactions.index')}>
                                                 <NavigationMenuLink
                                                     className={navigationMenuTriggerStyle()}
-                                                    active={route().current('transactions.*')}
+                                                    active={route().current('transactions.index')}
                                                 >
                                                     Transactions
                                                 </NavigationMenuLink>
                                             </Link>
                                         </NavigationMenuItem>
+
+                                        {hasAnyRole('Endorser', 'Administrator') && (
+                                            <NavigationMenuItem>
+                                                <Link href={route('transactions.pending')}>
+                                                    <NavigationMenuLink
+                                                        className={navigationMenuTriggerStyle()}
+                                                        active={route().current('transactions.pending')}
+                                                    >
+                                                        Pending Receipts
+                                                        {pendingReceiptsCount > 0 && (
+                                                            <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white">
+                                                                {pendingReceiptsCount}
+                                                            </span>
+                                                        )}
+                                                    </NavigationMenuLink>
+                                                </Link>
+                                            </NavigationMenuItem>
+                                        )}
 
                                         {/* Administrator Only - Admin Dropdown */}
                                         {hasRole('Administrator') && (
@@ -170,16 +190,8 @@ export default function Authenticated({
                         </div>
 
                         <div className="hidden md:ms-6 md:flex md:items-center md:space-x-4">
-                            {/* Notification Bell Icon Placeholder */}
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="relative"
-                            >
-                                <Bell className="h-6 w-6" />
-                                {/* Placeholder badge for unread notifications (Epic 4) */}
-                                <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
-                            </Button>
+                            {/* Notification Bell (Story 3.8) */}
+                            <NotificationBell />
 
                             {/* User Dropdown with Avatar */}
                             <DropdownMenu>
@@ -276,6 +288,21 @@ export default function Authenticated({
                                             >
                                                 Transactions
                                             </Link>
+
+                                            {hasAnyRole('Endorser', 'Administrator') && (
+                                                <Link
+                                                    href={route('transactions.pending')}
+                                                    onClick={() => setSheetOpen(false)}
+                                                    className="flex items-center gap-2 px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                >
+                                                    Pending Receipts
+                                                    {pendingReceiptsCount > 0 && (
+                                                        <span className="inline-flex items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white">
+                                                            {pendingReceiptsCount}
+                                                        </span>
+                                                    )}
+                                                </Link>
+                                            )}
 
                                             {/* Administrator Only - Mobile Admin Menu */}
                                             {hasRole('Administrator') && (

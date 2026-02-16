@@ -28,6 +28,26 @@ class TransactionPolicy
     }
 
     /**
+     * Determine if the user can receive the transaction.
+     *
+     * Story 3.5 - Receive Action Implementation
+     */
+    public function receive(User $user, Transaction $transaction): bool
+    {
+        return $this->endorsementService->canReceive($transaction, $user);
+    }
+
+    /**
+     * Determine if the user can complete the transaction.
+     *
+     * Story 3.6 - Complete Action Implementation
+     */
+    public function complete(User $user, Transaction $transaction): bool
+    {
+        return $this->endorsementService->canComplete($transaction, $user);
+    }
+
+    /**
      * Determine if the user can view the transaction.
      */
     public function view(User $user, Transaction $transaction): bool

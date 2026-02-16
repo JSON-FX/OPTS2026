@@ -147,6 +147,7 @@ export interface Procurement {
  * Story 2.1 - Base transaction record shared by PR/PO/VCH.
  * Story 2.6 - Added is_continuation field for manual reference numbers.
  * Story 3.3 - Added tracking columns and actions relationship.
+ * Story 3.9 - Added ETA & delay computed attributes.
  */
 export interface Transaction {
     id: number;
@@ -166,12 +167,25 @@ export interface Transaction {
     updated_at: string;
     deleted_at: string | null;
 
+    // Story 3.9 - ETA computed attributes
+    eta_current_step: string | null;
+    eta_completion: string | null;
+    delay_days: number;
+    is_stagnant: boolean;
+    delay_severity: DelaySeverity;
+    days_at_current_step: number;
+
     // Relationships
     procurement?: Procurement;
     created_by?: User;
     current_step?: WorkflowStep;
     actions?: TransactionAction[];
 }
+
+/**
+ * Story 3.9 - Delay severity levels for transaction ETA tracking.
+ */
+export type DelaySeverity = 'on_track' | 'warning' | 'overdue';
 
 /**
  * Story 2.5 - Purchase Request specific fields.
@@ -365,4 +379,80 @@ export interface TransactionAction {
     from_user?: User;
     to_user?: User;
     workflow_step?: WorkflowStep;
+}
+
+/**
+ * Flattened activity timeline entry for the procurement show page.
+ * Combines transaction action data with transaction context.
+ */
+export interface ActivityTimelineEntry {
+    id: number;
+    action_type: ActionType;
+    transaction_category: TransactionCategory;
+    transaction_reference_number: string;
+    from_user: { id: number; name: string } | null;
+    to_user: { id: number; name: string } | null;
+    from_office: { id: number; name: string; abbreviation: string } | null;
+    to_office: { id: number; name: string; abbreviation: string } | null;
+    action_taken: string | null;
+    notes: string | null;
+    reason: string | null;
+    is_out_of_workflow: boolean;
+    created_at: string;
+}
+
+/**
+ * Story 3.10 - Timeline step status for visual timeline display.
+ */
+export type TimelineStepStatus = 'completed' | 'current' | 'upcoming';
+
+/**
+ * Story 3.10 - Individual step in the transaction timeline.
+ */
+export interface TimelineStep {
+    step_order: number;
+    office: { id: number; name: string; abbreviation?: string };
+    expected_days: number;
+    is_final_step: boolean;
+    status: TimelineStepStatus;
+    // For completed steps
+    completed_at?: string;
+    completed_by?: { id: number; name: string };
+    actual_days?: number | null;
+    // For current step
+    current_holder?: { id: number; name: string } | null;
+    days_at_step?: number;
+    eta?: string | null;
+    is_overdue?: boolean;
+    // For upcoming steps
+    estimated_arrival?: string;
+}
+
+/**
+ * Story 3.10 - Full transaction timeline data structure.
+ */
+export interface TransactionTimeline {
+    steps: TimelineStep[];
+    progress_percentage: number;
+    total_steps: number;
+    completed_steps: number;
+    is_out_of_workflow: boolean;
+}
+
+/**
+ * Story 3.10 - Action history entry for display below timeline.
+ */
+export interface ActionHistoryEntry {
+    id: number;
+    action_type: ActionType;
+    from_user: { id: number; name: string } | null;
+    to_user: { id: number; name: string } | null;
+    from_office: { id: number; name: string; abbreviation: string } | null;
+    to_office: { id: number; name: string; abbreviation: string } | null;
+    action_taken: string | null;
+    notes: string | null;
+    reason: string | null;
+    is_out_of_workflow: boolean;
+    workflow_step_order: number | null;
+    created_at: string;
 }

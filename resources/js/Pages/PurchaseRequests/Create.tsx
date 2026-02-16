@@ -5,6 +5,7 @@ import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
+import WorkflowPreviewCard, { WorkflowPreview } from '@/Components/WorkflowPreviewCard';
 
 interface FundType {
     id: number;
@@ -20,12 +21,29 @@ interface Procurement {
     abc_amount: number;
 }
 
+interface WorkflowStep {
+    id: number;
+    step_order: number;
+    office: { id: number; name: string; abbreviation: string } | null;
+    expected_days: number;
+}
+
+interface Workflow {
+    id: number;
+    name: string;
+    description: string | null;
+    category: string;
+    steps: WorkflowStep[];
+}
+
 interface Props {
     procurement: Procurement;
     fundTypes: FundType[];
+    workflows: Workflow[];
+    workflowPreview: WorkflowPreview | null;
 }
 
-export default function Create({ procurement, fundTypes }: Props) {
+export default function Create({ procurement, fundTypes, workflows, workflowPreview }: Props) {
     const currentDate = new Date();
     const { data, setData, post, processing, errors } = useForm({
         fund_type_id: '',
@@ -212,12 +230,37 @@ export default function Create({ procurement, fundTypes }: Props) {
                                     <InputLabel htmlFor="workflow_id" value="Workflow" />
                                     <select
                                         id="workflow_id"
-                                        disabled
-                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100"
+                                        value={data.workflow_id?.toString() ?? ''}
+                                        onChange={(e) => setData('workflow_id', e.target.value ? Number(e.target.value) : null)}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     >
-                                        <option>Workflow routing available in Epic 3</option>
+                                        <option value="">Select workflow (optional)</option>
+                                        {workflows.map((workflow) => (
+                                            <option key={workflow.id} value={workflow.id.toString()}>
+                                                {workflow.name}
+                                                {workflow.steps.length > 0 && ` (${workflow.steps.length} steps)`}
+                                            </option>
+                                        ))}
                                     </select>
-                                    <p className="mt-2 text-sm text-gray-500">Workflow routing will be available in Epic 3</p>
+                                    <InputError message={errors.workflow_id} className="mt-2" />
+                                    {data.workflow_id && (() => {
+                                        const selected = workflows.find(w => w.id === data.workflow_id);
+                                        if (!selected || selected.steps.length === 0) return null;
+                                        return (
+                                            <div className="mt-2 text-sm text-gray-500">
+                                                <span className="font-medium">Route: </span>
+                                                {selected.steps
+                                                    .sort((a, b) => a.step_order - b.step_order)
+                                                    .map(s => s.office?.abbreviation || s.office?.name || 'Unknown')
+                                                    .join(' \u2192 ')}
+                                            </div>
+                                        );
+                                    })()}
+                                    {workflowPreview && (
+                                        <div className="mt-3">
+                                            <WorkflowPreviewCard preview={workflowPreview} />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-4">

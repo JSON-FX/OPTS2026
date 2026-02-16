@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Models\Transaction;
+use App\Models\WorkflowStep;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -74,6 +75,29 @@ class UpdateWorkflowRequest extends FormRequest
 
                 if ($hasTransactions) {
                     $validator->errors()->add('category', 'Cannot change category when transactions are using this workflow.');
+                }
+            }
+
+            // Prevent removing steps that have active transactions
+            if ($workflow && $this->has('steps') && is_array($this->input('steps'))) {
+                $incomingOfficeIds = collect($this->input('steps'))->pluck('office_id')->filter()->all();
+
+                $stepsBeingRemoved = WorkflowStep::where('workflow_id', $workflow->id)
+                    ->whereNotIn('office_id', $incomingOfficeIds)
+                    ->get();
+
+                foreach ($stepsBeingRemoved as $step) {
+                    $hasActiveTransactions = Transaction::where('current_step_id', $step->id)
+                        ->whereNotIn('status', ['Completed', 'Cancelled'])
+                        ->exists();
+
+                    if ($hasActiveTransactions) {
+                        $officeName = $step->office->name ?? "ID {$step->office_id}";
+                        $validator->errors()->add(
+                            'steps',
+                            "Cannot remove the \"{$officeName}\" step because it has active transactions."
+                        );
+                    }
                 }
             }
         });

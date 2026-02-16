@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -34,6 +35,28 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user()?->load(['roles', 'office']),
             ],
+            'pendingReceiptsCount' => fn () => $request->user()
+                ? Transaction::where('current_office_id', $request->user()->office_id)
+                    ->whereNull('received_at')
+                    ->where('status', 'In Progress')
+                    ->count()
+                : 0,
+            'notifications' => fn () => $request->user()
+                ? [
+                    'unread_count' => $request->user()->unreadNotifications()->count(),
+                    'recent' => $request->user()->notifications()
+                        ->take(10)
+                        ->get()
+                        ->map(fn ($n) => [
+                            'id' => $n->id,
+                            'type' => $n->data['type'] ?? 'general',
+                            'message' => $n->data['message'] ?? '',
+                            'read_at' => $n->read_at?->toISOString(),
+                            'created_at' => $n->created_at->diffForHumans(),
+                            'data' => $n->data,
+                        ]),
+                ]
+                : ['unread_count' => 0, 'recent' => []],
         ];
     }
 }

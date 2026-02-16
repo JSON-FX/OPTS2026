@@ -28,7 +28,7 @@ class StorePurchaseOrderRequest extends FormRequest
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id,deleted_at,NULL'],
             'contract_price' => ['required', 'numeric', 'min:0.01', 'max:999999999999.99', 'decimal:0,2'],
             'ref_year' => 'required|digits:4|integer|min:2000|max:9999',
-            'ref_month' => 'required|digits:2|integer|min:1|max:12',
+            'ref_month' => 'required|digits:2|numeric|min:1|max:12',
             'ref_number' => [
                 'required',
                 'string',

@@ -1,0 +1,75 @@
+# Quality Gate: 3.8 - Out-of-Workflow Detection & Notifications
+schema: 1
+story: "3.8"
+story_title: "Out-of-Workflow Detection & Notifications"
+gate: CONCERNS
+status_reason: "Pre-implementation review found 5 issues: missing Playwright E2E test task, wrong file references for transaction detail pages, REST API pattern instead of Inertia, stale EventServiceProvider reference, and AC#8 scope creep."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-02-09T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - severity: high
+    description: "No Playwright E2E tests specified in tasks. Tech stack mandates Playwright for E2E. Must add Task 12 with tests/e2e/notifications.spec.ts covering bell icon, dropdown, mark-as-read, navigation, notifications page, and out-of-workflow banner."
+    suggested_owner: dev
+  - severity: high
+    description: "Task 9 references non-existent Transactions/Show.tsx. Out-of-workflow banner must be added to PurchaseRequests/Show.tsx, PurchaseOrders/Show.tsx, and Vouchers/Show.tsx."
+    suggested_owner: dev
+  - severity: medium
+    description: "Task 10 describes REST API endpoints but project uses Inertia.js exclusively. Must use Inertia-compatible controller actions with router.post/router.delete."
+    suggested_owner: dev
+  - severity: low
+    description: "Task 2 references EventServiceProvider which doesn't exist in Laravel 12. Use auto-discovery or AppServiceProvider::boot()."
+    suggested_owner: dev
+  - severity: low
+    description: "AC#8 (Email Notifications) marked optional but included in numbered ACs. Move to Future Considerations to avoid scope creep."
+    suggested_owner: dev
+
+quality_score: 60
+expires: "2026-02-23T00:00:00Z"
+
+evidence:
+  tests_reviewed: 0
+  risks_identified: 5
+  trace:
+    ac_covered: [1]
+    ac_gaps: [2, 3, 4, 5, 6, 7]
+
+nfr_validation:
+  security:
+    status: CONCERNS
+    notes: "Story should explicitly require authorization check in NotificationController (verify notification belongs to authenticated user before mark-as-read/delete)."
+  performance:
+    status: CONCERNS
+    notes: "Shared props notification count runs on every Inertia request. Must use lazy loading pattern (fn () =>) already established with pendingReceiptsCount. Consider lazy-loading notification list on dropdown open."
+  reliability:
+    status: PASS
+    notes: "Event/listener pattern is appropriate. Laravel notifications table migration is standard and reliable."
+  maintainability:
+    status: PASS
+    notes: "Good separation of concerns with Event/Listener/Notification classes. Code examples in dev notes follow established codebase patterns."
+
+risk_summary:
+  totals: { critical: 0, high: 2, medium: 1, low: 2 }
+  recommendations:
+    must_fix:
+      - "Add Playwright E2E test task (tests/e2e/notifications.spec.ts)"
+      - "Fix transaction detail page references to PR/PO/VCH show pages"
+      - "Replace REST API endpoints with Inertia controller actions"
+    monitor:
+      - "Performance of notification count queries on every page load"
+
+recommendations:
+  immediate:
+    - action: "Add Task 12: Playwright E2E Tests for notification UI (bell, dropdown, navigation, mark-as-read, filters, out-of-workflow banner)"
+      refs: ["tests/e2e/notifications.spec.ts"]
+    - action: "Fix Task 9 to target PurchaseRequests/Show.tsx, PurchaseOrders/Show.tsx, Vouchers/Show.tsx instead of Transactions/Show.tsx"
+      refs: ["resources/js/Pages/PurchaseRequests/Show.tsx", "resources/js/Pages/PurchaseOrders/Show.tsx", "resources/js/Pages/Vouchers/Show.tsx"]
+    - action: "Rewrite Task 10 to use Inertia-compatible controller actions instead of REST API"
+      refs: ["app/Http/Controllers/NotificationController.php"]
+  future:
+    - action: "Consider Inertia partial reloads for notification dropdown to avoid loading notifications on every page"
+      refs: ["app/Http/Middleware/HandleInertiaRequests.php"]
+    - action: "Add composite index (notifiable_type, notifiable_id, read_at) if not in default migration"
+      refs: ["database/migrations/"]

@@ -22,6 +22,12 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+# Playwright
+/tests/e2e/.auth/
+/tests/e2e/test-results/
+/playwright-report/
+/blob-report/
+
 # BMAD (local only)
 .bmad-core/
 .bmad-*/

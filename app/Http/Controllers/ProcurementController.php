@@ -139,10 +139,41 @@ class ProcurementController extends Controller
             'voucher.transaction:id,reference_number,status,created_by_user_id,created_at',
             'voucher.transaction.createdBy:id,name',
             'statusHistory' => fn ($query) => $query->with('changedBy:id,name')->orderByDesc('created_at')->limit(5),
+            'transactions:id,procurement_id,category,reference_number',
+            'transactions.actions' => fn ($query) => $query
+                ->with([
+                    'fromUser:id,name',
+                    'toUser:id,name',
+                    'fromOffice:id,name,abbreviation',
+                    'toOffice:id,name,abbreviation',
+                    'actionTaken:id,description',
+                ])
+                ->orderByDesc('created_at'),
         ])->loadCount('transactions');
+
+        $activityTimeline = $procurement->transactions
+            ->flatMap(fn ($transaction) => $transaction->actions->map(fn ($action) => [
+                'id' => $action->id,
+                'action_type' => $action->action_type,
+                'transaction_category' => $transaction->category,
+                'transaction_reference_number' => $transaction->reference_number,
+                'from_user' => $action->fromUser ? ['id' => $action->fromUser->id, 'name' => $action->fromUser->name] : null,
+                'to_user' => $action->toUser ? ['id' => $action->toUser->id, 'name' => $action->toUser->name] : null,
+                'from_office' => $action->fromOffice ? ['id' => $action->fromOffice->id, 'name' => $action->fromOffice->name, 'abbreviation' => $action->fromOffice->abbreviation] : null,
+                'to_office' => $action->toOffice ? ['id' => $action->toOffice->id, 'name' => $action->toOffice->name, 'abbreviation' => $action->toOffice->abbreviation] : null,
+                'action_taken' => $action->actionTaken?->description,
+                'notes' => $action->notes,
+                'reason' => $action->reason,
+                'is_out_of_workflow' => $action->is_out_of_workflow,
+                'created_at' => $action->created_at->toISOString(),
+            ]))
+            ->sortByDesc('created_at')
+            ->values()
+            ->all();
 
         return Inertia::render('Procurements/Show', [
             'procurement' => $procurement->makeVisible(['abc_amount']),
+            'activityTimeline' => $activityTimeline,
             'can' => [
                 'manage' => request()->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false,
             ],

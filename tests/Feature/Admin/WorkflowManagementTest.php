@@ -6,6 +6,7 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Office;
 use App\Models\Transaction;
+use App\Models\TransactionAction;
 use App\Models\User;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
@@ -496,5 +497,250 @@ class WorkflowManagementTest extends TestCase
             ->where('workflows.total', 25)
             ->where('workflows.per_page', 20)
         );
+    }
+
+    // ==================== Smart Sync Update Tests ====================
+
+    public function test_update_preserves_transaction_current_step_id(): void
+    {
+        $workflow = Workflow::factory()->pr()->create();
+        $offices = Office::factory()->count(3)->create();
+
+        $step1 = WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[0])
+            ->order(1)
+            ->create(['expected_days' => 2]);
+        $step2 = WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[1])
+            ->order(2)
+            ->final()
+            ->create(['expected_days' => 3]);
+
+        // Create a transaction at step2
+        $transaction = Transaction::factory()->create([
+            'workflow_id' => $workflow->id,
+            'current_step_id' => $step2->id,
+            'status' => 'In Progress',
+        ]);
+
+        // Update: reorder steps and change expected_days (but keep same offices)
+        $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
+            'name' => $workflow->name,
+            'category' => 'PR',
+            'is_active' => true,
+            'steps' => [
+                ['office_id' => $offices[1]->id, 'expected_days' => 5],  // was step 2, now step 1
+                ['office_id' => $offices[0]->id, 'expected_days' => 7],  // was step 1, now step 2
+            ],
+        ]);
+
+        $response->assertRedirect('/admin/workflows');
+
+        // Transaction's current_step_id should still point to the same step record
+        $transaction->refresh();
+        $this->assertEquals($step2->id, $transaction->current_step_id);
+
+        // But step2 should now have updated order and expected_days
+        $step2->refresh();
+        $this->assertEquals(1, $step2->step_order);
+        $this->assertEquals(5, $step2->expected_days);
+    }
+
+    public function test_update_can_add_new_steps_to_workflow(): void
+    {
+        $workflow = Workflow::factory()->pr()->create();
+        $offices = Office::factory()->count(4)->create();
+
+        WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[0])
+            ->order(1)
+            ->create();
+        WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[1])
+            ->order(2)
+            ->final()
+            ->create();
+
+        // Add two new offices to the workflow
+        $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
+            'name' => $workflow->name,
+            'category' => 'PR',
+            'is_active' => true,
+            'steps' => [
+                ['office_id' => $offices[0]->id, 'expected_days' => 2],
+                ['office_id' => $offices[2]->id, 'expected_days' => 3],  // new
+                ['office_id' => $offices[1]->id, 'expected_days' => 1],
+                ['office_id' => $offices[3]->id, 'expected_days' => 4],  // new
+            ],
+        ]);
+
+        $response->assertRedirect('/admin/workflows');
+
+        $workflow->refresh();
+        $this->assertEquals(4, $workflow->steps()->count());
+
+        // Verify final step is the last one
+        $finalStep = $workflow->steps()->where('is_final_step', true)->first();
+        $this->assertEquals(4, $finalStep->step_order);
+        $this->assertEquals($offices[3]->id, $finalStep->office_id);
+    }
+
+    public function test_cannot_remove_step_with_active_transactions(): void
+    {
+        $workflow = Workflow::factory()->pr()->create();
+        $offices = Office::factory()->count(3)->create();
+
+        $step1 = WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[0])
+            ->order(1)
+            ->create();
+        $step2 = WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[1])
+            ->order(2)
+            ->create();
+        WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[2])
+            ->order(3)
+            ->final()
+            ->create();
+
+        // Create an active transaction at step2
+        Transaction::factory()->create([
+            'workflow_id' => $workflow->id,
+            'current_step_id' => $step2->id,
+            'status' => 'In Progress',
+        ]);
+
+        // Try to remove step2 (offices[1]) from the workflow
+        $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
+            'name' => $workflow->name,
+            'category' => 'PR',
+            'is_active' => true,
+            'steps' => [
+                ['office_id' => $offices[0]->id, 'expected_days' => 2],
+                ['office_id' => $offices[2]->id, 'expected_days' => 1],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors('steps');
+
+        // Step should still exist
+        $this->assertDatabaseHas('workflow_steps', ['id' => $step2->id]);
+    }
+
+    public function test_can_remove_step_with_only_completed_transactions(): void
+    {
+        $workflow = Workflow::factory()->pr()->create();
+        $offices = Office::factory()->count(3)->create();
+
+        WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[0])
+            ->order(1)
+            ->create();
+        $step2 = WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[1])
+            ->order(2)
+            ->create();
+        WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[2])
+            ->order(3)
+            ->final()
+            ->create();
+
+        // Create a completed transaction at step2
+        Transaction::factory()->create([
+            'workflow_id' => $workflow->id,
+            'current_step_id' => $step2->id,
+            'status' => 'Completed',
+        ]);
+
+        // Remove step2 from the workflow
+        $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
+            'name' => $workflow->name,
+            'category' => 'PR',
+            'is_active' => true,
+            'steps' => [
+                ['office_id' => $offices[0]->id, 'expected_days' => 2],
+                ['office_id' => $offices[2]->id, 'expected_days' => 1],
+            ],
+        ]);
+
+        $response->assertRedirect('/admin/workflows');
+
+        // Step should be deleted
+        $this->assertDatabaseMissing('workflow_steps', ['id' => $step2->id]);
+
+        // Transaction's current_step_id should be nullified
+        $this->assertDatabaseHas('transactions', [
+            'workflow_id' => $workflow->id,
+            'current_step_id' => null,
+        ]);
+    }
+
+    public function test_transaction_action_workflow_step_id_nullified_for_removed_steps(): void
+    {
+        $workflow = Workflow::factory()->pr()->create();
+        $offices = Office::factory()->count(3)->create();
+
+        $step1 = WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[0])
+            ->order(1)
+            ->create();
+        $step2 = WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[1])
+            ->order(2)
+            ->create();
+        WorkflowStep::factory()
+            ->forWorkflow($workflow)
+            ->forOffice($offices[2])
+            ->order(3)
+            ->final()
+            ->create();
+
+        // Create a transaction and a historical action referencing step2
+        $transaction = Transaction::factory()->create([
+            'workflow_id' => $workflow->id,
+            'current_step_id' => $step1->id,
+            'status' => 'In Progress',
+        ]);
+        $action = TransactionAction::factory()->endorse()->create([
+            'transaction_id' => $transaction->id,
+            'workflow_step_id' => $step2->id,
+            'from_office_id' => $offices[0]->id,
+            'to_office_id' => $offices[1]->id,
+        ]);
+
+        // Remove step2 from the workflow (no active transactions at step2)
+        $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
+            'name' => $workflow->name,
+            'category' => 'PR',
+            'is_active' => true,
+            'steps' => [
+                ['office_id' => $offices[0]->id, 'expected_days' => 2],
+                ['office_id' => $offices[2]->id, 'expected_days' => 1],
+            ],
+        ]);
+
+        $response->assertRedirect('/admin/workflows');
+
+        // The action's workflow_step_id should be nullified
+        $action->refresh();
+        $this->assertNull($action->workflow_step_id);
+
+        // But the transaction's current_step_id (at step1) should be preserved
+        $transaction->refresh();
+        $this->assertEquals($step1->id, $transaction->current_step_id);
     }
 }

@@ -6,11 +6,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreVoucherRequest;
 use App\Http\Requests\UpdateVoucherRequest;
+use App\Exceptions\NoActiveWorkflowException;
+use App\Models\ActionTaken;
 use App\Models\Procurement;
 use App\Models\Transaction;
 use App\Models\Voucher;
+use App\Services\EndorsementService;
 use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
+use App\Services\TimelineService;
+use App\Services\WorkflowAssignmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -20,7 +25,10 @@ class VoucherController extends Controller
 {
     public function __construct(
         private readonly ReferenceNumberService $refNumberService,
-        private readonly ProcurementBusinessRules $businessRules
+        private readonly ProcurementBusinessRules $businessRules,
+        private readonly EndorsementService $endorsementService,
+        private readonly WorkflowAssignmentService $workflowService,
+        private readonly TimelineService $timelineService
     ) {}
 
     /**
@@ -45,10 +53,18 @@ class VoucherController extends Controller
             'purchaseOrder.supplier:id,name', // For PO card display
         ])->makeVisible(['abc_amount']);
 
+        $workflows = \App\Models\Workflow::where('is_active', true)
+            ->where('category', 'VCH')
+            ->with('steps.office')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('Vouchers/Create', [
             'procurement' => $procurement,
             'purchaseRequest' => $procurement->purchaseRequest, // Includes transaction + fundType
             'purchaseOrder' => $procurement->purchaseOrder, // Includes transaction + supplier + contract_price
+            'workflows' => $workflows,
+            'workflowPreview' => $this->workflowService->getWorkflowPreview('VCH'),
         ]);
     }
 
@@ -77,6 +93,12 @@ class VoucherController extends Controller
                     'workflow_id' => $request->input('workflow_id'),
                     'created_by_user_id' => auth()->id(),
                 ]);
+
+                try {
+                    $this->workflowService->assignWorkflow($transaction, auth()->user());
+                } catch (NoActiveWorkflowException $e) {
+                    // Workflow is optional - continue without it
+                }
 
                 Voucher::create([
                     'transaction_id' => $transaction->id,
@@ -109,6 +131,7 @@ class VoucherController extends Controller
         $voucher = Voucher::with([
             'transaction.procurement.endUser:id,name,abbreviation',
             'transaction.procurement.particular:id,description',
+            'transaction.currentStep.office',
             'transaction.createdBy:id,name',
         ])->findOrFail($id);
 
@@ -123,13 +146,60 @@ class VoucherController extends Controller
             $purchaseOrder->load('transaction:id,reference_number');
         }
 
-        $canEdit = auth()->user()->hasAnyRole(['Endorser', 'Administrator']);
+        $user = auth()->user();
+        $transaction = $voucher->transaction;
+
+        $canEdit = $user->hasAnyRole(['Endorser', 'Administrator']);
+        $canEndorse = $this->endorsementService->canEndorse($transaction, $user);
+        $cannotEndorseReason = $canEndorse ? null : $this->endorsementService->getCannotEndorseReason($transaction, $user);
+        $canReceive = $this->endorsementService->canReceive($transaction, $user);
+        $cannotReceiveReason = $canReceive ? null : $this->endorsementService->getCannotReceiveReason($transaction, $user);
+        $canComplete = $this->endorsementService->canComplete($transaction, $user);
+        $cannotCompleteReason = $canComplete ? null : $this->endorsementService->getCannotCompleteReason($transaction, $user);
+        $canHold = $this->endorsementService->canHold($transaction, $user);
+        $cannotHoldReason = $canHold ? null : $this->endorsementService->getCannotHoldReason($transaction, $user);
+        $canCancel = $this->endorsementService->canCancel($transaction, $user);
+        $cannotCancelReason = $canCancel ? null : $this->endorsementService->getCannotCancelReason($transaction, $user);
+        $canResume = $this->endorsementService->canResume($transaction, $user);
+        $cannotResumeReason = $canResume ? null : $this->endorsementService->getCannotResumeReason($transaction, $user);
+
+        // Out-of-workflow detection (Story 3.8)
+        $outOfWorkflowAction = $transaction->actions()
+            ->where('is_out_of_workflow', true)
+            ->with(['toOffice:id,name'])
+            ->latest()
+            ->first();
+
+        $outOfWorkflowInfo = $outOfWorkflowAction ? [
+            'is_out_of_workflow' => true,
+            'expected_office_name' => $this->endorsementService->getExpectedNextOffice($transaction)?->name,
+            'actual_office_name' => $outOfWorkflowAction->toOffice?->name,
+        ] : null;
 
         return Inertia::render('Vouchers/Show', [
             'voucher' => $voucher,
             'purchaseRequest' => $purchaseRequest,
             'purchaseOrder' => $purchaseOrder,
             'canEdit' => $canEdit,
+            'canEndorse' => $canEndorse,
+            'cannotEndorseReason' => $cannotEndorseReason,
+            'canReceive' => $canReceive,
+            'cannotReceiveReason' => $cannotReceiveReason,
+            'canComplete' => $canComplete,
+            'cannotCompleteReason' => $cannotCompleteReason,
+            'canHold' => $canHold,
+            'cannotHoldReason' => $cannotHoldReason,
+            'canCancel' => $canCancel,
+            'cannotCancelReason' => $cannotCancelReason,
+            'canResume' => $canResume,
+            'cannotResumeReason' => $cannotResumeReason,
+            'outOfWorkflowInfo' => $outOfWorkflowInfo,
+            'timeline' => $this->timelineService->getTimeline($transaction),
+            'actionHistory' => $this->timelineService->getActionHistory($transaction),
+            'actionTakenOptions' => ActionTaken::query()
+                ->where('is_active', true)
+                ->orderBy('description')
+                ->get(['id', 'description']),
         ]);
     }
 

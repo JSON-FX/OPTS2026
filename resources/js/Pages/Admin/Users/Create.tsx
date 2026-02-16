@@ -1,15 +1,26 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { PageProps } from '@/types';
-import { Role, Office, UserFormData } from '@/types/models';
-import { FormEventHandler } from 'react';
+import { Role, Office } from '@/types/models';
+import { FormEventHandler, useState } from 'react';
+import { Input } from '@/Components/ui/input';
+import { Label } from '@/Components/ui/label';
+import { Button } from '@/Components/ui/button';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/Components/ui/select';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface Props extends PageProps {
     roles: Role[];
     offices: Office[];
 }
 
-export default function Create({ auth, roles, offices }: Props) {
+export default function Create({ roles, offices }: Props) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         email: '',
@@ -18,6 +29,9 @@ export default function Create({ auth, roles, offices }: Props) {
         role: '',
         office_id: undefined as number | undefined,
     });
+
+    const [showPassword, setShowPassword] = useState(false);
+    const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -39,119 +53,213 @@ export default function Create({ auth, roles, offices }: Props) {
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         <div className="p-6">
                             <form onSubmit={submit} className="space-y-6">
-                                <div>
-                                    <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                                        Name
-                                    </label>
-                                    <input
+                                <div className="space-y-2">
+                                    <Label htmlFor="name">Name</Label>
+                                    <Input
                                         id="name"
                                         type="text"
                                         value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        onChange={(e) =>
+                                            setData('name', e.target.value)
+                                        }
                                         required
                                     />
-                                    {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+                                    {errors.name && (
+                                        <p className="text-sm text-destructive">
+                                            {errors.name}
+                                        </p>
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                                        Email
-                                    </label>
-                                    <input
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">Email</Label>
+                                    <Input
                                         id="email"
                                         type="email"
                                         value={data.email}
-                                        onChange={(e) => setData('email', e.target.value)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        onChange={(e) =>
+                                            setData('email', e.target.value)
+                                        }
                                         required
                                     />
-                                    {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
+                                    {errors.email && (
+                                        <p className="text-sm text-destructive">
+                                            {errors.email}
+                                        </p>
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                                        Password
-                                    </label>
-                                    <input
-                                        id="password"
-                                        type="password"
-                                        value={data.password}
-                                        onChange={(e) => setData('password', e.target.value)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                        required
-                                        minLength={8}
-                                    />
-                                    {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+                                <div className="space-y-2">
+                                    <Label htmlFor="password">Password</Label>
+                                    <div className="relative">
+                                        <Input
+                                            id="password"
+                                            type={
+                                                showPassword
+                                                    ? 'text'
+                                                    : 'password'
+                                            }
+                                            value={data.password}
+                                            onChange={(e) =>
+                                                setData(
+                                                    'password',
+                                                    e.target.value
+                                                )
+                                            }
+                                            required
+                                            minLength={8}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowPassword(!showPassword)
+                                            }
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        >
+                                            {showPassword ? (
+                                                <EyeOff className="h-4 w-4" />
+                                            ) : (
+                                                <Eye className="h-4 w-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    {errors.password && (
+                                        <p className="text-sm text-destructive">
+                                            {errors.password}
+                                        </p>
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label htmlFor="password_confirmation" className="block text-sm font-medium text-gray-700">
+                                <div className="space-y-2">
+                                    <Label htmlFor="password_confirmation">
                                         Confirm Password
-                                    </label>
-                                    <input
-                                        id="password_confirmation"
-                                        type="password"
-                                        value={data.password_confirmation}
-                                        onChange={(e) => setData('password_confirmation', e.target.value)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                        required
-                                        minLength={8}
-                                    />
-                                    {errors.password_confirmation && <p className="mt-1 text-sm text-red-600">{errors.password_confirmation}</p>}
+                                    </Label>
+                                    <div className="relative">
+                                        <Input
+                                            id="password_confirmation"
+                                            type={
+                                                showPasswordConfirmation
+                                                    ? 'text'
+                                                    : 'password'
+                                            }
+                                            value={data.password_confirmation}
+                                            onChange={(e) =>
+                                                setData(
+                                                    'password_confirmation',
+                                                    e.target.value
+                                                )
+                                            }
+                                            required
+                                            minLength={8}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowPasswordConfirmation(
+                                                    !showPasswordConfirmation
+                                                )
+                                            }
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        >
+                                            {showPasswordConfirmation ? (
+                                                <EyeOff className="h-4 w-4" />
+                                            ) : (
+                                                <Eye className="h-4 w-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    {errors.password_confirmation && (
+                                        <p className="text-sm text-destructive">
+                                            {errors.password_confirmation}
+                                        </p>
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                                        Role
-                                    </label>
-                                    <select
-                                        id="role"
+                                <div className="space-y-2">
+                                    <Label htmlFor="role">Role</Label>
+                                    <Select
                                         value={data.role}
-                                        onChange={(e) => setData('role', e.target.value)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        onValueChange={(value) =>
+                                            setData('role', value)
+                                        }
                                         required
                                     >
-                                        <option value="">Select a role</option>
-                                        {roles.map(role => (
-                                            <option key={role.id} value={role.name}>{role.name}</option>
-                                        ))}
-                                    </select>
-                                    {errors.role && <p className="mt-1 text-sm text-red-600">{errors.role}</p>}
+                                        <SelectTrigger id="role">
+                                            <SelectValue placeholder="Select a role" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {roles.map((role) => (
+                                                <SelectItem
+                                                    key={role.id}
+                                                    value={role.name}
+                                                >
+                                                    {role.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.role && (
+                                        <p className="text-sm text-destructive">
+                                            {errors.role}
+                                        </p>
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label htmlFor="office_id" className="block text-sm font-medium text-gray-700">
+                                <div className="space-y-2">
+                                    <Label htmlFor="office_id">
                                         Office (Optional)
-                                    </label>
-                                    <select
-                                        id="office_id"
-                                        value={data.office_id || ''}
-                                        onChange={(e) => setData('office_id', e.target.value ? parseInt(e.target.value) : undefined)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    </Label>
+                                    <Select
+                                        value={
+                                            data.office_id
+                                                ? String(data.office_id)
+                                                : 'none'
+                                        }
+                                        onValueChange={(value) =>
+                                            setData(
+                                                'office_id',
+                                                value === 'none'
+                                                    ? undefined
+                                                    : parseInt(value)
+                                            )
+                                        }
                                     >
-                                        <option value="">No office</option>
-                                        {offices.map(office => (
-                                            <option key={office.id} value={office.id}>{office.name}</option>
-                                        ))}
-                                    </select>
-                                    {errors.office_id && <p className="mt-1 text-sm text-red-600">{errors.office_id}</p>}
+                                        <SelectTrigger id="office_id">
+                                            <SelectValue placeholder="No office" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">
+                                                No office
+                                            </SelectItem>
+                                            {offices.map((office) => (
+                                                <SelectItem
+                                                    key={office.id}
+                                                    value={String(office.id)}
+                                                >
+                                                    {office.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.office_id && (
+                                        <p className="text-sm text-destructive">
+                                            {errors.office_id}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-end gap-4">
-                                    <Link
-                                        href={route('admin.users.index')}
-                                        className="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-                                    >
-                                        Cancel
+                                    <Link href={route('admin.users.index')}>
+                                        <Button type="button" variant="outline">
+                                            Cancel
+                                        </Button>
                                     </Link>
-                                    <button
+                                    <Button
                                         type="submit"
                                         disabled={processing}
-                                        className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
                                     >
                                         Create User
-                                    </button>
+                                    </Button>
                                 </div>
                             </form>
                         </div>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\EtaCalculationService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Transaction model representing a PR/PO/VCH transaction.
@@ -38,6 +40,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, TransactionAction> $actionsHistory
  * @property-read TransactionAction|null $lastAction
  * @property-read array{office: Office|null, user: User|null}|null $currentHolder
+ * @property-read Workflow|null $workflow
+ * @property-read string|null $eta_current_step
+ * @property-read string|null $eta_completion
+ * @property-read int $delay_days
+ * @property-read bool $is_stagnant
+ * @property-read string $delay_severity
+ * @property-read int $days_at_current_step
  */
 class Transaction extends Model
 {
@@ -49,6 +58,20 @@ class Transaction extends Model
     public const CATEGORY_PURCHASE_ORDER = 'PO';
 
     public const CATEGORY_VOUCHER = 'VCH';
+
+    /**
+     * Story 3.9 - Computed ETA attributes appended to JSON serialization.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'eta_current_step',
+        'eta_completion',
+        'delay_days',
+        'is_stagnant',
+        'delay_severity',
+        'days_at_current_step',
+    ];
 
     /**
      * @var list<string>
@@ -128,6 +151,16 @@ class Transaction extends Model
     }
 
     /**
+     * Get the assigned workflow.
+     *
+     * @return BelongsTo<Workflow, $this>
+     */
+    public function workflow(): BelongsTo
+    {
+        return $this->belongsTo(Workflow::class);
+    }
+
+    /**
      * Get actions ordered by created_at descending (most recent first).
      *
      * @return Collection<int, TransactionAction>
@@ -184,5 +217,43 @@ class Transaction extends Model
     public function hasBeenReceivedByCurrentOffice(): bool
     {
         return $this->received_at !== null;
+    }
+
+    // -------------------------------------------------------
+    // Story 3.9 - ETA & Delay Calculation Accessors
+    // -------------------------------------------------------
+
+    public function getEtaCurrentStepAttribute(): ?string
+    {
+        $eta = app(EtaCalculationService::class)->getCurrentStepEta($this);
+
+        return $eta?->toDateString();
+    }
+
+    public function getEtaCompletionAttribute(): ?string
+    {
+        $eta = app(EtaCalculationService::class)->getCompletionEta($this);
+
+        return $eta?->toDateString();
+    }
+
+    public function getDelayDaysAttribute(): int
+    {
+        return app(EtaCalculationService::class)->getDelayDays($this);
+    }
+
+    public function getIsStagnantAttribute(): bool
+    {
+        return app(EtaCalculationService::class)->isStagnant($this);
+    }
+
+    public function getDelaySeverityAttribute(): string
+    {
+        return app(EtaCalculationService::class)->getDelaySeverity($this);
+    }
+
+    public function getDaysAtCurrentStepAttribute(): int
+    {
+        return app(EtaCalculationService::class)->getDaysAtCurrentStep($this);
     }
 }

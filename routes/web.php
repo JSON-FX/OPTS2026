@@ -23,6 +23,16 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Notifications (Story 3.8)
+    Route::get('/notifications', [\App\Http\Controllers\NotificationController::class, 'index'])
+        ->name('notifications.index');
+    Route::post('/notifications/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])
+        ->name('notifications.markAsRead');
+    Route::post('/notifications/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead'])
+        ->name('notifications.markAllAsRead');
+    Route::delete('/notifications/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy'])
+        ->name('notifications.destroy');
+
     Route::resource('procurements', \App\Http\Controllers\ProcurementController::class);
 
     // Transactions - view all (all authenticated users)
@@ -43,11 +53,23 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
+    // Transaction receive routes (Story 3.5)
+    Route::get('/transactions/pending', [\App\Http\Controllers\TransactionReceiveController::class, 'pending'])
+        ->name('transactions.pending');
+    Route::post('/transactions/{transaction}/receive', [\App\Http\Controllers\TransactionReceiveController::class, 'store'])
+        ->name('transactions.receive.store');
+    Route::post('/transactions/receive-bulk', [\App\Http\Controllers\TransactionReceiveController::class, 'storeBulk'])
+        ->name('transactions.receive.bulk');
+
     // Transaction endorsement routes
     Route::get('/transactions/{transaction}/endorse', [\App\Http\Controllers\TransactionEndorseController::class, 'create'])
         ->name('transactions.endorse.create');
     Route::post('/transactions/{transaction}/endorse', [\App\Http\Controllers\TransactionEndorseController::class, 'store'])
         ->name('transactions.endorse.store');
+
+    // Transaction complete route (Story 3.6)
+    Route::post('/transactions/{transaction}/complete', [\App\Http\Controllers\TransactionCompleteController::class, 'store'])
+        ->name('transactions.complete.store');
 
     // Purchase Request - create/edit/delete (Endorser/Administrator only)
     Route::get('/procurements/{procurement}/purchase-requests/create', [\App\Http\Controllers\PurchaseRequestController::class, 'create'])
@@ -87,6 +109,14 @@ Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:Administrator'])->group(function () {
+    // Transaction admin actions (Story 3.7)
+    Route::post('/transactions/{transaction}/hold', [\App\Http\Controllers\TransactionHoldController::class, 'store'])
+        ->name('transactions.hold.store');
+    Route::post('/transactions/{transaction}/cancel', [\App\Http\Controllers\TransactionCancelController::class, 'store'])
+        ->name('transactions.cancel.store');
+    Route::post('/transactions/{transaction}/resume', [\App\Http\Controllers\TransactionResumeController::class, 'store'])
+        ->name('transactions.resume.store');
+
     Route::resource('admin/workflows', App\Http\Controllers\Admin\WorkflowController::class)->names([
         'index' => 'admin.workflows.index',
         'create' => 'admin.workflows.create',

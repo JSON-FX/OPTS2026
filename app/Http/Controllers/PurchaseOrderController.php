@@ -6,11 +6,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePurchaseOrderRequest;
 use App\Http\Requests\UpdatePurchaseOrderRequest;
+use App\Exceptions\NoActiveWorkflowException;
+use App\Models\ActionTaken;
 use App\Models\Procurement;
 use App\Models\PurchaseOrder;
 use App\Models\Transaction;
+use App\Services\EndorsementService;
 use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
+use App\Services\TimelineService;
+use App\Services\WorkflowAssignmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -20,7 +25,10 @@ class PurchaseOrderController extends Controller
 {
     public function __construct(
         private readonly ReferenceNumberService $refNumberService,
-        private readonly ProcurementBusinessRules $businessRules
+        private readonly ProcurementBusinessRules $businessRules,
+        private readonly EndorsementService $endorsementService,
+        private readonly WorkflowAssignmentService $workflowService,
+        private readonly TimelineService $timelineService
     ) {}
 
     /**
@@ -45,10 +53,18 @@ class PurchaseOrderController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'address']);
 
+        $workflows = \App\Models\Workflow::where('is_active', true)
+            ->where('category', 'PO')
+            ->with('steps.office')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('PurchaseOrders/Create', [
             'procurement' => $procurement,
             'purchaseRequest' => $procurement->purchaseRequest,
             'suppliers' => $suppliers,
+            'workflows' => $workflows,
+            'workflowPreview' => $this->workflowService->getWorkflowPreview('PO'),
         ]);
     }
 
@@ -87,6 +103,12 @@ class PurchaseOrderController extends Controller
                     'created_by_user_id' => auth()->id(),
                 ]);
 
+                try {
+                    $this->workflowService->assignWorkflow($transaction, auth()->user());
+                } catch (NoActiveWorkflowException $e) {
+                    // Workflow is optional - continue without it
+                }
+
                 PurchaseOrder::create([
                     'transaction_id' => $transaction->id,
                     'supplier_id' => $supplier->id,
@@ -120,6 +142,7 @@ class PurchaseOrderController extends Controller
         $purchaseOrder = PurchaseOrder::with([
             'transaction.procurement.endUser:id,name,abbreviation',
             'transaction.procurement.particular:id,description',
+            'transaction.currentStep.office',
             'transaction.createdBy:id,name',
             'supplier:id,name',
         ])->findOrFail($id);
@@ -130,12 +153,61 @@ class PurchaseOrderController extends Controller
             $purchaseRequest->load('transaction:id,reference_number');
         }
 
-        $canEdit = auth()->user()->hasAnyRole(['Endorser', 'Administrator']);
+        $user = auth()->user();
+        $transaction = $purchaseOrder->transaction;
+
+        $canEdit = $user->hasAnyRole(['Endorser', 'Administrator']);
+        $canDelete = $canEdit && $this->businessRules->canDeletePO($transaction->procurement);
+        $canEndorse = $this->endorsementService->canEndorse($transaction, $user);
+        $cannotEndorseReason = $canEndorse ? null : $this->endorsementService->getCannotEndorseReason($transaction, $user);
+        $canReceive = $this->endorsementService->canReceive($transaction, $user);
+        $cannotReceiveReason = $canReceive ? null : $this->endorsementService->getCannotReceiveReason($transaction, $user);
+        $canComplete = $this->endorsementService->canComplete($transaction, $user);
+        $cannotCompleteReason = $canComplete ? null : $this->endorsementService->getCannotCompleteReason($transaction, $user);
+        $canHold = $this->endorsementService->canHold($transaction, $user);
+        $cannotHoldReason = $canHold ? null : $this->endorsementService->getCannotHoldReason($transaction, $user);
+        $canCancel = $this->endorsementService->canCancel($transaction, $user);
+        $cannotCancelReason = $canCancel ? null : $this->endorsementService->getCannotCancelReason($transaction, $user);
+        $canResume = $this->endorsementService->canResume($transaction, $user);
+        $cannotResumeReason = $canResume ? null : $this->endorsementService->getCannotResumeReason($transaction, $user);
+
+        // Out-of-workflow detection (Story 3.8)
+        $outOfWorkflowAction = $transaction->actions()
+            ->where('is_out_of_workflow', true)
+            ->with(['toOffice:id,name'])
+            ->latest()
+            ->first();
+
+        $outOfWorkflowInfo = $outOfWorkflowAction ? [
+            'is_out_of_workflow' => true,
+            'expected_office_name' => $this->endorsementService->getExpectedNextOffice($transaction)?->name,
+            'actual_office_name' => $outOfWorkflowAction->toOffice?->name,
+        ] : null;
 
         return Inertia::render('PurchaseOrders/Show', [
             'purchaseOrder' => $purchaseOrder,
             'purchaseRequest' => $purchaseRequest,
             'canEdit' => $canEdit,
+            'canDelete' => $canDelete,
+            'canEndorse' => $canEndorse,
+            'cannotEndorseReason' => $cannotEndorseReason,
+            'canReceive' => $canReceive,
+            'cannotReceiveReason' => $cannotReceiveReason,
+            'canComplete' => $canComplete,
+            'cannotCompleteReason' => $cannotCompleteReason,
+            'canHold' => $canHold,
+            'cannotHoldReason' => $cannotHoldReason,
+            'canCancel' => $canCancel,
+            'cannotCancelReason' => $cannotCancelReason,
+            'canResume' => $canResume,
+            'cannotResumeReason' => $cannotResumeReason,
+            'outOfWorkflowInfo' => $outOfWorkflowInfo,
+            'timeline' => $this->timelineService->getTimeline($transaction),
+            'actionHistory' => $this->timelineService->getActionHistory($transaction),
+            'actionTakenOptions' => ActionTaken::query()
+                ->where('is_active', true)
+                ->orderBy('description')
+                ->get(['id', 'description']),
         ]);
     }
 
