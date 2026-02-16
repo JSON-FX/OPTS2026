@@ -30,6 +30,20 @@ Implement the workflow engine enabling administrators to define category-specifi
 
 Build the comprehensive dashboard with summary cards, office workload tables, activity feeds, and stagnant transaction panels. Implement the notification system (bell icon with badges) for out-of-workflow alerts, received items, overdue items, and completions. Add search/filter capabilities across procurements and transactions. This epic delivers visibility and proactive monitoring for all system users.
 
+> **Sub-Epics:**
+
+**Epic 4.1: Dashboard & Summary Views** *(Brownfield Enhancement)*
+
+Replace the placeholder Dashboard page with a comprehensive command center: summary cards (PR/PO/VCH/Procurement counts by status), office workload table with drill-down, activity feed showing recent endorsements/receives/completions, stagnant transactions panel, and SLA performance metrics. Stories: 4.1.1 (Summary Cards & Workload), 4.1.2 (Activity Feed & Stagnant Panel), 4.1.3 (SLA Performance).
+
+**Epic 4.2: Notification System Expansion** *(Brownfield Enhancement)*
+
+Expand the out-of-workflow notification system (Story 3.8) to cover all FR31 notification types: received items, overdue alerts, completion notices, and admin announcements with severity banners. Add notification preferences per user. Stories: 4.2.1 (Received/Overdue/Completion Notifications), 4.2.2 (Admin Announcements), 4.2.3 (Notification Preferences).
+
+**Epic 4.3: Enhanced Search & Filtering** *(Brownfield Enhancement)*
+
+Enhance all list views with comprehensive search/filter capabilities (FR23): office, fund type, supplier, date range, delay status filters. Standardize the filter experience across all list pages with a reusable FilterBar component. Stories: 4.3.1 (Transaction Search Enhancement), 4.3.2 (Standardized List Filtering).
+
 **Epic 5: Admin Tools & Data Export**
 
 Implement administrative override capabilities (Bypass Endorsement for correcting misroutes), page access management (role-to-page permission matrix), announcement system (Normal/Advisory/Emergency banners), and data export functionality (CSV/JSON with filters). Enhance audit trail reporting for compliance. This epic delivers administrative control and compliance reporting capabilities.

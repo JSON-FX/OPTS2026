@@ -300,6 +300,7 @@ export interface TransactionSearchFilters {
     date_from?: string;
     date_to?: string;
     end_user_id?: number | '';
+    current_office_id?: number | '';
     created_by_me?: boolean;
     sort_by?: string;
     sort_direction?: 'asc' | 'desc';
@@ -455,4 +456,75 @@ export interface ActionHistoryEntry {
     is_out_of_workflow: boolean;
     workflow_step_order: number | null;
     created_at: string;
+}
+
+/**
+ * Story 4.1.2 - Activity feed entry for dashboard recent activity panel.
+ */
+export interface ActivityFeedEntry {
+    id: number;
+    action_type: ActionType;
+    transaction_reference_number: string;
+    transaction_id: number;
+    transaction_category: TransactionCategory;
+    actor_name: string;
+    from_office: string | null;
+    to_office: string | null;
+    is_out_of_workflow: boolean;
+    purchase_request_id?: number;
+    purchase_order_id?: number;
+    voucher_id?: number;
+    created_at: string;
+}
+
+/**
+ * Story 4.1.2 - Stagnant transaction entry for dashboard needs-attention panel.
+ */
+export interface StagnantTransaction {
+    id: number;
+    reference_number: string;
+    category: TransactionCategory;
+    current_office_name: string;
+    delay_days: number;
+    delay_severity: DelaySeverity;
+    days_at_current_step: number;
+    purchase_request_id?: number;
+    purchase_order_id?: number;
+    voucher_id?: number;
+}
+
+/**
+ * Story 4.1.1 - Dashboard summary card status counts.
+ */
+export interface StatusCounts {
+    total: number;
+    created: number;
+    in_progress: number;
+    completed: number;
+    on_hold: number;
+    cancelled: number;
+}
+
+/**
+ * Story 4.1.1 - Dashboard summary data for all categories.
+ */
+export interface DashboardSummary {
+    procurements: StatusCounts;
+    purchase_requests: StatusCounts;
+    purchase_orders: StatusCounts;
+    vouchers: StatusCounts;
+}
+
+/**
+ * Story 4.1.1 - Office workload row for dashboard table.
+ */
+export interface OfficeWorkload {
+    office_id: number;
+    office_name: string;
+    office_abbreviation: string;
+    pr_count: number;
+    po_count: number;
+    vch_count: number;
+    total: number;
+    stagnant_count: number;
 }

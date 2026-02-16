@@ -1,0 +1,45 @@
+schema: 1
+story: "4.1.1"
+story_title: "Dashboard Summary Cards & Office Workload Table"
+gate: PASS
+status_reason: "All 8 acceptance criteria met. 17 tests pass (199 assertions). TypeScript compiles cleanly. Click-through bug found and fixed during review. Two cosmetic items (unused import/variable) are non-blocking."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-02-16T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+quality_score: 90
+expires: "2026-03-02T00:00:00Z"
+
+evidence:
+  tests_reviewed: 17
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Read-only dashboard, authentication required, parameterized queries"
+  performance:
+    status: PASS
+    notes: "DB-level GROUP BY aggregation, no N+1. Stagnant count uses batch query with eager loading (acceptable for <500 active transactions)"
+  reliability:
+    status: PASS
+    notes: "Proper empty state handling, graceful degradation when no data exists"
+  maintainability:
+    status: CONCERNS
+    notes: "Unused import (usePage) and unused variable (hasData) in Dashboard.tsx — cosmetic, non-blocking"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Remove unused usePage import and hasData variable from Dashboard.tsx"
+      refs: ["resources/js/Pages/Dashboard.tsx:2", "resources/js/Pages/Dashboard.tsx:212-216"]
+    - action: "Add feature test for click-through flow (/transactions?current_office_id=X&category=PR)"
+      refs: ["tests/Feature/DashboardTest.php"]
+    - action: "Consider raw SQL stagnant calculation if active transactions exceed 500"
+      refs: ["app/Services/DashboardService.php:113-130"]

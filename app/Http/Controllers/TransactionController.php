@@ -61,6 +61,11 @@ class TransactionController extends Controller
             $query->where('procurements.end_user_id', $request->end_user_id);
         }
 
+        // Filter by current office (where transaction currently sits in workflow)
+        if ($request->filled('current_office_id')) {
+            $query->where('transactions.current_office_id', $request->current_office_id);
+        }
+
         // Filter by created by me
         if ($request->boolean('created_by_me')) {
             $query->where('transactions.created_by_user_id', $request->user()->id);
@@ -102,6 +107,7 @@ class TransactionController extends Controller
                 'date_from',
                 'date_to',
                 'end_user_id',
+                'current_office_id',
                 'created_by_me',
                 'sort_by',
                 'sort_direction',

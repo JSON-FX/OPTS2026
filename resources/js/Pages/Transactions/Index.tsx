@@ -362,6 +362,7 @@ export default function Index({ auth, transactions, filters, can, offices = [] }
         filters.date_from ||
         filters.date_to ||
         filters.end_user_id ||
+        filters.current_office_id ||
         filters.created_by_me;
 
     return (
@@ -446,13 +447,30 @@ export default function Index({ auth, transactions, filters, can, offices = [] }
 
                                     {offices.length > 0 && (
                                         <Select
-                                            value={filters.end_user_id?.toString() || 'all'}
-                                            onValueChange={(value) =>
-                                                handleFilterChange(
-                                                    'end_user_id',
-                                                    value === 'all' ? '' : value
-                                                )
+                                            value={
+                                                filters.current_office_id?.toString() ||
+                                                filters.end_user_id?.toString() ||
+                                                'all'
                                             }
+                                            onValueChange={(value) => {
+                                                if (filters.current_office_id) {
+                                                    // Clear current_office_id and switch to end_user_id filter
+                                                    const params = { ...filters } as Record<string, string>;
+                                                    delete params.current_office_id;
+                                                    if (value !== 'all') {
+                                                        params.end_user_id = value;
+                                                    }
+                                                    router.get(route('transactions.index'), params, {
+                                                        preserveState: true,
+                                                        preserveScroll: true,
+                                                    });
+                                                } else {
+                                                    handleFilterChange(
+                                                        'end_user_id',
+                                                        value === 'all' ? '' : value
+                                                    );
+                                                }
+                                            }}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue placeholder="All Offices" />

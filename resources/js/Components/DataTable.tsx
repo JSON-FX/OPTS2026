@@ -20,22 +20,35 @@ import {
 } from '@/Components/ui/table';
 import { Button } from '@/Components/ui/button';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
     data: TData[];
     children?: React.ReactNode;
+    getRowClassName?: (row: TData) => string | undefined;
+    pageSize?: number;
+    globalFilter?: string;
+    onGlobalFilterChange?: (value: string) => void;
 }
 
 export function DataTable<TData, TValue>({
     columns,
     data,
     children,
+    getRowClassName,
+    pageSize = 50,
+    globalFilter,
+    onGlobalFilterChange,
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+    const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
+
+    useEffect(() => {
+        setPagination((prev) => ({ ...prev, pageSize, pageIndex: 0 }));
+    }, [pageSize]);
 
     const table = useReactTable({
         data,
@@ -47,16 +60,16 @@ export function DataTable<TData, TValue>({
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
         onColumnVisibilityChange: setColumnVisibility,
+        onPaginationChange: setPagination,
+        globalFilterFn: 'includesString',
         state: {
             sorting,
             columnFilters,
             columnVisibility,
+            pagination,
+            globalFilter,
         },
-        initialState: {
-            pagination: {
-                pageSize: 50,
-            },
-        },
+        onGlobalFilterChange,
     });
 
     return (
@@ -87,7 +100,7 @@ export function DataTable<TData, TValue>({
                     <TableBody>
                         {table.getRowModel().rows?.length ? (
                             table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id}>
+                                <TableRow key={row.id} className={getRowClassName?.(row.original)}>
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id}>
                                             {flexRender(
@@ -116,6 +129,7 @@ export function DataTable<TData, TValue>({
                     <div className="text-sm text-muted-foreground">
                         Page {table.getState().pagination.pageIndex + 1} of{' '}
                         {table.getPageCount()}
+                        {' '}({table.getFilteredRowModel().rows.length} rows)
                     </div>
                     <div className="flex items-center space-x-2">
                         <Button
