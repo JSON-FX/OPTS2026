@@ -23,11 +23,18 @@ class DashboardController extends Controller
         $activityFeed = $this->dashboardService->getRecentActivity(100);
         $stagnantTransactions = $this->dashboardService->getStagnantTransactions(100);
 
+        $slaPerformance = [
+            'office_performance' => $this->dashboardService->getOfficePerformance(),
+            'incidents' => $this->dashboardService->getIncidentSummary(),
+            'volume' => $this->dashboardService->getVolumeSummary(),
+        ];
+
         return Inertia::render('Dashboard', [
             'summary' => $summary,
             'officeWorkload' => $officeWorkload,
             'activityFeed' => $activityFeed,
             'stagnantTransactions' => $stagnantTransactions,
+            'slaPerformance' => $slaPerformance,
             'userOfficeId' => $request->user()?->office_id,
         ]);
     }

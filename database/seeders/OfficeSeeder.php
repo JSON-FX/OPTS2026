@@ -14,7 +14,7 @@ class OfficeSeeder extends Seeder
     {
         $offices = [
             // Executive Office
-            ['name' => 'Office of the Mayor', 'type' => 'Executive', 'abbreviation' => 'MAYOR', 'is_active' => true],
+            ['name' => 'Municipal Mayor\'s Office', 'type' => 'Executive', 'abbreviation' => 'MMO', 'is_active' => true],
             ['name' => 'Office of the Vice Mayor', 'type' => 'Executive', 'abbreviation' => 'VM', 'is_active' => true],
             ['name' => 'Sangguniang Bayan', 'type' => 'Executive', 'abbreviation' => 'SB', 'is_active' => true],
 
@@ -25,7 +25,7 @@ class OfficeSeeder extends Seeder
 
             // Financial Management
             ['name' => 'Municipal Treasurer Office', 'type' => 'Financial', 'abbreviation' => 'MTO', 'is_active' => true],
-            ['name' => 'Municipal Accountant Office', 'type' => 'Financial', 'abbreviation' => 'ACCT', 'is_active' => true],
+            ['name' => 'Municipal Accounting Office', 'type' => 'Financial', 'abbreviation' => 'MACCO', 'is_active' => true],
             ['name' => 'Municipal Budget Office', 'type' => 'Financial', 'abbreviation' => 'MBO', 'is_active' => true],
             ['name' => 'Municipal Assessor Office', 'type' => 'Financial', 'abbreviation' => 'ASSESS', 'is_active' => true],
 
@@ -49,9 +49,13 @@ class OfficeSeeder extends Seeder
             ['name' => 'Philippine National Police', 'type' => 'Public Safety', 'abbreviation' => 'PNP', 'is_active' => true],
             ['name' => 'Bureau of Fire Protection', 'type' => 'Public Safety', 'abbreviation' => 'BFP', 'is_active' => true],
 
+            // Procurement & Supply
+            ['name' => 'Bids and Awards Committee', 'type' => 'Procurement', 'abbreviation' => 'BAC', 'is_active' => true],
+            ['name' => 'Procurement Office', 'type' => 'Procurement', 'abbreviation' => 'MMO-PO', 'is_active' => true],
+            ['name' => 'Property and Supply Management Division', 'type' => 'Procurement', 'abbreviation' => 'MMO-PSMD', 'is_active' => true],
+
             // Other Offices
             ['name' => 'Public Information Office', 'type' => 'Other', 'abbreviation' => 'PIO', 'is_active' => true],
-            ['name' => 'Bids and Awards Committee Secretariat', 'type' => 'Other', 'abbreviation' => 'BAC', 'is_active' => true],
             ['name' => 'Municipal Tourism Office', 'type' => 'Other', 'abbreviation' => 'MTO-TOUR', 'is_active' => true],
         ];
 

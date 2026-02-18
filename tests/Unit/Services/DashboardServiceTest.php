@@ -9,6 +9,8 @@ use App\Models\Procurement;
 use App\Models\Transaction;
 use App\Models\TransactionAction;
 use App\Models\User;
+use App\Models\Workflow;
+use App\Models\WorkflowStep;
 use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -126,6 +128,9 @@ class DashboardServiceTest extends TestCase
         $office = Office::factory()->create();
         $procurement = Procurement::factory()->create(['created_by_user_id' => $user->id]);
 
+        $workflow = Workflow::factory()->pr()->create();
+        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office)->create();
+
         Transaction::factory()->create([
             'procurement_id' => $procurement->id,
             'category' => 'PR',
@@ -149,7 +154,7 @@ class DashboardServiceTest extends TestCase
         $this->assertIsInt($row->stagnant_count);
     }
 
-    public function test_get_office_workload_with_no_data(): void
+    public function test_get_office_workload_with_no_active_workflows(): void
     {
         $workload = $this->service->getOfficeWorkload();
 
@@ -162,6 +167,9 @@ class DashboardServiceTest extends TestCase
         $office = Office::factory()->create();
         $procurement = Procurement::factory()->create(['created_by_user_id' => $user->id]);
 
+        $workflow = Workflow::factory()->pr()->create();
+        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office)->create();
+
         Transaction::factory()->create([
             'procurement_id' => $procurement->id,
             'category' => 'PR',
@@ -172,7 +180,11 @@ class DashboardServiceTest extends TestCase
 
         $workload = $this->service->getOfficeWorkload();
 
-        $this->assertCount(0, $workload);
+        // Office still appears (from workflow) but with 0 transaction counts
+        $this->assertCount(1, $workload);
+        $row = $workload->first();
+        $this->assertEquals($office->id, $row->office_id);
+        $this->assertEquals(0, $row->total);
     }
 
     public function test_get_office_workload_groups_by_office(): void
@@ -181,6 +193,10 @@ class DashboardServiceTest extends TestCase
         $office1 = Office::factory()->create(['name' => 'Office A']);
         $office2 = Office::factory()->create(['name' => 'Office B']);
         $procurement = Procurement::factory()->create(['created_by_user_id' => $user->id]);
+
+        $workflow = Workflow::factory()->pr()->create();
+        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office1)->order(1)->create();
+        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office2)->order(2)->final()->create();
 
         Transaction::factory()->count(2)->create([
             'procurement_id' => $procurement->id,
@@ -222,6 +238,67 @@ class DashboardServiceTest extends TestCase
         $this->assertEquals(0, $second->po_count);
         $this->assertEquals(1, $second->vch_count);
         $this->assertEquals(1, $second->total);
+    }
+
+    public function test_get_office_workload_shows_workflow_offices_with_zero_counts(): void
+    {
+        $office1 = Office::factory()->create(['name' => 'Office A']);
+        $office2 = Office::factory()->create(['name' => 'Office B']);
+
+        $workflow = Workflow::factory()->pr()->create();
+        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office1)->order(1)->create();
+        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office2)->order(2)->final()->create();
+
+        // No transactions at all
+        $workload = $this->service->getOfficeWorkload();
+
+        $this->assertCount(2, $workload);
+
+        $officeIds = $workload->pluck('office_id')->all();
+        $this->assertContains($office1->id, $officeIds);
+        $this->assertContains($office2->id, $officeIds);
+
+        foreach ($workload as $row) {
+            $this->assertEquals(0, $row->pr_count);
+            $this->assertEquals(0, $row->po_count);
+            $this->assertEquals(0, $row->vch_count);
+            $this->assertEquals(0, $row->total);
+            $this->assertEquals(0, $row->stagnant_count);
+        }
+    }
+
+    public function test_get_office_workload_excludes_inactive_workflow_offices(): void
+    {
+        $activeOffice = Office::factory()->create(['name' => 'Active Office']);
+        $inactiveOffice = Office::factory()->create(['name' => 'Inactive Office']);
+
+        $activeWorkflow = Workflow::factory()->pr()->create(['is_active' => true]);
+        WorkflowStep::factory()->forWorkflow($activeWorkflow)->forOffice($activeOffice)->create();
+
+        $inactiveWorkflow = Workflow::factory()->po()->inactive()->create();
+        WorkflowStep::factory()->forWorkflow($inactiveWorkflow)->forOffice($inactiveOffice)->create();
+
+        $workload = $this->service->getOfficeWorkload();
+
+        $this->assertCount(1, $workload);
+        $this->assertEquals($activeOffice->id, $workload->first()->office_id);
+    }
+
+    public function test_get_office_workload_deduplicates_offices_in_multiple_workflows(): void
+    {
+        $office = Office::factory()->create();
+
+        // Same office appears in two different active workflows
+        $workflow1 = Workflow::factory()->pr()->create();
+        WorkflowStep::factory()->forWorkflow($workflow1)->forOffice($office)->order(1)->create();
+
+        $workflow2 = Workflow::factory()->po()->create();
+        WorkflowStep::factory()->forWorkflow($workflow2)->forOffice($office)->order(1)->create();
+
+        $workload = $this->service->getOfficeWorkload();
+
+        $this->assertCount(1, $workload);
+        $this->assertEquals($office->id, $workload->first()->office_id);
     }
 
     // -------------------------------------------------------

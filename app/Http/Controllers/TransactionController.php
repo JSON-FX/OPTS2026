@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Transaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,7 +27,13 @@ class TransactionController extends Controller
                 'transactions.created_at',
                 'procurements.purpose as procurement_purpose',
                 'offices.name as procurement_end_user_name',
-                'users.name as created_by_name'
+                'users.name as created_by_name',
+                DB::raw("CASE transactions.category
+                    WHEN 'PR' THEN (SELECT pr.id FROM purchase_requests pr WHERE pr.transaction_id = transactions.id LIMIT 1)
+                    WHEN 'PO' THEN (SELECT po.id FROM purchase_orders po WHERE po.transaction_id = transactions.id LIMIT 1)
+                    WHEN 'VCH' THEN (SELECT v.id FROM vouchers v WHERE v.transaction_id = transactions.id LIMIT 1)
+                    ELSE transactions.id
+                END AS entity_id")
             )
             ->join('procurements', 'transactions.procurement_id', '=', 'procurements.id')
             ->join('offices', 'procurements.end_user_id', '=', 'offices.id')

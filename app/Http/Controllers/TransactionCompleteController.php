@@ -49,8 +49,14 @@ class TransactionCompleteController extends Controller
             default => 'purchase-requests.show',
         };
 
+        $entityId = match ($transaction->category) {
+            'PO' => $transaction->purchaseOrder?->id ?? $transaction->id,
+            'VCH' => $transaction->voucher?->id ?? $transaction->id,
+            default => $transaction->purchaseRequest?->id ?? $transaction->id,
+        };
+
         return redirect()
-            ->route($redirectRoute, $transaction->id)
+            ->route($redirectRoute, $entityId)
             ->with('success', $message);
     }
 }

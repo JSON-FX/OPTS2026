@@ -55,31 +55,59 @@ class DashboardService
      */
     public function getOfficeWorkload(): Collection
     {
-        $workload = DB::table('transactions')
-            ->join('offices', 'transactions.current_office_id', '=', 'offices.id')
+        // Get all distinct offices from active workflow steps
+        $workflowOffices = DB::table('workflow_steps')
+            ->join('workflows', 'workflow_steps.workflow_id', '=', 'workflows.id')
+            ->join('offices', 'workflow_steps.office_id', '=', 'offices.id')
+            ->where('workflows.is_active', true)
             ->select(
                 'offices.id as office_id',
                 'offices.name as office_name',
-                'offices.abbreviation as office_abbreviation',
-                DB::raw("SUM(CASE WHEN transactions.category = 'PR' THEN 1 ELSE 0 END) as pr_count"),
-                DB::raw("SUM(CASE WHEN transactions.category = 'PO' THEN 1 ELSE 0 END) as po_count"),
-                DB::raw("SUM(CASE WHEN transactions.category = 'VCH' THEN 1 ELSE 0 END) as vch_count"),
+                'offices.abbreviation as office_abbreviation'
+            )
+            ->distinct()
+            ->get();
+
+        if ($workflowOffices->isEmpty()) {
+            return collect();
+        }
+
+        // Get transaction counts per office for active transactions
+        $transactionCounts = DB::table('transactions')
+            ->select(
+                'current_office_id as office_id',
+                DB::raw("SUM(CASE WHEN category = 'PR' THEN 1 ELSE 0 END) as pr_count"),
+                DB::raw("SUM(CASE WHEN category = 'PO' THEN 1 ELSE 0 END) as po_count"),
+                DB::raw("SUM(CASE WHEN category = 'VCH' THEN 1 ELSE 0 END) as vch_count"),
                 DB::raw('COUNT(*) as total')
             )
-            ->whereNull('transactions.deleted_at')
-            ->whereIn('transactions.status', ['Created', 'In Progress'])
-            ->groupBy('offices.id', 'offices.name', 'offices.abbreviation')
-            ->orderByDesc('total')
-            ->get();
+            ->whereNull('deleted_at')
+            ->whereIn('status', ['Created', 'In Progress'])
+            ->groupBy('current_office_id')
+            ->get()
+            ->keyBy('office_id');
 
         // Compute stagnant counts per office using EtaCalculationService
         $stagnantCounts = $this->getStagnantCountsByOffice();
 
-        return $workload->map(function ($row) use ($stagnantCounts) {
-            $row->stagnant_count = $stagnantCounts[(int) $row->office_id] ?? 0;
+        // Merge: all workflow offices with their transaction counts (defaulting to 0)
+        return $workflowOffices->map(function ($office) use ($transactionCounts, $stagnantCounts) {
+            $counts = $transactionCounts[(int) $office->office_id] ?? null;
 
-            return $row;
-        });
+            return (object) [
+                'office_id' => (int) $office->office_id,
+                'office_name' => $office->office_name,
+                'office_abbreviation' => $office->office_abbreviation,
+                'pr_count' => (int) ($counts->pr_count ?? 0),
+                'po_count' => (int) ($counts->po_count ?? 0),
+                'vch_count' => (int) ($counts->vch_count ?? 0),
+                'total' => (int) ($counts->total ?? 0),
+                'stagnant_count' => $stagnantCounts[(int) $office->office_id] ?? 0,
+            ];
+        })
+            ->sortBy('office_name')
+            ->sortByDesc('total')
+            ->values();
     }
 
     /**
@@ -165,6 +193,189 @@ class DashboardService
             ->take($limit)
             ->values()
             ->all();
+    }
+
+    /**
+     * Get office performance metrics for SLA panel.
+     * Calculates average turnaround time per office from receive→endorse/complete pairs.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getOfficePerformance(int $days = 30): array
+    {
+        $cutoff = now()->subDays($days);
+
+        // Get receive actions within the period
+        $receives = DB::table('transaction_actions')
+            ->where('action_type', 'receive')
+            ->where('created_at', '>=', $cutoff)
+            ->whereNotNull('to_office_id')
+            ->select('id', 'transaction_id', 'to_office_id', 'created_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($receives->isEmpty()) {
+            return [];
+        }
+
+        // Get all endorse/complete actions for the same transactions
+        $transactionIds = $receives->pluck('transaction_id')->unique()->all();
+        $responses = DB::table('transaction_actions')
+            ->whereIn('transaction_id', $transactionIds)
+            ->whereIn('action_type', ['endorse', 'complete'])
+            ->whereNotNull('from_office_id')
+            ->select('id', 'transaction_id', 'from_office_id', 'created_at')
+            ->orderBy('id')
+            ->get();
+
+        // Match receive→endorse/complete pairs and compute turnaround per office
+        $officeTurnarounds = [];
+        foreach ($receives as $receive) {
+            // Find the next endorse/complete from the same office on same transaction
+            $nextAction = $responses->first(function ($action) use ($receive) {
+                return $action->transaction_id === $receive->transaction_id
+                    && $action->from_office_id === $receive->to_office_id
+                    && $action->id > $receive->id;
+            });
+
+            if ($nextAction) {
+                $officeId = (int) $receive->to_office_id;
+                $calendarDays = $this->etaService->businessDaysBetween(
+                    \Illuminate\Support\Carbon::parse($receive->created_at),
+                    \Illuminate\Support\Carbon::parse($nextAction->created_at)
+                );
+
+                if (! isset($officeTurnarounds[$officeId])) {
+                    $officeTurnarounds[$officeId] = ['total_days' => 0, 'count' => 0];
+                }
+                $officeTurnarounds[$officeId]['total_days'] += $calendarDays;
+                $officeTurnarounds[$officeId]['count']++;
+            }
+        }
+
+        if (empty($officeTurnarounds)) {
+            return [];
+        }
+
+        // Get office details
+        $officeDetails = DB::table('offices')
+            ->whereIn('id', array_keys($officeTurnarounds))
+            ->select('id', 'name', 'abbreviation')
+            ->get()
+            ->keyBy('id');
+
+        // Get expected_days per office from active workflow_steps
+        $expectedDaysByOffice = DB::table('workflow_steps')
+            ->join('workflows', 'workflow_steps.workflow_id', '=', 'workflows.id')
+            ->where('workflows.is_active', true)
+            ->select('workflow_steps.office_id', DB::raw('AVG(workflow_steps.expected_days) as avg_expected'))
+            ->groupBy('workflow_steps.office_id')
+            ->pluck('avg_expected', 'office_id');
+
+        $results = [];
+        foreach ($officeTurnarounds as $officeId => $data) {
+            $office = $officeDetails[$officeId] ?? null;
+            if (! $office) {
+                continue;
+            }
+
+            $avgBusinessDays = round($data['total_days'] / $data['count'], 1);
+            $expectedDays = (float) ($expectedDaysByOffice[$officeId] ?? 3);
+
+            $rating = match (true) {
+                $avgBusinessDays <= $expectedDays => 'good',
+                $avgBusinessDays <= $expectedDays * 1.5 => 'warning',
+                default => 'poor',
+            };
+
+            $results[] = [
+                'office_id' => $officeId,
+                'office_name' => $office->name,
+                'office_abbreviation' => $office->abbreviation,
+                'avg_turnaround_days' => $avgBusinessDays,
+                'expected_days' => round($expectedDays, 1),
+                'performance_rating' => $rating,
+                'actions_count' => $data['count'],
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
+     * Get out-of-workflow incident summary for current and previous month.
+     *
+     * @return array{current_month: int, previous_month: int, trend_percentage: float}
+     */
+    public function getIncidentSummary(): array
+    {
+        $currentMonthStart = now()->startOfMonth();
+        $previousMonthStart = now()->subMonth()->startOfMonth();
+        $previousMonthEnd = now()->subMonth()->endOfMonth();
+
+        $currentMonth = (int) DB::table('transaction_actions')
+            ->where('is_out_of_workflow', true)
+            ->where('created_at', '>=', $currentMonthStart)
+            ->count();
+
+        $previousMonth = (int) DB::table('transaction_actions')
+            ->where('is_out_of_workflow', true)
+            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
+            ->count();
+
+        $trendPercentage = $previousMonth > 0
+            ? round(($currentMonth - $previousMonth) / $previousMonth * 100, 1)
+            : ($currentMonth > 0 ? 100.0 : 0.0);
+
+        return [
+            'current_month' => $currentMonth,
+            'previous_month' => $previousMonth,
+            'trend_percentage' => $trendPercentage,
+        ];
+    }
+
+    /**
+     * Get transaction volume summary by category for current and previous month.
+     *
+     * @return array<int, array{category: string, current_month: int, previous_month: int, trend_percentage: float}>
+     */
+    public function getVolumeSummary(): array
+    {
+        $currentMonthStart = now()->startOfMonth();
+        $previousMonthStart = now()->subMonth()->startOfMonth();
+        $previousMonthEnd = now()->subMonth()->endOfMonth();
+
+        $currentCounts = DB::table('transactions')
+            ->whereNull('deleted_at')
+            ->where('created_at', '>=', $currentMonthStart)
+            ->select('category', DB::raw('COUNT(*) as count'))
+            ->groupBy('category')
+            ->pluck('count', 'category');
+
+        $previousCounts = DB::table('transactions')
+            ->whereNull('deleted_at')
+            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
+            ->select('category', DB::raw('COUNT(*) as count'))
+            ->groupBy('category')
+            ->pluck('count', 'category');
+
+        $categories = ['PR', 'PO', 'VCH'];
+
+        return collect($categories)->map(function ($category) use ($currentCounts, $previousCounts) {
+            $current = (int) ($currentCounts[$category] ?? 0);
+            $previous = (int) ($previousCounts[$category] ?? 0);
+
+            $trendPercentage = $previous > 0
+                ? round(($current - $previous) / $previous * 100, 1)
+                : ($current > 0 ? 100.0 : 0.0);
+
+            return [
+                'category' => $category,
+                'current_month' => $current,
+                'previous_month' => $previous,
+                'trend_percentage' => $trendPercentage,
+            ];
+        })->all();
     }
 
     /**

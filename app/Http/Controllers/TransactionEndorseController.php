@@ -54,6 +54,9 @@ class TransactionEndorseController extends Controller
 
         $expectedNextOffice = $this->endorsementService->getExpectedNextOffice($transaction);
 
+        // Resolve the entity-specific show route and ID for back/cancel links
+        $entityShowRoute = $this->resolveEntityShowRoute($transaction);
+
         return Inertia::render('Transactions/Endorse', [
             'transaction' => [
                 'id' => $transaction->id,
@@ -78,6 +81,7 @@ class TransactionEndorseController extends Controller
                     ] : null,
                 ] : null,
             ],
+            'entityShowRoute' => $entityShowRoute,
             'workflowSteps' => $workflowSteps,
             'actionTakenOptions' => ActionTaken::query()
                 ->where('is_active', true)
@@ -109,8 +113,32 @@ class TransactionEndorseController extends Controller
             $request->validated('notes')
         );
 
+        $entityShowRoute = $this->resolveEntityShowRoute($transaction);
+
         return redirect()
-            ->route('purchase-requests.show', $transaction->id)
+            ->route($entityShowRoute['route'], $entityShowRoute['id'])
             ->with('success', "Transaction endorsed to {$action->toOffice->name}");
+    }
+
+    /**
+     * Resolve the entity-specific show route name and ID for a transaction.
+     *
+     * @return array{route: string, id: int}
+     */
+    private function resolveEntityShowRoute(Transaction $transaction): array
+    {
+        $routeName = match ($transaction->category) {
+            'PO' => 'purchase-orders.show',
+            'VCH' => 'vouchers.show',
+            default => 'purchase-requests.show',
+        };
+
+        $entityId = match ($transaction->category) {
+            'PO' => $transaction->purchaseOrder?->id ?? $transaction->id,
+            'VCH' => $transaction->voucher?->id ?? $transaction->id,
+            default => $transaction->purchaseRequest?->id ?? $transaction->id,
+        };
+
+        return ['route' => $routeName, 'id' => $entityId];
     }
 }

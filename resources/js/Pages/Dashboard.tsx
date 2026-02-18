@@ -8,7 +8,10 @@ import { ArrowUpDown, FileText, ShoppingCart, Receipt, FolderOpen, AlertTriangle
 import { Button } from '@/Components/ui/button';
 import ActivityFeed from '@/Components/ActivityFeed';
 import StagnantPanel from '@/Components/StagnantPanel';
-import type { DashboardSummary, OfficeWorkload, StatusCounts, ActivityFeedEntry, StagnantTransaction } from '@/types/models';
+import OfficePerformanceTable from '@/Components/OfficePerformanceTable';
+import IncidentSummaryCard from '@/Components/IncidentSummaryCard';
+import VolumeSummaryCard from '@/Components/VolumeSummaryCard';
+import type { DashboardSummary, OfficeWorkload, StatusCounts, ActivityFeedEntry, StagnantTransaction, SlaPerformanceData } from '@/types/models';
 import type { PageProps } from '@/types';
 
 interface Props extends PageProps {
@@ -16,6 +19,7 @@ interface Props extends PageProps {
     officeWorkload: OfficeWorkload[];
     activityFeed: ActivityFeedEntry[];
     stagnantTransactions: StagnantTransaction[];
+    slaPerformance: SlaPerformanceData;
     userOfficeId: number | null;
 }
 
@@ -99,7 +103,7 @@ function SortableHeader({
     );
 }
 
-export default function Dashboard({ summary, officeWorkload, activityFeed, stagnantTransactions, userOfficeId }: Props) {
+export default function Dashboard({ summary, officeWorkload, activityFeed, stagnantTransactions, slaPerformance, userOfficeId }: Props) {
     const columns: ColumnDef<OfficeWorkload>[] = [
         {
             accessorKey: 'office_name',
@@ -264,7 +268,7 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
                             {officeWorkload.length === 0 ? (
                                 <div className="py-8 text-center text-muted-foreground">
                                     <FolderOpen className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-                                    <p>No active transactions at any office</p>
+                                    <p>No active workflows configured</p>
                                 </div>
                             ) : (
                                 <DataTable
@@ -287,6 +291,36 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
                             entries={stagnantTransactions}
                             userOfficeId={userOfficeId}
                         />
+                    </div>
+
+                    {/* Performance Metrics */}
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-800">Performance Metrics</h3>
+
+                        {/* Office Performance Table - Full Width */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Office Turnaround (Last 30 Days)</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {slaPerformance.office_performance.length === 0 ? (
+                                    <p className="py-4 text-center text-muted-foreground">
+                                        No completed actions in the last 30 days
+                                    </p>
+                                ) : (
+                                    <OfficePerformanceTable
+                                        data={slaPerformance.office_performance}
+                                        userOfficeId={userOfficeId}
+                                    />
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Incidents + Volume side by side */}
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <IncidentSummaryCard data={slaPerformance.incidents} />
+                            <VolumeSummaryCard data={slaPerformance.volume} />
+                        </div>
                     </div>
                 </div>
             </div>

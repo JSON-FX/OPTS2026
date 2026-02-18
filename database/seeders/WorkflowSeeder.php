@@ -12,10 +12,10 @@ use Illuminate\Database\Seeder;
 /**
  * Seeds workflows and workflow steps for transaction routing.
  *
- * Creates sample workflows for each transaction category:
+ * Creates workflows for each transaction category:
  * - PR: Purchase Request (5 steps)
- * - PO: Purchase Order (4 steps)
- * - VCH: Voucher (3 steps)
+ * - PO: Purchase Order (3 steps)
+ * - VCH: Voucher (6 steps)
  */
 class WorkflowSeeder extends Seeder
 {
@@ -35,7 +35,7 @@ class WorkflowSeeder extends Seeder
     /**
      * Create PR workflow with 5 steps.
      *
-     * Flow: Originating Office → Budget → BAC → Accounting → Releasing
+     * Flow: MBO → MMO → BAC → MMO-PO → BAC
      *
      * @param  \Illuminate\Database\Eloquent\Collection<string, Office>  $offices
      */
@@ -44,25 +44,25 @@ class WorkflowSeeder extends Seeder
         $workflow = Workflow::create([
             'category' => 'PR',
             'name' => 'Standard Purchase Request Workflow',
-            'description' => 'Standard workflow for processing purchase requests through budget validation, BAC review, and accounting approval.',
+            'description' => 'Standard workflow for processing purchase requests through budget, mayor, BAC review, procurement, and final BAC approval.',
             'is_active' => true,
         ]);
 
         $steps = [
-            ['abbreviation' => 'GSO', 'step_order' => 1, 'expected_days' => 1, 'is_final_step' => false], // Originating Office (GSO as example)
-            ['abbreviation' => 'MBO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false], // Budget Office
-            ['abbreviation' => 'BAC', 'step_order' => 3, 'expected_days' => 3, 'is_final_step' => false], // BAC
-            ['abbreviation' => 'ACCT', 'step_order' => 4, 'expected_days' => 2, 'is_final_step' => false], // Accounting
-            ['abbreviation' => 'MTO', 'step_order' => 5, 'expected_days' => 1, 'is_final_step' => true], // Releasing (Treasurer)
+            ['abbreviation' => 'MBO', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'MMO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'BAC', 'step_order' => 3, 'expected_days' => 3, 'is_final_step' => false],
+            ['abbreviation' => 'MMO-PO', 'step_order' => 4, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'BAC', 'step_order' => 5, 'expected_days' => 2, 'is_final_step' => true],
         ];
 
         $this->createWorkflowSteps($workflow, $steps, $offices);
     }
 
     /**
-     * Create PO workflow with 4 steps.
+     * Create PO workflow with 3 steps.
      *
-     * Flow: Originating Office → BAC → Accounting → Releasing
+     * Flow: BAC → MMO-PO → MMO-PSMD
      *
      * @param  \Illuminate\Database\Eloquent\Collection<string, Office>  $offices
      */
@@ -71,24 +71,23 @@ class WorkflowSeeder extends Seeder
         $workflow = Workflow::create([
             'category' => 'PO',
             'name' => 'Standard Purchase Order Workflow',
-            'description' => 'Standard workflow for processing purchase orders after BAC approval through accounting and releasing.',
+            'description' => 'Standard workflow for processing purchase orders through BAC, procurement, and property/supply management.',
             'is_active' => true,
         ]);
 
         $steps = [
-            ['abbreviation' => 'GSO', 'step_order' => 1, 'expected_days' => 1, 'is_final_step' => false], // Originating Office
-            ['abbreviation' => 'BAC', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false], // BAC
-            ['abbreviation' => 'ACCT', 'step_order' => 3, 'expected_days' => 2, 'is_final_step' => false], // Accounting
-            ['abbreviation' => 'MTO', 'step_order' => 4, 'expected_days' => 1, 'is_final_step' => true], // Releasing
+            ['abbreviation' => 'BAC', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'MMO-PO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'MMO-PSMD', 'step_order' => 3, 'expected_days' => 2, 'is_final_step' => true],
         ];
 
         $this->createWorkflowSteps($workflow, $steps, $offices);
     }
 
     /**
-     * Create VCH workflow with 3 steps.
+     * Create VCH workflow with 6 steps.
      *
-     * Flow: Originating Office → Accounting → Cashier
+     * Flow: MBO → MACCO → MMO → MTO → MMO → MTO
      *
      * @param  \Illuminate\Database\Eloquent\Collection<string, Office>  $offices
      */
@@ -97,14 +96,17 @@ class WorkflowSeeder extends Seeder
         $workflow = Workflow::create([
             'category' => 'VCH',
             'name' => 'Standard Voucher Workflow',
-            'description' => 'Standard workflow for voucher processing through accounting verification and cashier disbursement.',
+            'description' => 'Standard workflow for voucher processing through budget, accounting, mayor approval, treasurer disbursement, final mayor and treasurer sign-off.',
             'is_active' => true,
         ]);
 
         $steps = [
-            ['abbreviation' => 'GSO', 'step_order' => 1, 'expected_days' => 1, 'is_final_step' => false], // Originating Office
-            ['abbreviation' => 'ACCT', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false], // Accounting
-            ['abbreviation' => 'MTO', 'step_order' => 3, 'expected_days' => 1, 'is_final_step' => true], // Cashier (Treasurer)
+            ['abbreviation' => 'MBO', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'MACCO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'MMO', 'step_order' => 3, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'MTO', 'step_order' => 4, 'expected_days' => 1, 'is_final_step' => false],
+            ['abbreviation' => 'MMO', 'step_order' => 5, 'expected_days' => 2, 'is_final_step' => false],
+            ['abbreviation' => 'MTO', 'step_order' => 6, 'expected_days' => 1, 'is_final_step' => true],
         ];
 
         $this->createWorkflowSteps($workflow, $steps, $offices);

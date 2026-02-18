@@ -86,26 +86,28 @@ export default function Index({ auth, transactions, filters, can, offices = [] }
     }, [columnVisibility, COLUMN_VISIBILITY_KEY]);
 
     const getDetailRoute = (transaction: TransactionListItem): string => {
+        const entityId = transaction.entity_id ?? transaction.id;
         switch (transaction.category) {
             case 'PR':
-                return route('purchase-requests.show', transaction.id);
+                return route('purchase-requests.show', entityId);
             case 'PO':
-                return route('purchase-orders.show', transaction.id);
+                return route('purchase-orders.show', entityId);
             case 'VCH':
-                return route('vouchers.show', transaction.id);
+                return route('vouchers.show', entityId);
             default:
                 return '#';
         }
     };
 
     const getEditRoute = (transaction: TransactionListItem): string => {
+        const entityId = transaction.entity_id ?? transaction.id;
         switch (transaction.category) {
             case 'PR':
-                return route('purchase-requests.edit', transaction.id);
+                return route('purchase-requests.edit', entityId);
             case 'PO':
-                return route('purchase-orders.edit', transaction.id);
+                return route('purchase-orders.edit', entityId);
             case 'VCH':
-                return route('vouchers.edit', transaction.id);
+                return route('vouchers.edit', entityId);
             default:
                 return '#';
         }

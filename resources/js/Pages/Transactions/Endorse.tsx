@@ -63,12 +63,18 @@ interface TransactionData {
     } | null;
 }
 
+interface EntityShowRoute {
+    route: string;
+    id: number;
+}
+
 interface Props {
     transaction: TransactionData;
     workflowSteps: WorkflowStep[];
     actionTakenOptions: ActionTakenOption[];
     officeOptions: OfficeOption[];
     expectedNextOffice: OfficeOption | null;
+    entityShowRoute: EntityShowRoute;
 }
 
 export default function Endorse({
@@ -77,6 +83,7 @@ export default function Endorse({
     actionTakenOptions,
     officeOptions,
     expectedNextOffice,
+    entityShowRoute,
 }: Props) {
     const { data, setData, post, processing, errors } = useForm({
         action_taken_id: '',
@@ -110,7 +117,7 @@ export default function Endorse({
             header={
                 <div className="flex items-center gap-4">
                     <Link
-                        href={route('purchase-requests.show', transaction.id)}
+                        href={route(entityShowRoute.route, entityShowRoute.id)}
                         className="text-gray-500 hover:text-gray-700"
                     >
                         <ArrowLeft className="h-5 w-5" />
@@ -346,7 +353,7 @@ export default function Endorse({
                                 {/* Action Buttons */}
                                 <div className="flex justify-end gap-4 pt-4 border-t">
                                     <Button variant="outline" type="button" asChild>
-                                        <Link href={route('purchase-requests.show', transaction.id)}>
+                                        <Link href={route(entityShowRoute.route, entityShowRoute.id)}>
                                             Cancel
                                         </Link>
                                     </Button>

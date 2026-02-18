@@ -150,16 +150,19 @@ class WorkflowStepTest extends TestCase
         WorkflowStep::factory()->forWorkflow($workflow)->forOffice($offices[1])->order(1)->create();
     }
 
-    public function test_unique_constraint_on_workflow_and_office(): void
+    public function test_same_office_can_appear_multiple_times_in_workflow(): void
     {
         $workflow = Workflow::factory()->create();
         $office = Office::factory()->create();
 
-        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office)->order(1)->create();
+        $step1 = WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office)->order(1)->create();
+        $step2 = WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office)->order(2)->create();
 
-        $this->expectException(QueryException::class);
-
-        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office)->order(2)->create();
+        $this->assertDatabaseCount('workflow_steps', 2);
+        $this->assertEquals($office->id, $step1->office_id);
+        $this->assertEquals($office->id, $step2->office_id);
+        $this->assertEquals($workflow->id, $step1->workflow_id);
+        $this->assertEquals($workflow->id, $step2->workflow_id);
     }
 
     public function test_workflow_step_factory_generates_valid_data(): void

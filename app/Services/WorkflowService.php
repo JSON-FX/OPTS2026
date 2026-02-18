@@ -67,11 +67,12 @@ class WorkflowService
                 $this->removeOrphanStep($step);
             }
 
-            // Temporarily negate all remaining step_order values to avoid
-            // UNIQUE(workflow_id, step_order) violations during reordering
+            // Temporarily offset all remaining step_order values to avoid
+            // UNIQUE(workflow_id, step_order) violations during reordering.
+            // Uses addition instead of negation because step_order is unsigned.
             $workflow->steps()
                 ->whereNotIn('id', $stepsToRemove->pluck('id'))
-                ->update(['step_order' => DB::raw('step_order * -1')]);
+                ->update(['step_order' => DB::raw('step_order + 10000')]);
 
             // Update existing steps and create new ones
             $stepCount = count($stepsData);

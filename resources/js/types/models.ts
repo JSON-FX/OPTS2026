@@ -280,6 +280,7 @@ export type ProcurementFormData = Record<ProcurementFormFields, string>;
  */
 export interface TransactionListItem {
     id: number;
+    entity_id: number;
     reference_number: string;
     category: TransactionCategory;
     status: TransactionStatus;
@@ -491,6 +492,47 @@ export interface StagnantTransaction {
     purchase_request_id?: number;
     purchase_order_id?: number;
     voucher_id?: number;
+}
+
+/**
+ * Story 4.1.3 - Office performance metrics for SLA panel.
+ */
+export interface OfficePerformance {
+    office_id: number;
+    office_name: string;
+    office_abbreviation: string;
+    avg_turnaround_days: number;
+    expected_days: number;
+    performance_rating: 'good' | 'warning' | 'poor';
+    actions_count: number;
+}
+
+/**
+ * Story 4.1.3 - Out-of-workflow incident summary.
+ */
+export interface IncidentSummary {
+    current_month: number;
+    previous_month: number;
+    trend_percentage: number;
+}
+
+/**
+ * Story 4.1.3 - Transaction volume summary per category.
+ */
+export interface VolumeSummary {
+    category: TransactionCategory;
+    current_month: number;
+    previous_month: number;
+    trend_percentage: number;
+}
+
+/**
+ * Story 4.1.3 - Combined SLA performance data for dashboard panel.
+ */
+export interface SlaPerformanceData {
+    office_performance: OfficePerformance[];
+    incidents: IncidentSummary;
+    volume: VolumeSummary[];
 }
 
 /**

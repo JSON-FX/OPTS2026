@@ -9,6 +9,8 @@ use App\Models\Procurement;
 use App\Models\Transaction;
 use App\Models\TransactionAction;
 use App\Models\User;
+use App\Models\Workflow;
+use App\Models\WorkflowStep;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -353,6 +355,199 @@ class DashboardTest extends TestCase
                 ->assertInertia(fn (Assert $page) => $page
                     ->has('activityFeed')
                     ->has('stagnantTransactions')
+                );
+        }
+    }
+
+    // -------------------------------------------------------
+    // Story 4.1.3 - SLA Performance Panel Feature Tests
+    // -------------------------------------------------------
+
+    public function test_dashboard_includes_sla_performance_prop(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Viewer');
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboard')
+                ->has('slaPerformance')
+                ->has('slaPerformance.office_performance')
+                ->has('slaPerformance.incidents')
+                ->has('slaPerformance.volume')
+            );
+    }
+
+    public function test_office_performance_calculation_with_known_data(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Administrator');
+
+        $office = Office::factory()->create(['name' => 'BAC Office', 'abbreviation' => 'BAC']);
+        $procurement = Procurement::factory()->create(['created_by_user_id' => $user->id]);
+        $transaction = Transaction::factory()->create([
+            'procurement_id' => $procurement->id,
+            'category' => 'PR',
+            'created_by_user_id' => $user->id,
+        ]);
+
+        // Create a workflow with expected_days for this office
+        $workflow = Workflow::factory()->pr()->create();
+        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office)->create([
+            'step_order' => 1,
+            'expected_days' => 3,
+        ]);
+
+        // Create a receive→endorse pair with 5 calendar days apart (recent)
+        $receiveDate = now()->subDays(10);
+        $endorseDate = now()->subDays(5);
+
+        TransactionAction::factory()->receive()->create([
+            'transaction_id' => $transaction->id,
+            'from_user_id' => $user->id,
+            'to_office_id' => $office->id,
+            'created_at' => $receiveDate,
+        ]);
+
+        TransactionAction::factory()->endorse()->create([
+            'transaction_id' => $transaction->id,
+            'from_user_id' => $user->id,
+            'from_office_id' => $office->id,
+            'created_at' => $endorseDate,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('slaPerformance.office_performance', 1)
+                ->where('slaPerformance.office_performance.0.office_name', 'BAC Office')
+                ->where('slaPerformance.office_performance.0.actions_count', 1)
+            );
+    }
+
+    public function test_incident_summary_month_over_month(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Viewer');
+
+        $procurement = Procurement::factory()->create(['created_by_user_id' => $user->id]);
+        $transaction = Transaction::factory()->create([
+            'procurement_id' => $procurement->id,
+            'category' => 'PR',
+            'created_by_user_id' => $user->id,
+        ]);
+
+        // 3 out-of-workflow incidents this month
+        TransactionAction::factory()->outOfWorkflow()->count(3)->create([
+            'transaction_id' => $transaction->id,
+            'from_user_id' => $user->id,
+            'created_at' => now()->startOfMonth()->addDays(2),
+        ]);
+
+        // 2 out-of-workflow incidents last month
+        TransactionAction::factory()->outOfWorkflow()->count(2)->create([
+            'transaction_id' => $transaction->id,
+            'from_user_id' => $user->id,
+            'created_at' => now()->subMonth()->startOfMonth()->addDays(5),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('slaPerformance.incidents.current_month', 3)
+                ->where('slaPerformance.incidents.previous_month', 2)
+                ->where('slaPerformance.incidents.trend_percentage', 50)
+            );
+    }
+
+    public function test_volume_summary_by_category(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Viewer');
+        $procurement = Procurement::factory()->create(['created_by_user_id' => $user->id]);
+
+        // Current month: 2 PR, 1 PO
+        Transaction::factory()->count(2)->create([
+            'procurement_id' => $procurement->id,
+            'category' => 'PR',
+            'created_by_user_id' => $user->id,
+            'created_at' => now()->startOfMonth()->addDays(1),
+        ]);
+        Transaction::factory()->create([
+            'procurement_id' => $procurement->id,
+            'category' => 'PO',
+            'created_by_user_id' => $user->id,
+            'created_at' => now()->startOfMonth()->addDays(1),
+        ]);
+
+        // Previous month: 1 PR, 3 PO
+        Transaction::factory()->create([
+            'procurement_id' => $procurement->id,
+            'category' => 'PR',
+            'created_by_user_id' => $user->id,
+            'created_at' => now()->subMonth()->startOfMonth()->addDays(5),
+        ]);
+        Transaction::factory()->count(3)->create([
+            'procurement_id' => $procurement->id,
+            'category' => 'PO',
+            'created_by_user_id' => $user->id,
+            'created_at' => now()->subMonth()->startOfMonth()->addDays(5),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('slaPerformance.volume', 3)
+                ->where('slaPerformance.volume.0.category', 'PR')
+                ->where('slaPerformance.volume.0.current_month', 2)
+                ->where('slaPerformance.volume.0.previous_month', 1)
+                ->where('slaPerformance.volume.0.trend_percentage', 100)
+                ->where('slaPerformance.volume.1.category', 'PO')
+                ->where('slaPerformance.volume.1.current_month', 1)
+                ->where('slaPerformance.volume.1.previous_month', 3)
+            );
+    }
+
+    public function test_sla_performance_empty_state(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('Viewer');
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('slaPerformance.office_performance', 0)
+                ->where('slaPerformance.incidents.current_month', 0)
+                ->where('slaPerformance.incidents.previous_month', 0)
+                ->where('slaPerformance.incidents.trend_percentage', 0)
+                ->has('slaPerformance.volume', 3)
+                ->where('slaPerformance.volume.0.current_month', 0)
+                ->where('slaPerformance.volume.0.previous_month', 0)
+            );
+    }
+
+    public function test_all_roles_see_sla_performance(): void
+    {
+        $roles = ['Viewer', 'Endorser', 'Administrator'];
+
+        foreach ($roles as $roleName) {
+            $user = User::factory()->create();
+            $user->assignRole($roleName);
+
+            $this->actingAs($user)
+                ->get(route('dashboard'))
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->has('slaPerformance')
+                    ->has('slaPerformance.office_performance')
+                    ->has('slaPerformance.incidents')
+                    ->has('slaPerformance.volume')
                 );
         }
     }

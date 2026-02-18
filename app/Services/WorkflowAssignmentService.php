@@ -68,7 +68,7 @@ class WorkflowAssignmentService
         $transaction->update([
             'workflow_id' => $workflow->id,
             'current_step_id' => $firstStep?->id,
-            'current_office_id' => $user->office_id,
+            'current_office_id' => $firstStep?->office_id ?? $user->office_id,
             'current_user_id' => $user->id,
             'received_at' => now(),
         ]);
