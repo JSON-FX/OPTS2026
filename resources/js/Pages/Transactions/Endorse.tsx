@@ -75,6 +75,7 @@ interface Props {
     officeOptions: OfficeOption[];
     expectedNextOffice: OfficeOption | null;
     entityShowRoute: EntityShowRoute;
+    defaultActionTakenId: number | null;
 }
 
 export default function Endorse({
@@ -84,9 +85,10 @@ export default function Endorse({
     officeOptions,
     expectedNextOffice,
     entityShowRoute,
+    defaultActionTakenId,
 }: Props) {
     const { data, setData, post, processing, errors } = useForm({
-        action_taken_id: '',
+        action_taken_id: defaultActionTakenId?.toString() ?? '',
         to_office_id: expectedNextOffice?.id.toString() || '',
         notes: '',
     });

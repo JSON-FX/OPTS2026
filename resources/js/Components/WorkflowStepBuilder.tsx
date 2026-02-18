@@ -13,11 +13,18 @@ import { Plus, X, ChevronUp, ChevronDown, GripVertical, Star } from 'lucide-reac
 export interface StepData {
     office_id: number | null;
     expected_days: number;
+    action_taken_id: number | null;
+}
+
+interface ActionTakenOption {
+    id: number;
+    description: string;
 }
 
 interface WorkflowStepBuilderProps {
     steps: StepData[];
     offices: Office[];
+    actionTakenOptions?: ActionTakenOption[];
     onChange: (steps: StepData[]) => void;
     errors?: Record<string, string>;
 }
@@ -25,11 +32,12 @@ interface WorkflowStepBuilderProps {
 export default function WorkflowStepBuilder({
     steps,
     offices,
+    actionTakenOptions = [],
     onChange,
     errors = {},
 }: WorkflowStepBuilderProps) {
     const addStep = () => {
-        onChange([...steps, { office_id: null, expected_days: 1 }]);
+        onChange([...steps, { office_id: null, expected_days: 1, action_taken_id: null }]);
     };
 
     const removeStep = (index: number) => {
@@ -62,15 +70,6 @@ export default function WorkflowStepBuilder({
 
     const totalExpectedDays = steps.reduce((sum, step) => sum + (step.expected_days || 0), 0);
 
-    // Get list of already selected office IDs (excluding current row)
-    const getAvailableOffices = (currentIndex: number) => {
-        const selectedOfficeIds = steps
-            .filter((_, i) => i !== currentIndex)
-            .map((s) => s.office_id)
-            .filter((id): id is number => id !== null);
-        return offices.filter((o) => !selectedOfficeIds.includes(o.id));
-    };
-
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -88,7 +87,6 @@ export default function WorkflowStepBuilder({
             <div className="rounded-lg border bg-card">
                 <div className="divide-y">
                     {steps.map((step, index) => {
-                        const availableOffices = getAvailableOffices(index);
                         const isFinalStep = index === steps.length - 1;
                         const stepError = errors[`steps.${index}.office_id`] || errors[`steps.${index}.expected_days`];
 
@@ -137,13 +135,7 @@ export default function WorkflowStepBuilder({
                                             <SelectValue placeholder="Select office..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {/* Include currently selected office if any */}
-                                            {step.office_id && !availableOffices.find(o => o.id === step.office_id) && (
-                                                <SelectItem value={step.office_id.toString()}>
-                                                    {offices.find(o => o.id === step.office_id)?.name || 'Unknown'}
-                                                </SelectItem>
-                                            )}
-                                            {availableOffices.map((office) => (
+                                            {offices.map((office) => (
                                                 <SelectItem key={office.id} value={office.id.toString()}>
                                                     {office.name} ({office.abbreviation})
                                                 </SelectItem>
@@ -172,6 +164,28 @@ export default function WorkflowStepBuilder({
                                         className={`w-20 ${errors[`steps.${index}.expected_days`] ? 'border-destructive' : ''}`}
                                     />
                                 </div>
+
+                                {/* Default Action Taken */}
+                                {actionTakenOptions.length > 0 && (
+                                    <div className="w-44">
+                                        <Select
+                                            value={step.action_taken_id?.toString() || 'none'}
+                                            onValueChange={(v) => updateStep(index, 'action_taken_id', v === 'none' ? null : parseInt(v))}
+                                        >
+                                            <SelectTrigger className="text-xs">
+                                                <SelectValue placeholder="Default action..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">No default</SelectItem>
+                                                {actionTakenOptions.map((action) => (
+                                                    <SelectItem key={action.id} value={action.id.toString()}>
+                                                        {action.description}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
 
                                 {/* Final step indicator */}
                                 {isFinalStep && (

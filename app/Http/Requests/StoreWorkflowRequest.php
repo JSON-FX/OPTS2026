@@ -32,6 +32,7 @@ class StoreWorkflowRequest extends FormRequest
             'steps' => ['required', 'array', 'min:2'],
             'steps.*.office_id' => ['required', 'integer', 'exists:offices,id'],
             'steps.*.expected_days' => ['required', 'integer', 'min:1'],
+            'steps.*.action_taken_id' => ['nullable', 'integer', 'exists:action_taken,id'],
         ];
     }
 
@@ -57,15 +58,7 @@ class StoreWorkflowRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            if (! $this->has('steps') || ! is_array($this->input('steps'))) {
-                return;
-            }
-
-            $officeIds = collect($this->input('steps'))->pluck('office_id')->filter();
-
-            if ($officeIds->count() !== $officeIds->unique()->count()) {
-                $validator->errors()->add('steps', 'Each office can only appear once in the workflow.');
-            }
+            // No additional validation needed — offices can appear multiple times in a workflow.
         });
     }
 }

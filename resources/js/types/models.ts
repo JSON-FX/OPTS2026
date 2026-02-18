@@ -340,10 +340,12 @@ export interface WorkflowStep {
     step_order: number;
     expected_days: number;
     is_final_step: boolean;
+    action_taken_id: number | null;
     created_at: string;
     updated_at: string;
     workflow?: Workflow;
     office?: Office;
+    action_taken?: { id: number; description: string };
 }
 
 /**

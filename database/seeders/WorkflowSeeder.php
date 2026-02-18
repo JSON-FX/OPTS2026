@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\ActionTaken;
 use App\Models\Office;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
@@ -27,9 +28,12 @@ class WorkflowSeeder extends Seeder
         // Cache offices by abbreviation for step creation
         $offices = Office::all()->keyBy('abbreviation');
 
-        $this->createPurchaseRequestWorkflow($offices);
-        $this->createPurchaseOrderWorkflow($offices);
-        $this->createVoucherWorkflow($offices);
+        // Cache action_taken by description for default action assignment
+        $actionTaken = ActionTaken::all()->keyBy('description');
+
+        $this->createPurchaseRequestWorkflow($offices, $actionTaken);
+        $this->createPurchaseOrderWorkflow($offices, $actionTaken);
+        $this->createVoucherWorkflow($offices, $actionTaken);
     }
 
     /**
@@ -39,7 +43,7 @@ class WorkflowSeeder extends Seeder
      *
      * @param  \Illuminate\Database\Eloquent\Collection<string, Office>  $offices
      */
-    private function createPurchaseRequestWorkflow($offices): void
+    private function createPurchaseRequestWorkflow($offices, $actionTaken): void
     {
         $workflow = Workflow::create([
             'category' => 'PR',
@@ -49,14 +53,14 @@ class WorkflowSeeder extends Seeder
         ]);
 
         $steps = [
-            ['abbreviation' => 'MBO', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'MMO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'BAC', 'step_order' => 3, 'expected_days' => 3, 'is_final_step' => false],
-            ['abbreviation' => 'MMO-PO', 'step_order' => 4, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'BAC', 'step_order' => 5, 'expected_days' => 2, 'is_final_step' => true],
+            ['abbreviation' => 'MBO', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'Creation of Purchase Request'],
+            ['abbreviation' => 'MMO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'For Approval'],
+            ['abbreviation' => 'BAC', 'step_order' => 3, 'expected_days' => 3, 'is_final_step' => false, 'action_taken' => 'For BAC Meeting (Mode of Procurement)'],
+            ['abbreviation' => 'MMO-PO', 'step_order' => 4, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'For Canvassing'],
+            ['abbreviation' => 'BAC', 'step_order' => 5, 'expected_days' => 2, 'is_final_step' => true, 'action_taken' => 'To Complete P.R'],
         ];
 
-        $this->createWorkflowSteps($workflow, $steps, $offices);
+        $this->createWorkflowSteps($workflow, $steps, $offices, $actionTaken);
     }
 
     /**
@@ -66,7 +70,7 @@ class WorkflowSeeder extends Seeder
      *
      * @param  \Illuminate\Database\Eloquent\Collection<string, Office>  $offices
      */
-    private function createPurchaseOrderWorkflow($offices): void
+    private function createPurchaseOrderWorkflow($offices, $actionTaken): void
     {
         $workflow = Workflow::create([
             'category' => 'PO',
@@ -76,12 +80,12 @@ class WorkflowSeeder extends Seeder
         ]);
 
         $steps = [
-            ['abbreviation' => 'BAC', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'MMO-PO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'MMO-PSMD', 'step_order' => 3, 'expected_days' => 2, 'is_final_step' => true],
+            ['abbreviation' => 'BAC', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'Creation of Purchase Order'],
+            ['abbreviation' => 'MMO-PO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'For Supplier Signature'],
+            ['abbreviation' => 'MMO-PSMD', 'step_order' => 3, 'expected_days' => 2, 'is_final_step' => true, 'action_taken' => 'Waiting For Delivery'],
         ];
 
-        $this->createWorkflowSteps($workflow, $steps, $offices);
+        $this->createWorkflowSteps($workflow, $steps, $offices, $actionTaken);
     }
 
     /**
@@ -91,7 +95,7 @@ class WorkflowSeeder extends Seeder
      *
      * @param  \Illuminate\Database\Eloquent\Collection<string, Office>  $offices
      */
-    private function createVoucherWorkflow($offices): void
+    private function createVoucherWorkflow($offices, $actionTaken): void
     {
         $workflow = Workflow::create([
             'category' => 'VCH',
@@ -101,24 +105,25 @@ class WorkflowSeeder extends Seeder
         ]);
 
         $steps = [
-            ['abbreviation' => 'MBO', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'MACCO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'MMO', 'step_order' => 3, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'MTO', 'step_order' => 4, 'expected_days' => 1, 'is_final_step' => false],
-            ['abbreviation' => 'MMO', 'step_order' => 5, 'expected_days' => 2, 'is_final_step' => false],
-            ['abbreviation' => 'MTO', 'step_order' => 6, 'expected_days' => 1, 'is_final_step' => true],
+            ['abbreviation' => 'MBO', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'Creation of Voucher'],
+            ['abbreviation' => 'MACCO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'For Obligation Request'],
+            ['abbreviation' => 'MMO', 'step_order' => 3, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => "Check for Mayor's Signature"],
+            ['abbreviation' => 'MTO', 'step_order' => 4, 'expected_days' => 1, 'is_final_step' => false, 'action_taken' => 'For Preparation of Check with Signature'],
+            ['abbreviation' => 'MMO', 'step_order' => 5, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => "Check for Mayor's Signature"],
+            ['abbreviation' => 'MTO', 'step_order' => 6, 'expected_days' => 1, 'is_final_step' => true, 'action_taken' => 'For Disbursement and Completion of Voucher'],
         ];
 
-        $this->createWorkflowSteps($workflow, $steps, $offices);
+        $this->createWorkflowSteps($workflow, $steps, $offices, $actionTaken);
     }
 
     /**
      * Create workflow steps from configuration.
      *
-     * @param  array<int, array{abbreviation: string, step_order: int, expected_days: int, is_final_step: bool}>  $steps
+     * @param  array<int, array{abbreviation: string, step_order: int, expected_days: int, is_final_step: bool, action_taken?: string}>  $steps
      * @param  \Illuminate\Database\Eloquent\Collection<string, Office>  $offices
+     * @param  \Illuminate\Database\Eloquent\Collection<string, ActionTaken>  $actionTaken
      */
-    private function createWorkflowSteps(Workflow $workflow, array $steps, $offices): void
+    private function createWorkflowSteps(Workflow $workflow, array $steps, $offices, $actionTaken): void
     {
         foreach ($steps as $stepConfig) {
             $office = $offices->get($stepConfig['abbreviation']);
@@ -129,12 +134,23 @@ class WorkflowSeeder extends Seeder
                 continue;
             }
 
+            $actionTakenId = null;
+            if (! empty($stepConfig['action_taken'])) {
+                $action = $actionTaken->get($stepConfig['action_taken']);
+                if ($action) {
+                    $actionTakenId = $action->id;
+                } else {
+                    $this->command->warn("Action taken '{$stepConfig['action_taken']}' not found. Skipping default action for step {$stepConfig['step_order']}.");
+                }
+            }
+
             WorkflowStep::create([
                 'workflow_id' => $workflow->id,
                 'office_id' => $office->id,
                 'step_order' => $stepConfig['step_order'],
                 'expected_days' => $stepConfig['expected_days'],
                 'is_final_step' => $stepConfig['is_final_step'],
+                'action_taken_id' => $actionTakenId,
             ]);
         }
     }

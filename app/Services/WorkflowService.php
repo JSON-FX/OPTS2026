@@ -29,6 +29,7 @@ class WorkflowService
                     'expected_days' => $stepData['expected_days'],
                     'step_order' => $index + 1,
                     'is_final_step' => $index === $stepCount - 1,
+                    'action_taken_id' => $stepData['action_taken_id'] ?? null,
                 ]);
             }
 
@@ -37,65 +38,66 @@ class WorkflowService
     }
 
     /**
-     * Update a workflow with its steps atomically using smart sync.
+     * Update a workflow with its steps atomically using positional sync.
      *
-     * Matches incoming steps to existing steps by office_id to preserve
-     * step IDs, which keeps FK references (transactions.current_step_id,
-     * transaction_actions.workflow_step_id) intact.
+     * Matches incoming steps to existing steps by step_order (position)
+     * to preserve step IDs where possible, keeping FK references
+     * (transactions.current_step_id, transaction_actions.workflow_step_id) intact.
      *
      * @param  array<string, mixed>  $workflowData
-     * @param  array<int, array{office_id: int, expected_days: int}>  $stepsData
+     * @param  array<int, array{office_id: int, expected_days: int, action_taken_id?: int|null}>  $stepsData
      */
     public function updateWithSteps(Workflow $workflow, array $workflowData, array $stepsData): Workflow
     {
         return DB::transaction(function () use ($workflow, $workflowData, $stepsData) {
             $workflow->update($workflowData);
 
-            // Load existing steps keyed by office_id
-            $existingSteps = $workflow->steps()->get()->keyBy('office_id');
-
-            // Build a set of incoming office_ids
-            $incomingOfficeIds = collect($stepsData)->pluck('office_id')->all();
-
-            // Determine steps to remove (existing offices not in incoming data)
-            $stepsToRemove = $existingSteps->filter(
-                fn ($step) => ! in_array($step->office_id, $incomingOfficeIds)
-            );
-
-            // Handle removals
-            foreach ($stepsToRemove as $step) {
-                $this->removeOrphanStep($step);
-            }
-
-            // Temporarily offset all remaining step_order values to avoid
-            // UNIQUE(workflow_id, step_order) violations during reordering.
-            // Uses addition instead of negation because step_order is unsigned.
-            $workflow->steps()
-                ->whereNotIn('id', $stepsToRemove->pluck('id'))
-                ->update(['step_order' => DB::raw('step_order + 10000')]);
-
-            // Update existing steps and create new ones
             $stepCount = count($stepsData);
+            $usedExistingIds = [];
+
+            // Temporarily offset all step_order values to avoid
+            // UNIQUE(workflow_id, step_order) violations during reordering.
+            $workflow->steps()->update(['step_order' => DB::raw('step_order + 10000')]);
+
+            // Load existing steps AFTER offset, keyed by original position.
+            // Subtract 10000 to get the original step_order for matching.
+            $existingSteps = $workflow->steps()->orderBy('step_order')->get()
+                ->keyBy(fn ($step) => $step->step_order - 10000);
+
+            // Update existing steps (by position) and create new ones
             foreach ($stepsData as $index => $stepData) {
-                $officeId = $stepData['office_id'];
-                $existing = $existingSteps->get($officeId);
+                $position = $index + 1;
+                $existing = $existingSteps->get($position);
 
                 if ($existing) {
                     // Update in place — preserves the step ID and all FK references
                     $existing->update([
-                        'step_order' => $index + 1,
+                        'office_id' => $stepData['office_id'],
+                        'step_order' => $position,
                         'expected_days' => $stepData['expected_days'],
                         'is_final_step' => $index === $stepCount - 1,
+                        'action_taken_id' => $stepData['action_taken_id'] ?? null,
                     ]);
+                    $usedExistingIds[] = $existing->id;
                 } else {
-                    // New step
+                    // New step (workflow grew)
                     $workflow->steps()->create([
-                        'office_id' => $officeId,
+                        'office_id' => $stepData['office_id'],
                         'expected_days' => $stepData['expected_days'],
-                        'step_order' => $index + 1,
+                        'step_order' => $position,
                         'is_final_step' => $index === $stepCount - 1,
+                        'action_taken_id' => $stepData['action_taken_id'] ?? null,
                     ]);
                 }
+            }
+
+            // Remove excess steps (workflow shrank)
+            $stepsToRemove = $existingSteps->filter(
+                fn ($step) => ! in_array($step->id, $usedExistingIds)
+            );
+
+            foreach ($stepsToRemove as $step) {
+                $this->removeOrphanStep($step);
             }
 
             return $workflow->load('steps.office');

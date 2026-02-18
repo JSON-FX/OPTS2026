@@ -191,6 +191,13 @@ export default function Show({ auth, workflow, totalExpectedDays }: Props) {
                                                         </div>
                                                     </div>
 
+                                                    {/* Default Action Taken */}
+                                                    {step.action_taken && (
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            Default action: <span className="font-medium">{step.action_taken.description}</span>
+                                                        </p>
+                                                    )}
+
                                                     {/* Progress bar for expected days proportion */}
                                                     <div className="mt-2">
                                                         <Progress value={daysPercent} className="h-1" />

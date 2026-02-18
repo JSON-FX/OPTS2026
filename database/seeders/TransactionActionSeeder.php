@@ -25,49 +25,7 @@ class TransactionActionSeeder extends Seeder
      */
     public function run(): void
     {
-        $transactions = Transaction::query()
-            ->whereNotNull('workflow_id')
-            ->limit(6)
-            ->get();
-
-        if ($transactions->isEmpty()) {
-            return;
-        }
-
-        $offices = Office::query()->where('is_active', true)->pluck('id')->all();
-        $users = User::query()->where('is_active', true)->get();
-
-        if (empty($offices) || $users->isEmpty()) {
-            return;
-        }
-
-        $usersByOffice = $users->groupBy('office_id');
-        $faker = fake();
-
-        foreach ($transactions as $index => $transaction) {
-            $workflowSteps = WorkflowStep::query()
-                ->where('workflow_id', $transaction->workflow_id)
-                ->orderBy('step_order')
-                ->get();
-
-            if ($workflowSteps->isEmpty()) {
-                continue;
-            }
-
-            $actionDate = Carbon::parse($transaction->created_at);
-
-            // Create action chain based on transaction index
-            if ($index < 2) {
-                // Complete endorsement chain: endorse -> receive -> endorse -> receive -> complete
-                $this->createCompleteChain($transaction, $workflowSteps, $usersByOffice, $offices, $actionDate, $faker);
-            } elseif ($index < 4) {
-                // Partial chain: endorse -> receive -> endorse (in progress)
-                $this->createPartialChain($transaction, $workflowSteps, $usersByOffice, $offices, $actionDate, $faker);
-            } else {
-                // Mixed with special actions (hold, out-of-workflow)
-                $this->createMixedChain($transaction, $workflowSteps, $usersByOffice, $offices, $actionDate, $faker);
-            }
-        }
+        // No example transaction action data seeded.
     }
 
     /**

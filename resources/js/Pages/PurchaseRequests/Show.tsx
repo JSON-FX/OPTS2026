@@ -94,6 +94,7 @@ interface Props {
     canComplete: boolean;
     cannotCompleteReason: string | null;
     actionTakenOptions: ActionTakenOption[];
+    defaultActionTakenId: number | null;
     canHold: boolean;
     cannotHoldReason: string | null;
     canCancel: boolean;
@@ -105,7 +106,7 @@ interface Props {
     actionHistory: ActionHistoryEntry[];
 }
 
-export default function Show({ purchaseRequest, canEdit, canDelete, canEndorse, cannotEndorseReason, canReceive, cannotReceiveReason, canComplete, cannotCompleteReason, actionTakenOptions, canHold, cannotHoldReason, canCancel, cannotCancelReason, canResume, cannotResumeReason, outOfWorkflowInfo, timeline, actionHistory }: Props) {
+export default function Show({ purchaseRequest, canEdit, canDelete, canEndorse, cannotEndorseReason, canReceive, cannotReceiveReason, canComplete, cannotCompleteReason, actionTakenOptions, defaultActionTakenId, canHold, cannotHoldReason, canCancel, cannotCancelReason, canResume, cannotResumeReason, outOfWorkflowInfo, timeline, actionHistory }: Props) {
     const [showReceiveModal, setShowReceiveModal] = useState(false);
     const [showCompleteModal, setShowCompleteModal] = useState(false);
     const [showHoldModal, setShowHoldModal] = useState(false);
@@ -471,6 +472,7 @@ export default function Show({ purchaseRequest, canEdit, canDelete, canEndorse, 
                 category="PR"
                 status={transaction.status}
                 actionTakenOptions={actionTakenOptions || []}
+                defaultActionTakenId={defaultActionTakenId}
             />
 
             {/* Hold Transaction Modal */}

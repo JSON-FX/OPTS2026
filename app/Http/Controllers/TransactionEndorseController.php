@@ -95,6 +95,7 @@ class TransactionEndorseController extends Controller
                 'id' => $expectedNextOffice->id,
                 'name' => $expectedNextOffice->name,
             ] : null,
+            'defaultActionTakenId' => $transaction->currentStep?->action_taken_id,
         ]);
     }
 

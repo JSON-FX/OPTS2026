@@ -23,21 +23,30 @@ interface WorkflowWithSteps extends Workflow {
     steps: (WorkflowStep & { office: Office })[];
 }
 
+interface ActionTakenOption {
+    id: number;
+    description: string;
+}
+
 interface Props extends PageProps {
     workflow: WorkflowWithSteps;
     offices: Office[];
+    actionTakenOptions: ActionTakenOption[];
+    creationActionTakenMap: Record<string, number | null>;
     hasActiveTransactions: boolean;
 }
 
-export default function Edit({ workflow, offices, hasActiveTransactions }: Props) {
+export default function Edit({ workflow, offices, actionTakenOptions, creationActionTakenMap, hasActiveTransactions }: Props) {
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
     const initialSteps = useMemo(() =>
-        workflow.steps.map((step) => ({
+        workflow.steps.map((step, index) => ({
             office_id: step.office_id as number | null,
             expected_days: step.expected_days,
+            action_taken_id: step.action_taken_id
+                ?? (index === 0 ? (creationActionTakenMap[workflow.category] ?? null) : null),
         })),
-        [workflow.steps]
+        [workflow.steps, workflow.category, creationActionTakenMap]
     );
 
     const { data, setData, put, processing, errors } = useForm({
@@ -131,7 +140,16 @@ export default function Edit({ workflow, offices, hasActiveTransactions }: Props
                                 <Label htmlFor="category">Category *</Label>
                                 <Select
                                     value={data.category}
-                                    onValueChange={(v) => setData('category', v as TransactionCategory)}
+                                    onValueChange={(v) => {
+                                        const cat = v as TransactionCategory;
+                                        setData((prev) => {
+                                            const newSteps = [...prev.steps];
+                                            if (newSteps.length > 0) {
+                                                newSteps[0] = { ...newSteps[0], action_taken_id: creationActionTakenMap[cat] ?? null };
+                                            }
+                                            return { ...prev, category: cat, steps: newSteps };
+                                        });
+                                    }}
                                     disabled={hasActiveTransactions}
                                 >
                                     <SelectTrigger className={errors.category ? 'border-destructive' : ''}>
@@ -191,6 +209,7 @@ export default function Edit({ workflow, offices, hasActiveTransactions }: Props
                                 <WorkflowStepBuilder
                                     steps={data.steps}
                                     offices={offices}
+                                    actionTakenOptions={actionTakenOptions}
                                     onChange={handleStepsChange}
                                     errors={stepErrors}
                                 />

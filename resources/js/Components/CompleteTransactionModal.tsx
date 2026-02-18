@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
@@ -34,6 +34,7 @@ interface CompleteTransactionModalProps {
     category: string;
     status: string;
     actionTakenOptions: ActionTakenOption[];
+    defaultActionTakenId?: number | null;
 }
 
 export default function CompleteTransactionModal({
@@ -44,11 +45,18 @@ export default function CompleteTransactionModal({
     category,
     status,
     actionTakenOptions,
+    defaultActionTakenId,
 }: CompleteTransactionModalProps) {
     const [actionTakenId, setActionTakenId] = useState('');
     const [notes, setNotes] = useState('');
     const [processing, setProcessing] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        if (open) {
+            setActionTakenId(defaultActionTakenId?.toString() ?? '');
+        }
+    }, [open, defaultActionTakenId]);
 
     const handleSubmit = () => {
         const newErrors: Record<string, string> = {};
@@ -87,7 +95,7 @@ export default function CompleteTransactionModal({
     const handleClose = () => {
         if (!processing) {
             onOpenChange(false);
-            setActionTakenId('');
+            setActionTakenId(defaultActionTakenId?.toString() ?? '');
             setNotes('');
             setErrors({});
         }

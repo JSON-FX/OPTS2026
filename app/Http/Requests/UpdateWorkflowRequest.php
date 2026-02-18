@@ -34,6 +34,7 @@ class UpdateWorkflowRequest extends FormRequest
             'steps' => ['required', 'array', 'min:2'],
             'steps.*.office_id' => ['required', 'integer', 'exists:offices,id'],
             'steps.*.expected_days' => ['required', 'integer', 'min:1'],
+            'steps.*.action_taken_id' => ['nullable', 'integer', 'exists:action_taken,id'],
         ];
     }
 
@@ -59,15 +60,6 @@ class UpdateWorkflowRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            // Validate unique offices in steps
-            if ($this->has('steps') && is_array($this->input('steps'))) {
-                $officeIds = collect($this->input('steps'))->pluck('office_id')->filter();
-
-                if ($officeIds->count() !== $officeIds->unique()->count()) {
-                    $validator->errors()->add('steps', 'Each office can only appear once in the workflow.');
-                }
-            }
-
             // Prevent category change if transactions exist
             $workflow = $this->route('workflow');
             if ($workflow && $this->input('category') !== $workflow->category) {
@@ -78,12 +70,15 @@ class UpdateWorkflowRequest extends FormRequest
                 }
             }
 
-            // Prevent removing steps that have active transactions
+            // Prevent removing steps that have active transactions.
+            // Uses positional matching: if the workflow is shrinking, the excess
+            // steps at the end will be removed. Check those for active transactions.
             if ($workflow && $this->has('steps') && is_array($this->input('steps'))) {
-                $incomingOfficeIds = collect($this->input('steps'))->pluck('office_id')->filter()->all();
+                $incomingCount = count($this->input('steps'));
 
                 $stepsBeingRemoved = WorkflowStep::where('workflow_id', $workflow->id)
-                    ->whereNotIn('office_id', $incomingOfficeIds)
+                    ->where('step_order', '>', $incomingCount)
+                    ->with('office')
                     ->get();
 
                 foreach ($stepsBeingRemoved as $step) {
@@ -95,7 +90,7 @@ class UpdateWorkflowRequest extends FormRequest
                         $officeName = $step->office->name ?? "ID {$step->office_id}";
                         $validator->errors()->add(
                             'steps',
-                            "Cannot remove the \"{$officeName}\" step because it has active transactions."
+                            "Cannot remove step {$step->step_order} (\"{$officeName}\") because it has active transactions."
                         );
                     }
                 }

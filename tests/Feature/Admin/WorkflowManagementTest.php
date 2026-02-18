@@ -219,7 +219,7 @@ class WorkflowManagementTest extends TestCase
         $response->assertSessionHasErrors('steps');
     }
 
-    public function test_validation_prevents_duplicate_offices_in_steps(): void
+    public function test_allows_duplicate_offices_in_steps(): void
     {
         $office = Office::factory()->create();
 
@@ -232,7 +232,8 @@ class WorkflowManagementTest extends TestCase
             ],
         ]);
 
-        $response->assertSessionHasErrors('steps');
+        $response->assertSessionDoesntHaveErrors('steps');
+        $response->assertRedirect(route('admin.workflows.index'));
     }
 
     public function test_validation_requires_expected_days_minimum_one(): void
@@ -525,27 +526,29 @@ class WorkflowManagementTest extends TestCase
             'status' => 'In Progress',
         ]);
 
-        // Update: reorder steps and change expected_days (but keep same offices)
+        // Update: change offices and expected_days (positional sync updates in place)
         $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
             'name' => $workflow->name,
             'category' => 'PR',
             'is_active' => true,
             'steps' => [
-                ['office_id' => $offices[1]->id, 'expected_days' => 5],  // was step 2, now step 1
-                ['office_id' => $offices[0]->id, 'expected_days' => 7],  // was step 1, now step 2
+                ['office_id' => $offices[0]->id, 'expected_days' => 5],
+                ['office_id' => $offices[2]->id, 'expected_days' => 7],  // changed office at position 2
             ],
         ]);
 
         $response->assertRedirect('/admin/workflows');
 
         // Transaction's current_step_id should still point to the same step record
+        // (positional sync preserves step IDs at each position)
         $transaction->refresh();
         $this->assertEquals($step2->id, $transaction->current_step_id);
 
-        // But step2 should now have updated order and expected_days
+        // Step2 (position 2) should have updated office and expected_days
         $step2->refresh();
-        $this->assertEquals(1, $step2->step_order);
-        $this->assertEquals(5, $step2->expected_days);
+        $this->assertEquals(2, $step2->step_order);
+        $this->assertEquals(7, $step2->expected_days);
+        $this->assertEquals($offices[2]->id, $step2->office_id);
     }
 
     public function test_update_can_add_new_steps_to_workflow(): void
@@ -594,45 +597,45 @@ class WorkflowManagementTest extends TestCase
         $workflow = Workflow::factory()->pr()->create();
         $offices = Office::factory()->count(3)->create();
 
-        $step1 = WorkflowStep::factory()
+        WorkflowStep::factory()
             ->forWorkflow($workflow)
             ->forOffice($offices[0])
             ->order(1)
             ->create();
-        $step2 = WorkflowStep::factory()
+        WorkflowStep::factory()
             ->forWorkflow($workflow)
             ->forOffice($offices[1])
             ->order(2)
             ->create();
-        WorkflowStep::factory()
+        $step3 = WorkflowStep::factory()
             ->forWorkflow($workflow)
             ->forOffice($offices[2])
             ->order(3)
             ->final()
             ->create();
 
-        // Create an active transaction at step2
+        // Create an active transaction at step3 (the last step, which will be removed)
         Transaction::factory()->create([
             'workflow_id' => $workflow->id,
-            'current_step_id' => $step2->id,
+            'current_step_id' => $step3->id,
             'status' => 'In Progress',
         ]);
 
-        // Try to remove step2 (offices[1]) from the workflow
+        // Try to shrink workflow from 3 steps to 2 (removes step3)
         $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
             'name' => $workflow->name,
             'category' => 'PR',
             'is_active' => true,
             'steps' => [
                 ['office_id' => $offices[0]->id, 'expected_days' => 2],
-                ['office_id' => $offices[2]->id, 'expected_days' => 1],
+                ['office_id' => $offices[1]->id, 'expected_days' => 1],
             ],
         ]);
 
         $response->assertSessionHasErrors('steps');
 
         // Step should still exist
-        $this->assertDatabaseHas('workflow_steps', ['id' => $step2->id]);
+        $this->assertDatabaseHas('workflow_steps', ['id' => $step3->id]);
     }
 
     public function test_can_remove_step_with_only_completed_transactions(): void
@@ -645,40 +648,40 @@ class WorkflowManagementTest extends TestCase
             ->forOffice($offices[0])
             ->order(1)
             ->create();
-        $step2 = WorkflowStep::factory()
+        WorkflowStep::factory()
             ->forWorkflow($workflow)
             ->forOffice($offices[1])
             ->order(2)
             ->create();
-        WorkflowStep::factory()
+        $step3 = WorkflowStep::factory()
             ->forWorkflow($workflow)
             ->forOffice($offices[2])
             ->order(3)
             ->final()
             ->create();
 
-        // Create a completed transaction at step2
+        // Create a completed transaction at step3 (the step being removed)
         Transaction::factory()->create([
             'workflow_id' => $workflow->id,
-            'current_step_id' => $step2->id,
+            'current_step_id' => $step3->id,
             'status' => 'Completed',
         ]);
 
-        // Remove step2 from the workflow
+        // Shrink workflow from 3 steps to 2 (removes step3)
         $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
             'name' => $workflow->name,
             'category' => 'PR',
             'is_active' => true,
             'steps' => [
                 ['office_id' => $offices[0]->id, 'expected_days' => 2],
-                ['office_id' => $offices[2]->id, 'expected_days' => 1],
+                ['office_id' => $offices[1]->id, 'expected_days' => 1],
             ],
         ]);
 
         $response->assertRedirect('/admin/workflows');
 
         // Step should be deleted
-        $this->assertDatabaseMissing('workflow_steps', ['id' => $step2->id]);
+        $this->assertDatabaseMissing('workflow_steps', ['id' => $step3->id]);
 
         // Transaction's current_step_id should be nullified
         $this->assertDatabaseHas('transactions', [
@@ -697,19 +700,19 @@ class WorkflowManagementTest extends TestCase
             ->forOffice($offices[0])
             ->order(1)
             ->create();
-        $step2 = WorkflowStep::factory()
+        WorkflowStep::factory()
             ->forWorkflow($workflow)
             ->forOffice($offices[1])
             ->order(2)
             ->create();
-        WorkflowStep::factory()
+        $step3 = WorkflowStep::factory()
             ->forWorkflow($workflow)
             ->forOffice($offices[2])
             ->order(3)
             ->final()
             ->create();
 
-        // Create a transaction and a historical action referencing step2
+        // Create a transaction at step1 and a historical action referencing step3
         $transaction = Transaction::factory()->create([
             'workflow_id' => $workflow->id,
             'current_step_id' => $step1->id,
@@ -717,19 +720,19 @@ class WorkflowManagementTest extends TestCase
         ]);
         $action = TransactionAction::factory()->endorse()->create([
             'transaction_id' => $transaction->id,
-            'workflow_step_id' => $step2->id,
-            'from_office_id' => $offices[0]->id,
-            'to_office_id' => $offices[1]->id,
+            'workflow_step_id' => $step3->id,
+            'from_office_id' => $offices[1]->id,
+            'to_office_id' => $offices[2]->id,
         ]);
 
-        // Remove step2 from the workflow (no active transactions at step2)
+        // Shrink workflow from 3 steps to 2 (removes step3, no active transactions at step3)
         $response = $this->actingAs($this->admin)->put("/admin/workflows/{$workflow->id}", [
             'name' => $workflow->name,
             'category' => 'PR',
             'is_active' => true,
             'steps' => [
                 ['office_id' => $offices[0]->id, 'expected_days' => 2],
-                ['office_id' => $offices[2]->id, 'expected_days' => 1],
+                ['office_id' => $offices[1]->id, 'expected_days' => 1],
             ],
         ]);
 

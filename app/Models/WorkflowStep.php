@@ -21,10 +21,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $step_order
  * @property int $expected_days
  * @property bool $is_final_step
+ * @property int|null $action_taken_id
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read Workflow $workflow
  * @property-read Office $office
+ * @property-read ActionTaken|null $actionTaken
  * @property-read bool $is_first_step
  */
 class WorkflowStep extends Model
@@ -42,6 +44,7 @@ class WorkflowStep extends Model
         'step_order',
         'expected_days',
         'is_final_step',
+        'action_taken_id',
     ];
 
     /**
@@ -55,6 +58,7 @@ class WorkflowStep extends Model
             'step_order' => 'integer',
             'expected_days' => 'integer',
             'is_final_step' => 'boolean',
+            'action_taken_id' => 'integer',
         ];
     }
 
@@ -76,6 +80,16 @@ class WorkflowStep extends Model
     public function office(): BelongsTo
     {
         return $this->belongsTo(Office::class);
+    }
+
+    /**
+     * Get the default action taken for this step.
+     *
+     * @return BelongsTo<ActionTaken, $this>
+     */
+    public function actionTaken(): BelongsTo
+    {
+        return $this->belongsTo(ActionTaken::class);
     }
 
     /**

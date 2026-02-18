@@ -17,11 +17,18 @@ import {
 import WorkflowStepBuilder, { StepData } from '@/Components/WorkflowStepBuilder';
 import { useState, useEffect } from 'react';
 
-interface Props extends PageProps {
-    offices: Office[];
+interface ActionTakenOption {
+    id: number;
+    description: string;
 }
 
-export default function Create({ offices }: Props) {
+interface Props extends PageProps {
+    offices: Office[];
+    actionTakenOptions: ActionTakenOption[];
+    creationActionTakenMap: Record<string, number | null>;
+}
+
+export default function Create({ offices, actionTakenOptions, creationActionTakenMap }: Props) {
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
     const { data, setData, post, processing, errors } = useForm({
@@ -30,8 +37,8 @@ export default function Create({ offices }: Props) {
         description: '',
         is_active: true,
         steps: [
-            { office_id: null as number | null, expected_days: 1 },
-            { office_id: null as number | null, expected_days: 1 },
+            { office_id: null as number | null, expected_days: 1, action_taken_id: null as number | null },
+            { office_id: null as number | null, expected_days: 1, action_taken_id: null as number | null },
         ],
     });
 
@@ -107,7 +114,16 @@ export default function Create({ offices }: Props) {
                                 <Label htmlFor="category">Category *</Label>
                                 <Select
                                     value={data.category}
-                                    onValueChange={(v) => setData('category', v as TransactionCategory)}
+                                    onValueChange={(v) => {
+                                        const cat = v as TransactionCategory;
+                                        setData((prev) => {
+                                            const newSteps = [...prev.steps];
+                                            if (newSteps.length > 0) {
+                                                newSteps[0] = { ...newSteps[0], action_taken_id: creationActionTakenMap[cat] ?? null };
+                                            }
+                                            return { ...prev, category: cat, steps: newSteps };
+                                        });
+                                    }}
                                 >
                                     <SelectTrigger className={errors.category ? 'border-destructive' : ''}>
                                         <SelectValue placeholder="Select category" />
@@ -153,6 +169,7 @@ export default function Create({ offices }: Props) {
                                 <WorkflowStepBuilder
                                     steps={data.steps}
                                     offices={offices}
+                                    actionTakenOptions={actionTakenOptions}
                                     onChange={handleStepsChange}
                                     errors={stepErrors}
                                 />

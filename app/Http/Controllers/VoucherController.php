@@ -200,6 +200,7 @@ class VoucherController extends Controller
                 ->where('is_active', true)
                 ->orderBy('description')
                 ->get(['id', 'description']),
+            'defaultActionTakenId' => $transaction->currentStep?->action_taken_id,
         ]);
     }
 

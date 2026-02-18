@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreWorkflowRequest;
 use App\Http\Requests\UpdateWorkflowRequest;
+use App\Models\ActionTaken;
 use App\Models\Office;
 use App\Models\Workflow;
 use App\Services\WorkflowService;
@@ -83,8 +84,16 @@ class WorkflowController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'abbreviation']);
 
+        $actionTakenOptions = ActionTaken::where('is_active', true)
+            ->orderBy('description')
+            ->get(['id', 'description']);
+
+        $creationActionTakenMap = $this->getCreationActionTakenMap();
+
         return Inertia::render('Admin/Workflows/Create', [
             'offices' => $offices,
+            'actionTakenOptions' => $actionTakenOptions,
+            'creationActionTakenMap' => $creationActionTakenMap,
         ]);
     }
 
@@ -116,7 +125,7 @@ class WorkflowController extends Controller
      */
     public function show(Workflow $workflow): Response
     {
-        $workflow->load('steps.office', 'createdBy');
+        $workflow->load('steps.office', 'steps.actionTaken', 'createdBy');
 
         $totalExpectedDays = $workflow->steps->sum('expected_days');
 
@@ -137,11 +146,19 @@ class WorkflowController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'abbreviation']);
 
+        $actionTakenOptions = ActionTaken::where('is_active', true)
+            ->orderBy('description')
+            ->get(['id', 'description']);
+
         $hasActiveTransactions = $this->workflowService->hasActiveTransactions($workflow);
+
+        $creationActionTakenMap = $this->getCreationActionTakenMap();
 
         return Inertia::render('Admin/Workflows/Edit', [
             'workflow' => $workflow,
             'offices' => $offices,
+            'actionTakenOptions' => $actionTakenOptions,
+            'creationActionTakenMap' => $creationActionTakenMap,
             'hasActiveTransactions' => $hasActiveTransactions,
         ]);
     }
@@ -204,5 +221,28 @@ class WorkflowController extends Controller
         return redirect()
             ->route('admin.workflows.index')
             ->with('success', 'Workflow deactivated successfully.');
+    }
+
+    /**
+     * Build a category-to-action_taken_id map for "Creation of ..." actions.
+     *
+     * @return array<string, int|null>
+     */
+    private function getCreationActionTakenMap(): array
+    {
+        $descriptions = [
+            'PR' => 'Creation of Purchase Request',
+            'PO' => 'Creation of Purchase Order',
+            'VCH' => 'Creation of Voucher',
+        ];
+
+        $map = [];
+        foreach ($descriptions as $category => $description) {
+            $map[$category] = ActionTaken::where('description', $description)
+                ->where('is_active', true)
+                ->value('id');
+        }
+
+        return $map;
     }
 }
