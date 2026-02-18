@@ -143,7 +143,7 @@ class VoucherController extends Controller
 
         $purchaseOrder = $voucher->transaction->procurement->purchaseOrder;
         if ($purchaseOrder) {
-            $purchaseOrder->load('transaction:id,reference_number');
+            $purchaseOrder->load(['transaction:id,reference_number', 'supplier:id,name']);
         }
 
         $user = auth()->user();

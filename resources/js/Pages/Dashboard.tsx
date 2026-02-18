@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage, usePoll } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
 import { Badge } from '@/Components/ui/badge';
 import { DataTable } from '@/Components/DataTable';
@@ -104,6 +104,9 @@ function SortableHeader({
 }
 
 export default function Dashboard({ summary, officeWorkload, activityFeed, stagnantTransactions, slaPerformance, userOfficeId }: Props) {
+    // Auto-refresh dashboard data every 30 seconds (pauses when tab is hidden)
+    usePoll(30_000);
+
     const columns: ColumnDef<OfficeWorkload>[] = [
         {
             accessorKey: 'office_name',

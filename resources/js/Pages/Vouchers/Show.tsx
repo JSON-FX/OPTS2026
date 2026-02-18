@@ -83,9 +83,15 @@ interface PurchaseRequest {
 
 interface PurchaseOrder {
     id: number;
+    supplier_address: string;
+    contract_price: number;
     transaction?: {
         id: number;
         reference_number: string;
+    };
+    supplier?: {
+        id: number;
+        name: string;
     };
 }
 
@@ -429,26 +435,6 @@ export default function Show({ voucher, purchaseRequest, purchaseOrder, canEdit,
                         </div>
                     </div>
 
-                    {/* Related Purchase Order */}
-                    {purchaseOrder && (
-                        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                            <div className="p-6 border-b border-gray-200">
-                                <h3 className="text-lg font-medium">Related Purchase Order</h3>
-                            </div>
-                            <div className="p-6">
-                                <div>
-                                    <p className="text-sm text-gray-600 mb-1">PO Reference Number</p>
-                                    <Link
-                                        href={route('purchase-orders.show', purchaseOrder.id)}
-                                        className="text-blue-600 hover:underline font-medium text-lg"
-                                    >
-                                        {purchaseOrder.transaction?.reference_number || 'N/A'}
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Related Purchase Request */}
                     {purchaseRequest && (
                         <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
@@ -495,6 +481,31 @@ export default function Show({ voucher, purchaseRequest, purchaseOrder, canEdit,
                                         {transaction.procurement.particular?.description || 'N/A'}
                                     </p>
                                 </div>
+                                {purchaseOrder && (
+                                    <>
+                                        <div className="border-t border-gray-100 pt-2 mt-2">
+                                            <p className="text-sm text-gray-600 mb-1">Purchase Order</p>
+                                            <Link
+                                                href={route('purchase-orders.show', purchaseOrder.id)}
+                                                className="text-blue-600 hover:underline font-medium"
+                                            >
+                                                {purchaseOrder.transaction?.reference_number || 'N/A'}
+                                            </Link>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Supplier</p>
+                                            <p className="font-medium">{purchaseOrder.supplier?.name || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Supplier Address</p>
+                                            <p className="font-medium">{purchaseOrder.supplier_address || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Contract Price</p>
+                                            <p className="font-medium">{formatCurrency(purchaseOrder.contract_price)}</p>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
