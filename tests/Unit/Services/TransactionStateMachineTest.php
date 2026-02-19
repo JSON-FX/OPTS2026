@@ -5,12 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use App\Exceptions\InvalidStateTransitionException;
-use App\Models\Office;
 use App\Models\Procurement;
 use App\Models\Transaction;
-use App\Models\TransactionStatusHistory;
 use App\Models\User;
-use App\Models\Workflow;
 use App\Services\TransactionStateMachine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

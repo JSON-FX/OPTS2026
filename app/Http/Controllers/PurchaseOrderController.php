@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\NoActiveWorkflowException;
 use App\Http\Requests\StorePurchaseOrderRequest;
 use App\Http\Requests\UpdatePurchaseOrderRequest;
-use App\Exceptions\NoActiveWorkflowException;
 use App\Models\ActionTaken;
 use App\Models\Procurement;
 use App\Models\PurchaseOrder;

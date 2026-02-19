@@ -176,7 +176,7 @@ class OutOfWorkflowNotificationTest extends TestCase
 
         $action->load(['transaction.currentStep', 'toOffice', 'fromUser']);
 
-        $listener = new NotifyOutOfWorkflowEndorsement();
+        $listener = new NotifyOutOfWorkflowEndorsement;
         $listener->handle(new OutOfWorkflowEndorsement($action));
 
         Notification::assertSentTo($setup['admin'], OutOfWorkflowNotification::class);
@@ -201,7 +201,7 @@ class OutOfWorkflowNotificationTest extends TestCase
 
         $action->load(['transaction.currentStep', 'toOffice', 'fromUser']);
 
-        $listener = new NotifyOutOfWorkflowEndorsement();
+        $listener = new NotifyOutOfWorkflowEndorsement;
         $listener->handle(new OutOfWorkflowEndorsement($action));
 
         Notification::assertSentTo($setup['expectedOfficeUser'], OutOfWorkflowNotification::class);

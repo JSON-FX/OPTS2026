@@ -7,9 +7,10 @@ namespace App\Notifications;
 use App\Models\Office;
 use App\Models\TransactionAction;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Notification;
 
-class OutOfWorkflowNotification extends Notification
+class OutOfWorkflowNotification extends Notification implements ShouldBroadcast
 {
     use Queueable;
 
@@ -23,7 +24,7 @@ class OutOfWorkflowNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['database', 'broadcast'];
     }
 
     /**
@@ -45,9 +46,9 @@ class OutOfWorkflowNotification extends Notification
             'actual_office_name' => $actualOffice?->name ?? 'Unknown',
             'endorsed_by_user_id' => $this->action->from_user_id,
             'endorsed_by_name' => $this->action->fromUser?->name ?? 'Unknown',
-            'message' => "Transaction {$transaction->reference_number} was sent to " .
-                ($actualOffice?->name ?? 'Unknown') .
-                " instead of expected " .
+            'message' => "Transaction {$transaction->reference_number} was sent to ".
+                ($actualOffice?->name ?? 'Unknown').
+                ' instead of expected '.
                 ($this->expectedOffice?->name ?? 'Unknown'),
         ];
     }

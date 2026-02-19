@@ -2,14 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\FundType;
-use App\Models\Office;
-use App\Models\Supplier;
-use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class TransactionSeeder extends Seeder
 {

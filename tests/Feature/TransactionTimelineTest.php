@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Models\ActionTaken;
 use App\Models\Office;
 use App\Models\Procurement;
 use App\Models\PurchaseOrder;

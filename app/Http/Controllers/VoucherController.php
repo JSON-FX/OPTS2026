@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\NoActiveWorkflowException;
 use App\Http\Requests\StoreVoucherRequest;
 use App\Http\Requests\UpdateVoucherRequest;
-use App\Exceptions\NoActiveWorkflowException;
 use App\Models\ActionTaken;
 use App\Models\Procurement;
 use App\Models\Transaction;

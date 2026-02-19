@@ -1,0 +1,73 @@
+schema: 1
+story: "4.2.4"
+story_title: "Real-Time Notification Delivery with Laravel Reverb"
+gate: PASS
+status_reason: "All 8 ACs met. Critical FQCN type mapping bug found and fixed during review. 45/45 tests pass. E2E verified — UI renders correctly with and without Reverb running. Live WebSocket round-trip test confirmed: notifications sent via tinker+queue broadcast through Reverb to browser in real-time (bell count 3→4→5, correct icons for received/completed types, FQCN mapping working)."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-02-20T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "BUG-001"
+    severity: medium
+    finding: "Broadcast notification type field overwritten by Laravel FQCN — real-time notifications would show wrong icons"
+    suggested_action: "FIXED during QA review — added NOTIFICATION_TYPE_MAP in NotificationBell.tsx"
+    status: resolved
+    suggested_owner: dev
+
+quality_score: 95
+expires: "2026-03-06T00:00:00Z"
+
+evidence:
+  tests_reviewed: 45
+  risks_identified: 1
+  e2e_websocket_roundtrip:
+    status: PASS
+    method: "Live Reverb server + queue worker + Playwright browser"
+    test_sequence:
+      - "Started Reverb (port 8080) and queue worker"
+      - "Opened browser as Administrator User — bell showed 3 unread"
+      - "Verified WebSocket connected (no console errors)"
+      - "Sent TransactionReceivedNotification via tinker → queue:work --once → Reverb broadcast"
+      - "Bell updated 3→4 in real-time (no page refresh), correct blue Inbox icon"
+      - "Sent TransactionCompletedNotification via tinker → queue:work --once → Reverb broadcast"
+      - "Bell updated 4→5 in real-time, correct green CheckCircle icon"
+      - "Popover shows all 5 notifications with correct icons and timestamps"
+    screenshots:
+      - "e2e-realtime-notification-bell-updated.png"
+      - "e2e-realtime-two-notifications-verified.png"
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Private channel auth correctly validates user ID. REVERB_APP_SECRET not exposed to frontend. Broadcasting auth route requires authentication."
+  performance:
+    status: PASS
+    notes: "Broadcast reuses toArray() payload — no extra computation. WebSocket is persistent — no polling overhead. Real-time list capped at 10 items."
+  reliability:
+    status: PASS
+    notes: "Graceful degradation implemented — try/catch around Echo, null checks, Inertia shared props fallback. UI renders fully when Reverb is not running."
+  maintainability:
+    status: CONCERNS
+    notes: "NOTIFICATION_TYPE_MAP requires manual update when new notification classes are added. WebSocket connection errors visible in console when Reverb is down (pusher-js internals, not app code)."
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 1, low: 0 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "Keep NOTIFICATION_TYPE_MAP in sync when adding new notification classes"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Consider suppressing WebSocket errors when Reverb is not running (Pusher.logToConsole = false or conditional Echo init)"
+      refs: ["resources/js/bootstrap.ts"]
+    - action: "Consider ShouldBroadcastNow if queue worker is not always running"
+      refs: ["app/Notifications/*.php"]
+    - action: "Add full E2E WebSocket round-trip test when Reverb is configured in CI"
+      refs: ["tests/Feature/BroadcastNotificationTest.php"]

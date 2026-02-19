@@ -22,7 +22,7 @@ class EtaCalculationServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new EtaCalculationService();
+        $this->service = new EtaCalculationService;
     }
 
     // ---------------------------------------------------

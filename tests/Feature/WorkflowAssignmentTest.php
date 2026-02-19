@@ -12,7 +12,6 @@ use App\Models\PurchaseRequest;
 use App\Models\Supplier;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Models\Voucher;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
 use Database\Seeders\RoleSeeder;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\NoActiveWorkflowException;
 use App\Http\Requests\StorePurchaseRequestRequest;
 use App\Http\Requests\UpdatePurchaseRequestRequest;
 use App\Models\ActionTaken;
@@ -11,7 +12,6 @@ use App\Models\FundType;
 use App\Models\Procurement;
 use App\Models\PurchaseRequest;
 use App\Models\Transaction;
-use App\Exceptions\NoActiveWorkflowException;
 use App\Services\EndorsementService;
 use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;

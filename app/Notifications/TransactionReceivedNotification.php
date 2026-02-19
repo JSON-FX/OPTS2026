@@ -6,9 +6,10 @@ namespace App\Notifications;
 
 use App\Models\TransactionAction;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Notification;
 
-class TransactionReceivedNotification extends Notification
+class TransactionReceivedNotification extends Notification implements ShouldBroadcast
 {
     use Queueable;
 
@@ -21,7 +22,7 @@ class TransactionReceivedNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['database', 'broadcast'];
     }
 
     /**

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { Bell, AlertTriangle, CheckCircle, Clock, ExternalLink, Inbox } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
@@ -24,26 +24,68 @@ function getNotificationIcon(type: string) {
     }
 }
 
-function getTransactionRoute(notification: AppNotification): string | null {
-    const data = notification.data;
-    if (!data.transaction_id || !data.category) return null;
+// Map Laravel FQCN to custom notification type (broadcast overrides toArray type)
+const NOTIFICATION_TYPE_MAP: Record<string, string> = {
+    'App\\Notifications\\TransactionReceivedNotification': 'received',
+    'App\\Notifications\\TransactionCompletedNotification': 'completed',
+    'App\\Notifications\\TransactionOverdueNotification': 'overdue',
+    'App\\Notifications\\OutOfWorkflowNotification': 'out_of_workflow',
+};
 
-    const category = data.category as string;
-    const transactionId = data.transaction_id as number;
-
-    // We need to navigate to the specific show page, but we don't have
-    // the sub-entity ID. Use transaction_id as reference.
-    // The actual route depends on the category type.
-    // For now, link to notifications page as a safe fallback.
-    return null;
+function resolveNotificationType(broadcastType: string): string {
+    return NOTIFICATION_TYPE_MAP[broadcastType] ?? broadcastType;
 }
 
 export function NotificationBell() {
-    const { notifications } = usePage<PageProps>().props;
+    const { notifications, auth } = usePage<PageProps>().props;
     const [isOpen, setIsOpen] = useState(false);
+    const [realtimeNotifications, setRealtimeNotifications] = useState<AppNotification[]>([]);
+    const [realtimeUnreadDelta, setRealtimeUnreadDelta] = useState(0);
 
-    const unreadCount = notifications?.unread_count ?? 0;
-    const recent = notifications?.recent ?? [];
+    // Merge Inertia shared props with real-time arrivals
+    const baseUnreadCount = notifications?.unread_count ?? 0;
+    const baseRecent = notifications?.recent ?? [];
+    const unreadCount = baseUnreadCount + realtimeUnreadDelta;
+
+    // Prepend real-time notifications, deduplicating by id
+    const baseIds = new Set(baseRecent.map(n => n.id));
+    const uniqueRealtime = realtimeNotifications.filter(n => !baseIds.has(n.id));
+    const recent = [...uniqueRealtime, ...baseRecent].slice(0, 10);
+
+    // Reset real-time state when Inertia shared props update (page navigation)
+    useEffect(() => {
+        setRealtimeNotifications([]);
+        setRealtimeUnreadDelta(0);
+    }, [notifications]);
+
+    // Subscribe to private notification channel
+    useEffect(() => {
+        if (!window.Echo || !auth.user) return;
+
+        try {
+            const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
+
+            channel.notification((notification: Record<string, unknown>) => {
+                const appNotification: AppNotification = {
+                    id: notification.id as string,
+                    type: resolveNotificationType((notification.type as string) ?? 'unknown'),
+                    message: (notification.message as string) ?? '',
+                    read_at: null,
+                    created_at: new Date().toISOString(),
+                    data: notification,
+                };
+
+                setRealtimeNotifications(prev => [appNotification, ...prev]);
+                setRealtimeUnreadDelta(prev => prev + 1);
+            });
+
+            return () => {
+                channel.stopListening('.Illuminate\\Notifications\\Events\\BroadcastNotificationCreated');
+            };
+        } catch {
+            // Graceful degradation: if Echo is misconfigured, fall back to Inertia props
+        }
+    }, [auth.user?.id]);
 
     const handleMarkAsRead = (id: string) => {
         router.post(route('notifications.markAsRead', id), {}, {
