@@ -1,59 +1,250 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# OPTS 2026
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**Online Procurement Tracking System** for Local Government Units (LGUs)
 
-## About Laravel
+A full-stack web application that tracks procurement documents (Purchase Requests, Purchase Orders, and Vouchers) as they move through government offices, enforcing configurable workflows, SLA timelines, and role-based access control.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Tech Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Layer | Technology |
+|-------|-----------|
+| Backend | Laravel 12.x (PHP 8.2+) |
+| Frontend | React 18 + TypeScript |
+| Bridge | Inertia.js (no REST API) |
+| UI Components | shadcn/ui + Radix UI + Tailwind CSS |
+| Database | MySQL 8.0+ (SQLite for development) |
+| Real-time | Laravel Reverb (WebSocket) |
+| RBAC | Spatie Laravel Permission |
+| Testing | PHPUnit + Playwright E2E |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Features
 
-## Learning Laravel
+### Procurement Management
+- Create and manage procurements with linked transactions (PR, PO, Voucher)
+- Auto-generated reference numbers (e.g., `PR-GF-2026-02-001`)
+- Business rule validation for transaction dependencies
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### Workflow Engine
+- Configurable multi-step workflows per transaction category
+- Endorse, Receive, Hold, Resume, and Complete actions
+- Transaction state machine with full audit trail
+- Out-of-workflow detection with notifications
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Dashboard & Monitoring
+- Summary cards (procurements, PRs, POs, vouchers)
+- Office workload table with stagnant transaction detection
+- Activity feed with search and pagination
+- SLA performance metrics and turnaround tracking
+- Out-of-workflow incident tracking
 
-## Laravel Sponsors
+### Notifications
+- Database-stored notifications with bell popover
+- Real-time delivery via Laravel Reverb WebSocket
+- Notification types: received, completed, overdue, out-of-workflow
+- Graceful degradation when Reverb is not running
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### Roles
+| Role | Access |
+|------|--------|
+| **Administrator** | Full access, user management, workflow configuration |
+| **Endorser** | Endorse/receive/complete transactions for assigned office |
+| **Viewer** | Read-only access to procurements and transactions |
 
-### Premium Partners
+## Prerequisites
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+- PHP 8.2+
+- Composer
+- Node.js 18+ and npm
+- MySQL 8.0+ (or SQLite for development)
 
-## Contributing
+## Getting Started
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Quick Setup
 
-## Code of Conduct
+```bash
+# Clone and install
+git clone <repository-url>
+cd opts2026
+composer setup
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+The `composer setup` script handles: composer install, .env creation, key generation, migrations, npm install, and build.
 
-## Security Vulnerabilities
+### Manual Setup
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+# Backend
+composer install
+cp .env.example .env
+php artisan key:generate
+
+# Configure database in .env (MySQL or keep SQLite default)
+php artisan migrate
+
+# Seed demo data
+php artisan db:seed
+
+# Frontend
+npm install
+npm run build
+```
+
+### Development Server
+
+```bash
+composer dev
+```
+
+This starts all services concurrently:
+- Laravel dev server (`php artisan serve`)
+- Queue worker (`php artisan queue:listen`)
+- Log tail (`php artisan pail`)
+- Vite HMR (`npm run dev`)
+
+### Real-time Notifications (Optional)
+
+```bash
+php artisan reverb:start
+```
+
+Starts the WebSocket server on port 8080. The app works without Reverb — notifications fall back to Inertia shared props on page navigation.
+
+## Demo Accounts
+
+After running `php artisan db:seed`:
+
+| Email | Password | Role | Office |
+|-------|----------|------|--------|
+| admin@example.com | password | Administrator | MMO |
+| viewer@example.com | password | Viewer | MMO |
+| mbo@example.com | password | Endorser | MBO |
+| mmo@example.com | password | Endorser | MMO |
+| bac@example.com | password | Endorser | BAC |
+| mmo-po@example.com | password | Endorser | Procurement Office |
+| mmo-psmd@example.com | password | Endorser | Property & Supply |
+| macco@example.com | password | Endorser | MACCO |
+| mto@example.com | password | Endorser | MTO |
+
+## Testing
+
+### Backend Tests
+
+```bash
+# Run all tests
+composer test
+
+# Run a specific test file
+php artisan test tests/Feature/TransactionEndorseTest.php
+
+# Run a specific test method
+php artisan test --filter="test_endorser_can_endorse_transaction"
+```
+
+**Coverage**: 54 test files (8 unit + 46 feature)
+
+### E2E Tests
+
+```bash
+# Install browsers (first time)
+npx playwright install
+
+# Run E2E tests
+npm run test:e2e
+
+# Run with UI mode
+npm run test:e2e:ui
+```
+
+**Coverage**: 8 test suites (smoke, admin, workflow, state machine, etc.)
+
+### Code Formatting
+
+```bash
+./vendor/bin/pint
+```
+
+## Project Structure
+
+```
+app/
+├── Http/Controllers/        # 14 controllers (CRUD + transaction actions)
+├── Models/                  # 16 Eloquent models
+├── Notifications/           # 4 notification classes (broadcast + database)
+├── Services/                # Business logic (EndorsementService, etc.)
+resources/js/
+├── Components/              # Reusable React components
+│   └── ui/                  # shadcn/ui primitives
+├── Layouts/                 # App layout with nav + notification bell
+├── Pages/                   # Inertia page components
+│   ├── Admin/               # User & workflow management
+│   ├── Dashboard/           # Dashboard panels
+│   ├── Procurements/        # Procurement CRUD
+│   ├── PurchaseRequests/    # PR management
+│   ├── PurchaseOrders/      # PO management
+│   ├── Vouchers/            # Voucher management
+│   ├── Transactions/        # Transaction list & pending receipts
+│   └── Notifications/       # Notification center
+├── types/                   # TypeScript type definitions
+└── bootstrap.ts             # Axios + Laravel Echo initialization
+database/
+├── migrations/              # 26+ migrations
+└── seeders/                 # Demo data seeders
+tests/
+├── Unit/                    # Service-level unit tests
+├── Feature/                 # HTTP/integration tests
+└── e2e/                     # Playwright E2E tests
+docs/
+├── stories/                 # 35 user stories (BMad methodology)
+└── qa/gates/                # QA gate review files
+```
+
+## Workflows
+
+The system ships with 3 seeded workflows:
+
+**Purchase Request (PR)** — 5 steps:
+MBO → MMO → BAC → Procurement Office → BAC
+
+**Purchase Order (PO)** — 3 steps:
+BAC → Procurement Office → Property & Supply
+
+**Voucher (VCH)** — 6 steps:
+MBO → MACCO → MMO → MTO → MMO → MTO
+
+Each step has configurable expected turnaround days for SLA tracking. Administrators can modify workflows via the Admin panel.
+
+## Environment Configuration
+
+Key environment variables beyond Laravel defaults:
+
+```env
+# Broadcasting (real-time notifications)
+BROADCAST_CONNECTION=reverb
+
+# Reverb WebSocket Server
+REVERB_APP_ID=my-app-id
+REVERB_APP_KEY=my-app-key
+REVERB_APP_SECRET=my-app-secret
+REVERB_HOST=localhost
+REVERB_PORT=8080
+
+# Frontend WebSocket client (exposed to Vite)
+VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
+VITE_REVERB_HOST="${REVERB_HOST}"
+VITE_REVERB_PORT="${REVERB_PORT}"
+VITE_REVERB_SCHEME="${REVERB_SCHEME}"
+
+# OPTS-specific
+OPTS_IDLE_THRESHOLD_DAYS=2    # Days before a transaction is flagged as stagnant
+```
+
+## Scheduled Commands
+
+```bash
+# Check for overdue transactions and send notifications (runs daily at 8:00 AM)
+php artisan opts:check-overdue
+```
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is proprietary software developed for LGU procurement tracking.
