@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
-import { AlertTriangle, Bell, Check, CheckCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bell, Check, CheckCheck, CheckCircle, Clock, Inbox, Trash2 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import {
     Select,
@@ -46,6 +46,12 @@ function getNotificationIcon(type: string) {
     switch (type) {
         case 'out_of_workflow':
             return <AlertTriangle className="h-5 w-5 text-amber-500" />;
+        case 'received':
+            return <Inbox className="h-5 w-5 text-blue-500" />;
+        case 'overdue':
+            return <Clock className="h-5 w-5 text-red-500" />;
+        case 'completed':
+            return <CheckCircle className="h-5 w-5 text-green-500" />;
         default:
             return <Bell className="h-5 w-5 text-gray-400" />;
     }
@@ -143,6 +149,9 @@ export default function Index({ notifications, filters }: Props) {
                                     <SelectContent>
                                         <SelectItem value="all">All Types</SelectItem>
                                         <SelectItem value="out_of_workflow">Out of Workflow</SelectItem>
+                                        <SelectItem value="received">Received</SelectItem>
+                                        <SelectItem value="overdue">Overdue</SelectItem>
+                                        <SelectItem value="completed">Completed</SelectItem>
                                     </SelectContent>
                                 </Select>
 
@@ -233,6 +242,21 @@ export default function Index({ notifications, filters }: Props) {
                                                 {notification.type === 'out_of_workflow' && (
                                                     <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                                                         Out of Workflow
+                                                    </span>
+                                                )}
+                                                {notification.type === 'received' && (
+                                                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                                                        Received
+                                                    </span>
+                                                )}
+                                                {notification.type === 'overdue' && (
+                                                    <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                                                        Overdue
+                                                    </span>
+                                                )}
+                                                {notification.type === 'completed' && (
+                                                    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                                                        Completed
                                                     </span>
                                                 )}
                                                 {!notification.read_at && (

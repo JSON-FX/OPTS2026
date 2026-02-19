@@ -1,0 +1,50 @@
+schema: 1
+story: "4.2.1"
+story_title: "Additional Notification Types (Received, Overdue, Completion)"
+gate: PASS
+status_reason: "All 8 acceptance criteria met with comprehensive test coverage (15 tests, 43 assertions). Clean event-driven architecture following established patterns. E2E verified via Playwright against opts2026.test."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-02-20T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+quality_score: 100
+
+evidence:
+  tests_reviewed: 15
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Server-side event/listener pattern with no user input in notification content. NotificationController validates user ownership."
+  performance:
+    status: PASS
+    notes: "Overdue command uses eager-loading and filtered queries. Consider composite index for 10k+ scale."
+  reliability:
+    status: PASS
+    notes: "Events dispatched outside DB transactions ensuring data consistency. Idempotent overdue check with 24h window. Null-safe navigation throughout."
+  maintainability:
+    status: PASS
+    notes: "Follows existing OutOfWorkflowNotification pattern exactly. Consistent code style (Pint-formatted, strict types). Generic controller/middleware automatically supports new types."
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 0 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - action: "Consider adding composite index on (status, current_step_id, last_overdue_notified_at) if transaction volume exceeds 10k"
+        refs: ["app/Console/Commands/CheckOverdueTransactions.php"]
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Add composite DB index for overdue query optimization at scale"
+      refs: ["app/Console/Commands/CheckOverdueTransactions.php:22-29"]
+    - action: "Consider filtering inactive users in NotifyTransactionReceived listener if user deactivation is added"
+      refs: ["app/Listeners/NotifyTransactionReceived.php:20"]

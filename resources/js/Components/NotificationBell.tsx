@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
-import { Bell, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
+import { Bell, AlertTriangle, CheckCircle, Clock, ExternalLink, Inbox } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import {
     Popover,
@@ -13,6 +13,12 @@ function getNotificationIcon(type: string) {
     switch (type) {
         case 'out_of_workflow':
             return <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />;
+        case 'received':
+            return <Inbox className="h-4 w-4 text-blue-500 shrink-0" />;
+        case 'overdue':
+            return <Clock className="h-4 w-4 text-red-500 shrink-0" />;
+        case 'completed':
+            return <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />;
         default:
             return <Bell className="h-4 w-4 text-gray-400 shrink-0" />;
     }

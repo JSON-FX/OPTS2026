@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Events\OutOfWorkflowEndorsement;
+use App\Events\TransactionCompleted;
+use App\Events\TransactionReceived;
 use App\Exceptions\InvalidStateTransitionException;
 use App\Models\Office;
 use App\Models\ProcurementStatusHistory;
 use App\Models\Transaction;
 use App\Models\TransactionAction;
-use App\Models\TransactionStatusHistory;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -188,7 +189,7 @@ class EndorsementService
         User $user,
         ?string $notes = null
     ): TransactionAction {
-        return DB::transaction(function () use ($transaction, $user, $notes) {
+        $action = DB::transaction(function () use ($transaction, $user, $notes) {
             $this->verifyCanReceive($transaction, $user);
 
             // Get the last endorsement to this office
@@ -224,6 +225,12 @@ class EndorsementService
 
             return $action;
         });
+
+        // Fire received event for notification (Story 4.2.1)
+        $action->load(['transaction', 'fromOffice', 'toOffice']);
+        event(new TransactionReceived($action));
+
+        return $action;
     }
 
     /**
@@ -367,7 +374,7 @@ class EndorsementService
         int $actionTakenId,
         ?string $notes = null
     ): TransactionAction {
-        return DB::transaction(function () use ($transaction, $user, $actionTakenId, $notes) {
+        $action = DB::transaction(function () use ($transaction, $user, $actionTakenId, $notes) {
             $this->verifyCanComplete($transaction, $user);
 
             // Create complete action
@@ -392,6 +399,11 @@ class EndorsementService
 
             return $action;
         });
+
+        // Fire completed event for notification (Story 4.2.1)
+        event(new TransactionCompleted($transaction->fresh(), $user));
+
+        return $action;
     }
 
     /**

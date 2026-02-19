@@ -12,7 +12,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Carbon;
 
 /**
  * Transaction model representing a PR/PO/VCH transaction.
@@ -88,6 +87,7 @@ class Transaction extends Model
         'current_step_id',
         'received_at',
         'endorsed_at',
+        'last_overdue_notified_at',
         'created_by_user_id',
     ];
 
@@ -102,6 +102,7 @@ class Transaction extends Model
             'is_continuation' => 'boolean',
             'received_at' => 'datetime',
             'endorsed_at' => 'datetime',
+            'last_overdue_notified_at' => 'datetime',
         ];
     }
 

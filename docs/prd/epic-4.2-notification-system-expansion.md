@@ -14,7 +14,7 @@ Expand the existing notification infrastructure (built in Story 3.8 for out-of-w
 
 ## Enhancement Details
 
-- **What's being added**: Three new notification types (received, overdue, completion), scheduled overdue check command, admin announcement system with banners, optional notification preferences
+- **What's being added**: Three new notification types (received, overdue, completion), scheduled overdue check command, admin announcement system with banners, optional notification preferences, real-time notification delivery via Laravel Reverb WebSockets
 - **How it integrates**: Extends existing Laravel Notification classes and NotificationController. New notification types follow the same pattern as `OutOfWorkflowNotification`. Announcements add a new model/controller/page. All notification types render through the existing bell + notification page infrastructure.
 - **Success criteria**: Users receive timely notifications for all workflow events, administrators can broadcast announcements, and the notification bell accurately reflects all pending actionable items
 
@@ -83,6 +83,25 @@ Expand the existing notification infrastructure (built in Story 3.8 for out-of-w
 
 ---
 
+### Story 4.2.4: Real-Time Notification Delivery with Laravel Reverb
+
+**As a** user,
+**I want** to see new notifications appear in the notification bell immediately without refreshing the page,
+**so that** I can respond to urgent items (overdue alerts, received transactions, completions) in real time.
+
+**Key deliverables:**
+- Laravel Reverb WebSocket server installed and configured
+- All 4 notification classes broadcast alongside database storage (`['database', 'broadcast']`)
+- Private channel authorization per user (`App.Models.User.{id}`)
+- Laravel Echo initialized on the frontend with Reverb connection
+- `NotificationBell.tsx` updated to listen for real-time notifications and update bell count/popover live
+- Graceful degradation when WebSocket connection is unavailable
+- Feature tests for broadcast dispatching and channel authorization
+
+**Dependencies:** Story 4.2.1 (all notification types exist), Story 3.8 (notification infrastructure)
+
+---
+
 ## Compatibility Requirements
 
 - [x] Existing APIs remain unchanged — extends existing notification routes, doesn't modify them
@@ -98,11 +117,12 @@ Expand the existing notification infrastructure (built in Story 3.8 for out-of-w
 
 ## Definition of Done
 
-- [ ] All 3 stories completed with acceptance criteria met
+- [ ] All 4 stories completed with acceptance criteria met
 - [ ] Existing out-of-workflow notifications still work correctly
 - [ ] NotificationBell shows accurate counts for all notification types
 - [ ] Scheduled overdue check runs correctly and is idempotent
 - [ ] Announcement banners display with correct severity styling
 - [ ] Notification preferences respected in delivery
+- [ ] Real-time notifications delivered via WebSocket without page refresh
 - [ ] No regression in existing features
 - [ ] Documentation updated

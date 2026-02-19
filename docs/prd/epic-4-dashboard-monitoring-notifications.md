@@ -13,7 +13,7 @@ Epic 4 is split into three focused sub-epics for manageable delivery:
 | Sub-Epic | Title | Stories | Dependencies |
 |----------|-------|---------|--------------|
 | **4.1** | [Dashboard & Summary Views](epic-4.1-dashboard-summary-views.md) | 4.1.1, 4.1.2, 4.1.3 | Epic 3 (all) |
-| **4.2** | [Notification System Expansion](epic-4.2-notification-system-expansion.md) | 4.2.1, 4.2.2, 4.2.3 | Story 3.8 |
+| **4.2** | [Notification System Expansion](epic-4.2-notification-system-expansion.md) | 4.2.1, 4.2.2, 4.2.3, 4.2.4 | Story 3.8 |
 | **4.3** | [Enhanced Search & Filtering](epic-4.3-enhanced-search-filtering.md) | 4.3.1, 4.3.2 | Epic 2, Story 3.9 |
 
 ### Recommended Implementation Order
@@ -36,6 +36,7 @@ Sub-epics 4.1 and 4.2 can be developed in parallel as they have no cross-depende
 | 4.2.1 | Additional Notification Types (Received, Overdue, Completion) | 4.2 | 3.5, 3.6, 3.8, 3.9 |
 | 4.2.2 | Admin Announcement System | 4.2 | 3.8 |
 | 4.2.3 | Notification Preferences | 4.2 | 4.2.1, 4.2.2 |
+| 4.2.4 | Real-Time Notification Delivery with Laravel Reverb | 4.2 | 4.2.1, 3.8 |
 | 4.3.1 | Global Transaction Search Enhancement | 4.3 | 2.10, 3.9 |
 | 4.3.2 | Standardized List Page Filtering & Sorting | 4.3 | 4.3.1, Epic 2 |
 
@@ -49,6 +50,7 @@ Sub-epics 4.1 and 4.2 can be developed in parallel as they have no cross-depende
 | **FR23** — Search/filter by date, office, status, category, fund type, supplier | Stories 4.3.1, 4.3.2 |
 | **FR30** — Announcement system (Normal/Advisory/Emergency) | Story 4.2.2 |
 | **FR31** — Notifications: out-of-workflow, received, overdue, completions, admin notices | Story 4.2.1 (extends 3.8), 4.2.2 |
+| **Phase 2** — Real-time notification delivery via WebSockets (per technical-assumptions.md) | Story 4.2.4 |
 | **NFR11** — SLA dashboards showing step delays vs expected_days | Story 4.1.3 |
 | **NFR13** — Standard reports: turnaround, out-of-workflow, volume, stagnant | Stories 4.1.2, 4.1.3 |
 
