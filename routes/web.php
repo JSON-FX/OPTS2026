@@ -174,6 +174,30 @@ Route::middleware(['auth', 'role:Administrator'])->group(function () {
         'update' => 'admin.repositories.action-taken.update',
         'destroy' => 'admin.repositories.action-taken.destroy',
     ]);
+
+    // ETTS Data Migration
+    Route::get('admin/migration', [App\Http\Controllers\Admin\MigrationController::class, 'index'])
+        ->name('admin.migration.index');
+    Route::post('admin/migration/upload', [App\Http\Controllers\Admin\MigrationController::class, 'upload'])
+        ->name('admin.migration.upload');
+    Route::get('admin/migration/{import}/mappings', [App\Http\Controllers\Admin\MigrationController::class, 'mappings'])
+        ->name('admin.migration.mappings');
+    Route::post('admin/migration/{import}/mappings', [App\Http\Controllers\Admin\MigrationController::class, 'saveMappings'])
+        ->name('admin.migration.save-mappings');
+    Route::post('admin/migration/{import}/dry-run', [App\Http\Controllers\Admin\MigrationController::class, 'dryRun'])
+        ->name('admin.migration.dry-run');
+    Route::get('admin/migration/{import}/dry-run', [App\Http\Controllers\Admin\MigrationController::class, 'dryRunResults'])
+        ->name('admin.migration.dry-run-results');
+    Route::post('admin/migration/{import}/execute', [App\Http\Controllers\Admin\MigrationController::class, 'execute'])
+        ->name('admin.migration.execute');
+    Route::get('admin/migration/{import}/progress', [App\Http\Controllers\Admin\MigrationController::class, 'progress'])
+        ->name('admin.migration.progress');
+    Route::get('admin/migration/{import}/results', [App\Http\Controllers\Admin\MigrationController::class, 'results'])
+        ->name('admin.migration.results');
+    Route::post('admin/migration/{import}/rollback', [App\Http\Controllers\Admin\MigrationController::class, 'rollback'])
+        ->name('admin.migration.rollback');
+    Route::post('admin/migration/clear-all', [App\Http\Controllers\Admin\MigrationController::class, 'clearAllProcurements'])
+        ->name('admin.migration.clear-all');
 });
 
 require __DIR__.'/auth.php';

@@ -48,6 +48,11 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     pcntl \
     bcmath
 
+# Increase PHP upload limits for SQL dump imports
+RUN echo "upload_max_filesize=512M" > /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "post_max_size=512M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "memory_limit=512M" >> /usr/local/etc/php/conf.d/uploads.ini
+
 WORKDIR /var/www/html
 
 # Copy application code

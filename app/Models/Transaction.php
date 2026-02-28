@@ -89,6 +89,7 @@ class Transaction extends Model
         'endorsed_at',
         'last_overdue_notified_at',
         'created_by_user_id',
+        'is_legacy',
     ];
 
     /**
@@ -103,6 +104,7 @@ class Transaction extends Model
             'received_at' => 'datetime',
             'endorsed_at' => 'datetime',
             'last_overdue_notified_at' => 'datetime',
+            'is_legacy' => 'boolean',
         ];
     }
 

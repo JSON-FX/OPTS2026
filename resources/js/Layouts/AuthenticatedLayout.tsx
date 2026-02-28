@@ -149,6 +149,11 @@ export default function Authenticated({
                                                                 Users
                                                             </Link>
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuItem asChild>
+                                                            <Link href={route('admin.migration.index')}>
+                                                                Data Migration
+                                                            </Link>
+                                                        </DropdownMenuItem>
 
                                                         <DropdownMenuSeparator />
 
@@ -324,6 +329,13 @@ export default function Authenticated({
                                                         className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
                                                     >
                                                         Users
+                                                    </Link>
+                                                    <Link
+                                                        href={route('admin.migration.index')}
+                                                        onClick={() => setSheetOpen(false)}
+                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+                                                    >
+                                                        Data Migration
                                                     </Link>
                                                     <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
                                                         Repositories
