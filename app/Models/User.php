@@ -27,6 +27,9 @@ class User extends Authenticatable
         'password',
         'office_id',
         'is_active',
+        'sso_uuid',
+        'sso_position',
+        'last_sso_login_at',
     ];
 
     /**
@@ -50,6 +53,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'last_sso_login_at' => 'datetime',
         ];
     }
 

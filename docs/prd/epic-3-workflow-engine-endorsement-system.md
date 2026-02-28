@@ -21,6 +21,7 @@ Implement the workflow management engine enabling administrators to define categ
 | 3.9 | ETA & Delay Calculations | Draft | 3.1, 3.3, 3.5 |
 | 3.10 | Timeline Visualization | Draft | 3.9, 3.3, 3.1 |
 | 3.11 | Workflow Assignment on Transaction Creation | Draft | 3.1, 3.2, 3.4 |
+| 3.12 | Endorsement Expiry & Auto-Recall | Draft | 3.4, 3.5, 3.9, 3.8 |
 
 ---
 
@@ -211,6 +212,25 @@ Implement the workflow management engine enabling administrators to define categ
 
 ---
 
+## Story 3.12: Endorsement Expiry & Auto-Recall
+
+**As a** user,
+**I want** endorsed-but-unreceived transactions to automatically return to the sender's office after the workflow step's expected days have elapsed,
+**so that** documents don't sit in limbo indefinitely and both offices are notified of the expiry.
+
+**Key Deliverables:**
+- Expiry calculation on endorsement using `EtaCalculationService::addBusinessDays()`
+- `expiry_at` column on transactions table, cleared on receive
+- Scheduled command `opts:check-expired-endorsements` for auto-recall
+- New `recall` action type on TransactionAction
+- EndorsementExpiredNotification to sender office, recipient office, and admins
+- Expiry countdown display on transaction detail pages
+- Expiry info on Endorse page
+
+**Story File:** [3.12.endorsement-expiry-auto-recall.md](../stories/3.12.endorsement-expiry-auto-recall.md)
+
+---
+
 ## Acceptance Criteria Summary
 
 By the end of Epic 3, the system will:
@@ -228,6 +248,8 @@ By the end of Epic 3, the system will:
 6. **Timeline Visualization**: Delivery-tracking-style timeline shows completed steps, current position, and upcoming steps with ETAs
 
 7. **Automatic Assignment**: Transactions are automatically assigned appropriate workflows on creation
+
+8. **Endorsement Expiry**: Endorsed-but-unreceived transactions auto-recall to sender after the workflow step's expected days elapse, with notifications to both offices
 
 ---
 

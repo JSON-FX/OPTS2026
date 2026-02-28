@@ -52,7 +52,17 @@ class UserControllerTest extends TestCase
         $response->assertStatus(403);
     }
 
-    public function test_can_create_user_with_valid_data(): void
+    public function test_create_user_route_no_longer_exists(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Administrator');
+
+        $response = $this->actingAs($admin)->get('/admin/users/create');
+
+        $response->assertStatus(404);
+    }
+
+    public function test_store_user_route_no_longer_exists(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('Administrator');
@@ -60,53 +70,13 @@ class UserControllerTest extends TestCase
         $response = $this->actingAs($admin)->post('/admin/users', [
             'name' => 'Test User',
             'email' => 'test@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'role' => 'Viewer',
-            'office_id' => null,
-        ]);
-
-        $response->assertRedirect('/admin/users');
-        $this->assertDatabaseHas('users', [
-            'email' => 'test@example.com',
-        ]);
-    }
-
-    public function test_cannot_create_user_with_duplicate_email(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        User::factory()->create(['email' => 'existing@example.com']);
-
-        $response = $this->actingAs($admin)->post('/admin/users', [
-            'name' => 'Test User',
-            'email' => 'existing@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
             'role' => 'Viewer',
         ]);
 
-        $response->assertSessionHasErrors('email');
+        $response->assertStatus(405);
     }
 
-    public function test_password_must_be_at_least_8_characters(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $response = $this->actingAs($admin)->post('/admin/users', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'short',
-            'password_confirmation' => 'short',
-            'role' => 'Viewer',
-        ]);
-
-        $response->assertSessionHasErrors('password');
-    }
-
-    public function test_can_update_user(): void
+    public function test_can_update_user_role(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('Administrator');
@@ -115,17 +85,52 @@ class UserControllerTest extends TestCase
         $user->assignRole('Viewer');
 
         $response = $this->actingAs($admin)->put("/admin/users/{$user->id}", [
-            'name' => 'Updated Name',
-            'email' => $user->email,
             'role' => 'Endorser',
         ]);
 
         $response->assertRedirect('/admin/users');
-        $this->assertDatabaseHas('users', [
-            'id' => $user->id,
-            'name' => 'Updated Name',
-        ]);
         $this->assertTrue($user->fresh()->hasRole('Endorser'));
+    }
+
+    public function test_can_update_user_office(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Administrator');
+
+        $office = Office::create([
+            'name' => 'Test Office',
+            'type' => 'Administrative',
+            'abbreviation' => 'TO',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole('Viewer');
+
+        $response = $this->actingAs($admin)->put("/admin/users/{$user->id}", [
+            'role' => 'Viewer',
+            'office_id' => $office->id,
+        ]);
+
+        $response->assertRedirect('/admin/users');
+        $this->assertEquals($office->id, $user->fresh()->office_id);
+    }
+
+    public function test_can_deactivate_user(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Administrator');
+
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole('Viewer');
+
+        $response = $this->actingAs($admin)->put("/admin/users/{$user->id}", [
+            'role' => 'Viewer',
+            'is_active' => false,
+        ]);
+
+        $response->assertRedirect('/admin/users');
+        $this->assertFalse($user->fresh()->is_active);
     }
 
     public function test_can_delete_user(): void
@@ -145,45 +150,14 @@ class UserControllerTest extends TestCase
         ]);
     }
 
-    public function test_role_assignment_works_correctly(): void
+    public function test_cannot_delete_self(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole('Administrator');
 
-        $response = $this->actingAs($admin)->post('/admin/users', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'role' => 'Endorser',
-        ]);
+        $response = $this->actingAs($admin)->delete("/admin/users/{$admin->id}");
 
-        $user = User::where('email', 'test@example.com')->first();
-        $this->assertTrue($user->hasRole('Endorser'));
-    }
-
-    public function test_office_assignment_works_correctly(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $office = Office::create([
-            'name' => 'Test Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'TO',
-            'is_active' => true,
-        ]);
-
-        $response = $this->actingAs($admin)->post('/admin/users', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'role' => 'Viewer',
-            'office_id' => $office->id,
-        ]);
-
-        $user = User::where('email', 'test@example.com')->first();
-        $this->assertEquals($office->id, $user->office_id);
+        $response->assertRedirect('/admin/users');
+        $this->assertNotNull($admin->fresh());
     }
 }

@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'lgu_sso' => [
+        'api_url' => env('SSO_API_URL', 'http://lgu-sso-api:8000'),
+        'ui_url' => env('SSO_UI_URL', 'http://localhost:3000'),
+        'client_id' => env('SSO_CLIENT_ID'),
+        'client_secret' => env('SSO_CLIENT_SECRET'),
+        'redirect_uri' => env('SSO_REDIRECT_URI', 'http://localhost:8080/auth/sso/callback'),
+    ],
+
 ];

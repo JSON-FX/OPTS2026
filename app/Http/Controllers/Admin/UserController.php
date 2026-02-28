@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\Office;
 use App\Models\User;
@@ -26,30 +25,6 @@ class UserController extends Controller
         ]);
     }
 
-    public function create(): Response
-    {
-        return Inertia::render('Admin/Users/Create', [
-            'roles' => Role::all(),
-            'offices' => Office::where('is_active', true)->get(),
-        ]);
-    }
-
-    public function store(StoreUserRequest $request): RedirectResponse
-    {
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => $request->password,
-            'office_id' => $request->office_id,
-            'is_active' => true,
-        ]);
-
-        $user->assignRole($request->role);
-
-        return redirect()->route('admin.users.index')
-            ->with('success', 'User created successfully.');
-    }
-
     public function edit(User $user): Response
     {
         $user->load(['roles', 'office']);
@@ -64,14 +39,9 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
         $user->update([
-            'name' => $request->name,
-            'email' => $request->email,
             'office_id' => $request->office_id,
+            'is_active' => $request->boolean('is_active', $user->is_active),
         ]);
-
-        if ($request->filled('password')) {
-            $user->update(['password' => $request->password]);
-        }
 
         $user->syncRoles([$request->role]);
 

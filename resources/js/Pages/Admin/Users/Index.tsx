@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { PageProps } from '@/types';
 import { User, Role, Office, PaginatedData } from '@/types/models';
 import { useState } from 'react';
@@ -239,9 +239,6 @@ export default function Index({ users, roles, offices }: Props) {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <Link href={route('admin.users.create')}>
-                                    <Button>Create User</Button>
-                                </Link>
                             </DataTable>
                         </div>
                     </div>

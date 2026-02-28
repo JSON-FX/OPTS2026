@@ -7,6 +7,9 @@ export interface User {
     email_verified_at?: string;
     office_id?: number;
     is_active: boolean;
+    sso_uuid?: string;
+    sso_position?: string;
+    last_sso_login_at?: string;
     roles?: Role[];
     office?: Office;
 }

@@ -14,11 +14,9 @@ class UpdateUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email,'.$this->user->id],
-            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'role' => ['required', 'string', 'exists:roles,name'],
             'office_id' => ['nullable', 'integer', 'exists:offices,id'],
+            'is_active' => ['sometimes', 'boolean'],
         ];
     }
 }
