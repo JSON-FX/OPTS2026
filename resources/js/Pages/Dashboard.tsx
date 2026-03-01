@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage, usePoll } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
@@ -11,6 +12,8 @@ import StagnantPanel from '@/Components/StagnantPanel';
 import OfficePerformanceTable from '@/Components/OfficePerformanceTable';
 import IncidentSummaryCard from '@/Components/IncidentSummaryCard';
 import VolumeSummaryCard from '@/Components/VolumeSummaryCard';
+import OfficeWorkloadModal from '@/Components/OfficeWorkloadModal';
+import DashboardSettings, { loadDashboardSettings, type DashboardCardVisibility } from '@/Components/DashboardSettings';
 import type { DashboardSummary, OfficeWorkload, StatusCounts, ActivityFeedEntry, StagnantTransaction, SlaPerformanceData } from '@/types/models';
 import type { PageProps } from '@/types';
 
@@ -107,6 +110,24 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
     // Auto-refresh dashboard data every 30 seconds (pauses when tab is hidden)
     usePoll(30_000);
 
+    const { auth } = usePage<PageProps>().props;
+    const [visibility, setVisibility] = useState<DashboardCardVisibility>(() =>
+        loadDashboardSettings(auth.user.id)
+    );
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalParams, setModalParams] = useState<{
+        officeId: number;
+        officeName: string;
+        category: string;
+        count: number;
+    } | null>(null);
+
+    const openWorkloadModal = (officeId: number, officeName: string, category: string, count: number) => {
+        setModalParams({ officeId, officeName, category, count });
+        setModalOpen(true);
+    };
+
     const columns: ColumnDef<OfficeWorkload>[] = [
         {
             accessorKey: 'office_name',
@@ -134,10 +155,12 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
                     <button
                         className="text-blue-600 hover:underline font-medium"
                         onClick={() =>
-                            router.get(route('transactions.index'), {
-                                current_office_id: row.original.office_id,
-                                category: 'PR',
-                            })
+                            openWorkloadModal(
+                                row.original.office_id,
+                                `${row.original.office_name} (${row.original.office_abbreviation})`,
+                                'PR',
+                                count,
+                            )
                         }
                     >
                         {count}
@@ -157,10 +180,12 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
                     <button
                         className="text-blue-600 hover:underline font-medium"
                         onClick={() =>
-                            router.get(route('transactions.index'), {
-                                current_office_id: row.original.office_id,
-                                category: 'PO',
-                            })
+                            openWorkloadModal(
+                                row.original.office_id,
+                                `${row.original.office_name} (${row.original.office_abbreviation})`,
+                                'PO',
+                                count,
+                            )
                         }
                     >
                         {count}
@@ -180,10 +205,12 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
                     <button
                         className="text-blue-600 hover:underline font-medium"
                         onClick={() =>
-                            router.get(route('transactions.index'), {
-                                current_office_id: row.original.office_id,
-                                category: 'VCH',
-                            })
+                            openWorkloadModal(
+                                row.original.office_id,
+                                `${row.original.office_name} (${row.original.office_abbreviation})`,
+                                'VCH',
+                                count,
+                            )
                         }
                     >
                         {count}
@@ -229,9 +256,16 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                    Dashboard
-                </h2>
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold leading-tight text-gray-800">
+                        Dashboard
+                    </h2>
+                    <DashboardSettings
+                        userId={auth.user.id}
+                        visibility={visibility}
+                        onChange={setVisibility}
+                    />
+                </div>
             }
         >
             <Head title="Dashboard" />
@@ -263,44 +297,47 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
                     </div>
 
                     {/* Office Workload Table */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg">Office Workload</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {officeWorkload.length === 0 ? (
-                                <div className="py-8 text-center text-muted-foreground">
-                                    <FolderOpen className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-                                    <p>No active workflows configured</p>
-                                </div>
-                            ) : (
-                                <DataTable
-                                    columns={columns}
-                                    data={officeWorkload}
-                                    getRowClassName={(row) =>
-                                        row.office_id === userOfficeId
-                                            ? 'bg-blue-50/50'
-                                            : undefined
-                                    }
-                                />
-                            )}
-                        </CardContent>
-                    </Card>
+                    {visibility.officeWorkload && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Office Workload</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {officeWorkload.length === 0 ? (
+                                    <div className="py-8 text-center text-muted-foreground">
+                                        <FolderOpen className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+                                        <p>No active workflows configured</p>
+                                    </div>
+                                ) : (
+                                    <DataTable
+                                        columns={columns}
+                                        data={officeWorkload}
+                                        getRowClassName={(row) =>
+                                            row.office_id === userOfficeId
+                                                ? 'bg-blue-50/50'
+                                                : undefined
+                                        }
+                                    />
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
 
-                    {/* Activity Feed + Stagnant Panel */}
-                    <div className="grid items-start gap-4 lg:grid-cols-2">
+                    {/* Recent Activity */}
+                    {visibility.recentActivity && (
                         <ActivityFeed entries={activityFeed} />
+                    )}
+
+                    {/* Needs Attention */}
+                    {visibility.needsAttention && (
                         <StagnantPanel
                             entries={stagnantTransactions}
                             userOfficeId={userOfficeId}
                         />
-                    </div>
+                    )}
 
                     {/* Performance Metrics */}
-                    <div className="space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-800">Performance Metrics</h3>
-
-                        {/* Office Performance Table - Full Width */}
+                    {visibility.performanceMetrics && (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="text-lg">Office Turnaround (Last 30 Days)</CardTitle>
@@ -318,15 +355,30 @@ export default function Dashboard({ summary, officeWorkload, activityFeed, stagn
                                 )}
                             </CardContent>
                         </Card>
+                    )}
 
-                        {/* Incidents + Volume side by side */}
+                    {/* Incidents + Volume */}
+                    {(visibility.outOfWorkflow || visibility.transactionVolume) && (
                         <div className="grid gap-4 md:grid-cols-2">
-                            <IncidentSummaryCard data={slaPerformance.incidents} />
-                            <VolumeSummaryCard data={slaPerformance.volume} />
+                            {visibility.outOfWorkflow && (
+                                <IncidentSummaryCard data={slaPerformance.incidents} />
+                            )}
+                            {visibility.transactionVolume && (
+                                <VolumeSummaryCard data={slaPerformance.volume} />
+                            )}
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
+
+            <OfficeWorkloadModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                officeId={modalParams?.officeId ?? null}
+                officeName={modalParams?.officeName ?? ''}
+                category={modalParams?.category ?? ''}
+                count={modalParams?.count ?? 0}
+            />
         </AuthenticatedLayout>
     );
 }

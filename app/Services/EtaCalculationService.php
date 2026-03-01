@@ -108,7 +108,7 @@ class EtaCalculationService
             return true;
         }
 
-        $lastAction = $transaction->actions()->latest()->first();
+        $lastAction = $transaction->latestAction;
         if (! $lastAction) {
             return false;
         }
@@ -163,18 +163,28 @@ class EtaCalculationService
      */
     public function businessDaysBetween(Carbon $start, Carbon $end): int
     {
-        $days = 0;
-        $current = $start->copy()->startOfDay();
+        $startDay = $start->copy()->startOfDay();
         $endDay = $end->copy()->startOfDay();
 
-        while ($current->lt($endDay)) {
+        $totalDays = (int) $startDay->diffInDays($endDay);
+        if ($totalDays === 0) {
+            return 0;
+        }
+
+        $fullWeeks = intdiv($totalDays, 7);
+        $remaining = $totalDays % 7;
+
+        $businessDays = $fullWeeks * 5;
+
+        $current = $startDay->copy()->addDays($fullWeeks * 7);
+        for ($i = 0; $i < $remaining; $i++) {
             if (! $current->isWeekend()) {
-                $days++;
+                $businessDays++;
             }
             $current->addDay();
         }
 
-        return $days;
+        return $businessDays;
     }
 
     /**

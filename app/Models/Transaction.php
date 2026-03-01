@@ -174,11 +174,21 @@ class Transaction extends Model
     }
 
     /**
+     * Eager-loadable relationship for the most recent action.
+     *
+     * @return HasOne<TransactionAction, $this>
+     */
+    public function latestAction(): HasOne
+    {
+        return $this->hasOne(TransactionAction::class)->latestOfMany();
+    }
+
+    /**
      * Get the most recent action.
      */
     public function getLastActionAttribute(): ?TransactionAction
     {
-        return $this->actions()->orderBy('created_at', 'desc')->first();
+        return $this->latestAction;
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Transaction;
 use App\Models\TransactionAction;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -14,6 +15,28 @@ class DashboardService
     public function __construct(
         private readonly EtaCalculationService $etaService,
     ) {}
+
+    /**
+     * Load all active transactions with relationships needed for stagnant detection.
+     * Call once and pass to getOfficeWorkload() and getStagnantTransactions().
+     *
+     * @return EloquentCollection<int, Transaction>
+     */
+    public function loadActiveTransactions(): EloquentCollection
+    {
+        return Transaction::query()
+            ->whereIn('status', ['Created', 'In Progress'])
+            ->whereNotNull('current_office_id')
+            ->with([
+                'currentStep',
+                'workflow.steps',
+                'latestAction',
+                'purchaseRequest:id,transaction_id',
+                'purchaseOrder:id,transaction_id',
+                'voucher:id,transaction_id',
+            ])
+            ->get();
+    }
 
     /**
      * Get summary card counts for procurements and each transaction category.
@@ -51,9 +74,10 @@ class DashboardService
     /**
      * Get office workload data: transaction counts per office for active transactions.
      *
+     * @param  EloquentCollection<int, Transaction>|null  $activeTransactions  Pre-loaded transactions to avoid duplicate queries.
      * @return Collection<int, object>
      */
-    public function getOfficeWorkload(): Collection
+    public function getOfficeWorkload(?EloquentCollection $activeTransactions = null): Collection
     {
         // Get all distinct offices from active workflow steps
         $workflowOffices = DB::table('workflow_steps')
@@ -87,8 +111,8 @@ class DashboardService
             ->get()
             ->keyBy('office_id');
 
-        // Compute stagnant counts per office using EtaCalculationService
-        $stagnantCounts = $this->getStagnantCountsByOffice();
+        // Compute stagnant counts per office using pre-loaded transactions
+        $stagnantCounts = $this->getStagnantCountsByOffice($activeTransactions);
 
         // Merge: all workflow offices with their transaction counts (defaulting to 0)
         return $workflowOffices->map(function ($office) use ($transactionCounts, $stagnantCounts) {
@@ -153,22 +177,12 @@ class DashboardService
     /**
      * Get stagnant transactions for the dashboard panel.
      *
+     * @param  EloquentCollection<int, Transaction>|null  $activeTransactions  Pre-loaded transactions to avoid duplicate queries.
      * @return array<int, array<string, mixed>>
      */
-    public function getStagnantTransactions(int $limit = 10): array
+    public function getStagnantTransactions(?EloquentCollection $activeTransactions = null, int $limit = 10): array
     {
-        // Load office names via a map to avoid N+1 from currentHolder accessor
-        $activeTransactions = Transaction::query()
-            ->whereIn('status', ['Created', 'In Progress'])
-            ->whereNotNull('current_office_id')
-            ->with([
-                'currentStep',
-                'workflow.steps',
-                'purchaseRequest:id,transaction_id',
-                'purchaseOrder:id,transaction_id',
-                'voucher:id,transaction_id',
-            ])
-            ->get();
+        $activeTransactions ??= $this->loadActiveTransactions();
 
         $officeIds = $activeTransactions->pluck('current_office_id')->unique()->filter()->all();
         $officeNames = DB::table('offices')
@@ -406,15 +420,12 @@ class DashboardService
      * Get stagnant transaction counts grouped by office.
      * Uses EtaCalculationService for accurate stagnant detection.
      *
+     * @param  EloquentCollection<int, Transaction>|null  $activeTransactions  Pre-loaded transactions to avoid duplicate queries.
      * @return array<int, int>
      */
-    private function getStagnantCountsByOffice(): array
+    private function getStagnantCountsByOffice(?EloquentCollection $activeTransactions = null): array
     {
-        $activeTransactions = Transaction::query()
-            ->whereIn('status', ['Created', 'In Progress'])
-            ->whereNotNull('current_office_id')
-            ->with(['currentStep', 'workflow.steps'])
-            ->get();
+        $activeTransactions ??= $this->loadActiveTransactions();
 
         $counts = [];
         foreach ($activeTransactions as $transaction) {
