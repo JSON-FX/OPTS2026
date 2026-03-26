@@ -17,7 +17,7 @@ export default function Login({
                         Welcome to OPTS
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Online Procurement Tracking System
+                        LGU Quezon &mdash; Online Procurement Tracking System
                     </p>
                 </div>
 
@@ -39,6 +39,10 @@ export default function Login({
 
                 <p className="text-xs text-muted-foreground">
                     You will be redirected to the LGU Single Sign-On portal to authenticate.
+                </p>
+
+                <p className="text-xs text-muted-foreground pt-4">
+                    &copy; {new Date().getFullYear()} Local Government of Quezon Bukidnon. All rights reserved.
                 </p>
             </div>
         </GuestLayout>

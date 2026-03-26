@@ -126,7 +126,7 @@ export default function WorkflowStepBuilder({
                                 </div>
 
                                 {/* Office select */}
-                                <div className="flex-1">
+                                <div className="w-36">
                                     <Select
                                         value={step.office_id?.toString() || ''}
                                         onValueChange={(v) => updateStep(index, 'office_id', v ? parseInt(v) : null)}
@@ -136,8 +136,8 @@ export default function WorkflowStepBuilder({
                                         </SelectTrigger>
                                         <SelectContent>
                                             {offices.map((office) => (
-                                                <SelectItem key={office.id} value={office.id.toString()}>
-                                                    {office.name} ({office.abbreviation})
+                                                <SelectItem key={office.id} value={office.id.toString()} triggerLabel={office.abbreviation}>
+                                                    <span className="ml-2 text-muted-foreground">{office.name}</span>
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -167,7 +167,7 @@ export default function WorkflowStepBuilder({
 
                                 {/* Default Action Taken */}
                                 {actionTakenOptions.length > 0 && (
-                                    <div className="w-44">
+                                    <div className="flex-1 min-w-0">
                                         <Select
                                             value={step.action_taken_id?.toString() || 'none'}
                                             onValueChange={(v) => updateStep(index, 'action_taken_id', v === 'none' ? null : parseInt(v))}

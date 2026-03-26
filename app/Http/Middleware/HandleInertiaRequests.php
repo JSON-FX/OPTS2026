@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Transaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -41,6 +42,30 @@ class HandleInertiaRequests extends Middleware
                     ->where('status', 'In Progress')
                     ->count()
                 : 0,
+            'selectedYear' => fn () => $request->user()
+                ? ($request->user()->selected_year ?? (int) now()->year)
+                : (int) now()->year,
+            'availableYears' => fn () => $request->user()
+                ? (function () {
+                    $driver = DB::connection()->getDriverName();
+                    $yearExpr = $driver === 'sqlite'
+                        ? "CAST(strftime('%Y', created_at) AS INTEGER)"
+                        : 'YEAR(created_at)';
+
+                    $years = DB::table('procurements')
+                        ->selectRaw("DISTINCT {$yearExpr} as year")
+                        ->whereNotNull('created_at')
+                        ->orderByDesc('year')
+                        ->pluck('year')
+                        ->map(fn ($y) => (int) $y);
+
+                    if (! $years->contains((int) now()->year)) {
+                        $years = $years->prepend((int) now()->year)->sortDesc()->values();
+                    }
+
+                    return $years->values()->all();
+                })()
+                : [(int) now()->year],
             'notifications' => fn () => $request->user()
                 ? [
                     'unread_count' => $request->user()->unreadNotifications()->count(),

@@ -238,10 +238,10 @@ class ExecuteMigrationJob implements ShouldQueue
         // Parse date
         $dateOfEntry = $dateParser->parse($sourceTransaction->date_of_entry ?? null) ?? now();
 
-        // Map office (ETTS uses offices_id which corresponds to endorsing_offices)
+        // Map end-user office (ETTS offices_id references the 'offices' table, NOT endorsing_offices)
         $endUserId = null;
         if (isset($sourceTransaction->offices_id)) {
-            $endUserId = $mapper->mapOffice((int) $sourceTransaction->offices_id, 'endorsing_offices');
+            $endUserId = $mapper->mapOffice((int) $sourceTransaction->offices_id, 'offices');
         }
 
         // Map particular (ETTS uses pr_descriptions_id)
@@ -261,8 +261,11 @@ class ExecuteMigrationJob implements ShouldQueue
             ? $mapper->mapStatus((int) $sourceTransaction->statuses_id)
             : 'Completed';
 
-        // Create Procurement
-        $procurement = Procurement::create([
+        // Create Procurement (preserve original ETTS timestamps)
+        $sourceTimestamp = $this->parseSourceTimestamp($sourceTransaction, $dateParser);
+
+        $procurement = new Procurement;
+        $procurement->fill([
             'end_user_id' => $endUserId ?? \App\Models\Office::first()?->id,
             'particular_id' => $particularId,
             'purpose' => $sourceTransaction->description ?? null,
@@ -272,6 +275,9 @@ class ExecuteMigrationJob implements ShouldQueue
             'created_by_user_id' => \App\Models\User::first()?->id ?? 1,
             'is_legacy' => true,
         ]);
+        $procurement->created_at = $sourceTimestamp;
+        $procurement->updated_at = $sourceTimestamp;
+        $procurement->save();
 
         MigrationRecord::create([
             'migration_import_id' => $this->import->id,
@@ -321,7 +327,11 @@ class ExecuteMigrationJob implements ShouldQueue
         // Ensure reference number is unique (ETTS may have duplicates across categories)
         $referenceNumber = $this->ensureUniqueReference($referenceNumber, $source->id);
 
-        $transaction = Transaction::create([
+        // Preserve original ETTS timestamps
+        $sourceTimestamp = $this->parseSourceTimestamp($source, $dateParser);
+
+        $transaction = new Transaction;
+        $transaction->fill([
             'procurement_id' => $procurement->id,
             'category' => $category,
             'reference_number' => $referenceNumber,
@@ -330,6 +340,9 @@ class ExecuteMigrationJob implements ShouldQueue
             'created_by_user_id' => \App\Models\User::first()?->id ?? 1,
             'is_legacy' => true,
         ]);
+        $transaction->created_at = $sourceTimestamp;
+        $transaction->updated_at = $sourceTimestamp;
+        $transaction->save();
 
         MigrationRecord::create([
             'migration_import_id' => $this->import->id,
@@ -345,13 +358,13 @@ class ExecuteMigrationJob implements ShouldQueue
 
         // Create category-specific detail record
         match ($category) {
-            'PR' => $this->createPurchaseRequest($transaction, $source, $mapper),
-            'PO' => $this->createPurchaseOrder($transaction, $source),
-            'VCH' => $this->createVoucher($transaction, $source),
+            'PR' => $this->createPurchaseRequest($transaction, $source, $mapper, $dateParser),
+            'PO' => $this->createPurchaseOrder($transaction, $source, $dateParser),
+            'VCH' => $this->createVoucher($transaction, $source, $dateParser),
         };
     }
 
-    private function createPurchaseRequest(Transaction $transaction, object $source, EttsMapper $mapper): void
+    private function createPurchaseRequest(Transaction $transaction, object $source, EttsMapper $mapper, DateParser $dateParser): void
     {
         $fundTypeId = isset($source->reference_id)
             ? $mapper->mapFundType($source->reference_id)
@@ -361,13 +374,19 @@ class ExecuteMigrationJob implements ShouldQueue
             $fundTypeId = \App\Models\FundType::first()?->id ?? 1;
         }
 
-        PurchaseRequest::create([
+        $sourceTimestamp = $this->parseSourceTimestamp($source, $dateParser);
+
+        $pr = new PurchaseRequest;
+        $pr->fill([
             'transaction_id' => $transaction->id,
             'fund_type_id' => $fundTypeId,
         ]);
+        $pr->created_at = $sourceTimestamp;
+        $pr->updated_at = $sourceTimestamp;
+        $pr->save();
     }
 
-    private function createPurchaseOrder(Transaction $transaction, object $source): void
+    private function createPurchaseOrder(Transaction $transaction, object $source, DateParser $dateParser): void
     {
         $supplierId = \App\Models\Supplier::firstOrCreate(
             ['name' => 'Unknown Supplier (ETTS Legacy)'],
@@ -379,20 +398,32 @@ class ExecuteMigrationJob implements ShouldQueue
             ]
         )->id;
 
-        PurchaseOrder::create([
+        $sourceTimestamp = $this->parseSourceTimestamp($source, $dateParser);
+
+        $po = new PurchaseOrder;
+        $po->fill([
             'transaction_id' => $transaction->id,
             'supplier_id' => $supplierId,
             'supplier_address' => $source->address ?? 'N/A',
             'contract_price' => $source->amount ?? 0,
         ]);
+        $po->created_at = $sourceTimestamp;
+        $po->updated_at = $sourceTimestamp;
+        $po->save();
     }
 
-    private function createVoucher(Transaction $transaction, object $source): void
+    private function createVoucher(Transaction $transaction, object $source, DateParser $dateParser): void
     {
-        Voucher::create([
+        $sourceTimestamp = $this->parseSourceTimestamp($source, $dateParser);
+
+        $voucher = new Voucher;
+        $voucher->fill([
             'transaction_id' => $transaction->id,
             'payee' => $source->client ?? 'Unknown Payee (ETTS)',
         ]);
+        $voucher->created_at = $sourceTimestamp;
+        $voucher->updated_at = $sourceTimestamp;
+        $voucher->save();
     }
 
     private function migrateEndorsements(EttsMapper $mapper, DateParser $dateParser): void
@@ -400,7 +431,29 @@ class ExecuteMigrationJob implements ShouldQueue
         try {
             $endorsements = DB::connection('etts_temp')->table('endorsements')->get();
 
+            $migrated = 0;
+            $skippedPending = 0;
+            $skippedCancelled = 0;
+            $skippedNoRecord = 0;
+
             foreach ($endorsements as $endorsement) {
+                // Only migrate COMPLETED endorsements (statuses_id = 4)
+                // Pending (1, 2) represent current state, not completed actions
+                // Cancelled (3) are irrelevant
+                $ettsStatus = (int) ($endorsement->statuses_id ?? 0);
+
+                if ($ettsStatus === 3) {
+                    $skippedCancelled++;
+
+                    continue;
+                }
+
+                if (in_array($ettsStatus, [1, 2], true)) {
+                    $skippedPending++;
+
+                    continue;
+                }
+
                 $migrationRecord = MigrationRecord::where('migration_import_id', $this->import->id)
                     ->where('source_table', 'transactions')
                     ->where('source_id', $endorsement->transactions_id ?? 0)
@@ -409,6 +462,8 @@ class ExecuteMigrationJob implements ShouldQueue
                     ->first();
 
                 if (!$migrationRecord) {
+                    $skippedNoRecord++;
+
                     continue;
                 }
 
@@ -419,16 +474,27 @@ class ExecuteMigrationJob implements ShouldQueue
                     ? $mapper->mapOffice((int) $endorsement->receiving_offices_id, 'receiving_offices')
                     : null;
 
+                $endorsedAt = $dateParser->parse($endorsement->date_endorsed ?: $endorsement->created_at ?? null) ?? now();
+
+                // Map the original ETTS user who performed the endorsement
+                $fromUserId = isset($endorsement->users_id)
+                    ? $mapper->mapUser((int) $endorsement->users_id)
+                    : null;
+
                 DB::table('transaction_actions')->insert([
                     'transaction_id' => $migrationRecord->target_id,
                     'action_type' => 'endorse',
                     'from_office_id' => $fromOfficeId,
                     'to_office_id' => $toOfficeId,
-                    'from_user_id' => \App\Models\User::first()?->id ?? 1,
+                    'from_user_id' => $fromUserId,
                     'is_out_of_workflow' => false,
-                    'created_at' => $dateParser->parse($endorsement->date_endorsed ?? $endorsement->created_at ?? null) ?? now(),
+                    'created_at' => $endorsedAt,
                 ]);
+
+                $migrated++;
             }
+
+            $this->logProgress("Endorsements: {$migrated} migrated, {$skippedPending} pending skipped, {$skippedCancelled} cancelled skipped, {$skippedNoRecord} unlinked skipped");
         } catch (\Throwable $e) {
             Log::warning('Endorsement migration partially failed', ['error' => $e->getMessage()]);
         }
@@ -451,10 +517,15 @@ class ExecuteMigrationJob implements ShouldQueue
                     continue;
                 }
 
+                // Map the original ETTS user who created the event
+                $eventUserId = isset($event->users_id)
+                    ? $mapper->mapUser((int) $event->users_id)
+                    : null;
+
                 DB::table('transaction_actions')->insert([
                     'transaction_id' => $migrationRecord->target_id,
                     'action_type' => 'endorse',
-                    'from_user_id' => \App\Models\User::first()?->id ?? 1,
+                    'from_user_id' => $eventUserId,
                     'notes' => $event->report ?? null,
                     'is_out_of_workflow' => false,
                     'created_at' => $dateParser->parse($event->created_at ?? null) ?? now(),
@@ -483,38 +554,51 @@ class ExecuteMigrationJob implements ShouldQueue
                 continue;
             }
 
-            // Find the latest endorsement action with a destination office
-            $lastEndorsement = DB::table('transaction_actions')
-                ->where('transaction_id', $transaction->id)
-                ->where('action_type', 'endorse')
-                ->whereNotNull('to_office_id')
-                ->orderByDesc('created_at')
+            $sourceSnapshot = $record->source_snapshot;
+            $ettsTransactionId = $sourceSnapshot['id'] ?? $record->source_id;
+            $optsOfficeId = null;
+
+            // Priority 1: Find the PENDING endorsement in ETTS (statuses_id IN (1, 2))
+            // The endorsing_offices_id of a pending endorsement = the office that currently HOLDS the document
+            $pendingEndorsement = DB::connection('etts_temp')
+                ->table('endorsements')
+                ->where('transactions_id', $ettsTransactionId)
+                ->whereIn('statuses_id', [1, 2])
                 ->orderByDesc('id')
                 ->first();
 
-            if ($lastEndorsement) {
-                $transaction->update([
-                    'current_office_id' => $lastEndorsement->to_office_id,
-                ]);
+            if ($pendingEndorsement && isset($pendingEndorsement->endorsing_offices_id)) {
+                $optsOfficeId = $mapper->mapOffice((int) $pendingEndorsement->endorsing_offices_id, 'endorsing_offices');
+            }
+
+            // Priority 2 (fallback): receiving_offices_id of the latest COMPLETED endorsement (statuses_id = 4)
+            // If no pending endorsement, the document was last endorsed TO this receiving office
+            if (! $optsOfficeId) {
+                $lastCompleted = DB::connection('etts_temp')
+                    ->table('endorsements')
+                    ->where('transactions_id', $ettsTransactionId)
+                    ->where('statuses_id', 4)
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($lastCompleted && isset($lastCompleted->receiving_offices_id)) {
+                    $optsOfficeId = $mapper->mapOffice((int) $lastCompleted->receiving_offices_id, 'receiving_offices');
+                }
+            }
+
+            // Priority 3 (final fallback): End-user office from offices_id via the offices table
+            if (! $optsOfficeId) {
+                $ettsOfficeId = $sourceSnapshot['offices_id'] ?? null;
+                if ($ettsOfficeId) {
+                    $optsOfficeId = $mapper->mapOffice((int) $ettsOfficeId, 'offices');
+                }
+            }
+
+            if ($optsOfficeId) {
+                $transaction->update(['current_office_id' => $optsOfficeId]);
                 $updated++;
             } else {
-                // Fallback: use the ETTS originating office from source_snapshot
-                $sourceSnapshot = $record->source_snapshot;
-                $ettsOfficeId = $sourceSnapshot['offices_id'] ?? null;
-
-                if ($ettsOfficeId) {
-                    $optsOfficeId = $mapper->mapOffice((int) $ettsOfficeId, 'endorsing_offices');
-                    if ($optsOfficeId) {
-                        $transaction->update([
-                            'current_office_id' => $optsOfficeId,
-                        ]);
-                        $updated++;
-                    } else {
-                        $skipped++;
-                    }
-                } else {
-                    $skipped++;
-                }
+                $skipped++;
             }
         }
 
@@ -561,10 +645,24 @@ class ExecuteMigrationJob implements ShouldQueue
                     ->first();
             }
 
+            // Determine received_at: use the latest endorsement action's timestamp
+            // as the best approximation of when the document arrived at current step.
+            $receivedAt = $transaction->received_at;
+            if (!$receivedAt) {
+                $lastEndorsement = DB::table('transaction_actions')
+                    ->where('transaction_id', $transaction->id)
+                    ->where('action_type', 'endorse')
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('id')
+                    ->first();
+
+                $receivedAt = $lastEndorsement?->created_at ?? $transaction->created_at;
+            }
+
             $updateData = [
                 'workflow_id' => $workflow->id,
                 'current_step_id' => $matchingStep?->id,
-                'received_at' => $transaction->received_at ?? $transaction->created_at,
+                'received_at' => $receivedAt,
             ];
 
             $transaction->update($updateData);
@@ -664,5 +762,16 @@ class ExecuteMigrationJob implements ShouldQueue
                 $message ?? "Processing group {$current} of {$total}...",
             ),
         ]);
+    }
+
+    /**
+     * Parse the original ETTS timestamp for a source transaction.
+     * Priority: created_at (TIMESTAMP) > date_of_entry (DATE) > now()
+     */
+    private function parseSourceTimestamp(object $source, DateParser $dateParser): \Carbon\Carbon
+    {
+        return $dateParser->parse($source->created_at ?? null)
+            ?? $dateParser->parse($source->date_of_entry ?? null)
+            ?? now();
     }
 }

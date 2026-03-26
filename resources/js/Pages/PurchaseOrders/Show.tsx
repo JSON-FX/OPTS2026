@@ -396,14 +396,31 @@ export default function Show({ purchaseOrder, purchaseRequest, canEdit, canDelet
                     {/* Out-of-Workflow Warning Banner (Story 3.8) */}
                     <OutOfWorkflowBanner outOfWorkflowInfo={outOfWorkflowInfo} />
 
-                    {/* Transaction Timeline (Story 3.10) */}
-                    <TransactionTimeline
-                        timeline={timeline}
-                        delaySeverity={transaction.delay_severity}
-                    />
-
-                    {/* Action History (Story 3.10) */}
-                    <ActionHistory actions={actionHistory} />
+                    {/* Transaction Timeline & Action History */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                            <div className="border-b border-gray-200 px-6 py-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-medium text-gray-900">Transaction Timeline</h3>
+                                    <span className="text-sm text-gray-500">{timeline?.completed_steps ?? 0}/{timeline?.total_steps ?? 0} steps</span>
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                <TransactionTimeline timeline={timeline} delaySeverity={transaction.delay_severity} />
+                            </div>
+                        </div>
+                        <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                            <div className="border-b border-gray-200 px-6 py-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-medium text-gray-900">Action History</h3>
+                                    <span className="text-sm text-gray-500">{actionHistory?.length ?? 0} action{(actionHistory?.length ?? 0) !== 1 ? 's' : ''}</span>
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                <ActionHistory actions={actionHistory} />
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Purchase Order Details */}
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">

@@ -43,9 +43,10 @@ export default function MigrationProgressPage({ import: migrationImport }: Props
             return;
         }
 
-        // Listen for WebSocket events via Echo
+        // Listen for WebSocket events via Echo (when available)
+        let channel: any = null;
         if (typeof window !== 'undefined' && (window as any).Echo) {
-            const channel = (window as any).Echo.private(`migration.${migrationImport.id}`);
+            channel = (window as any).Echo.private(`migration.${migrationImport.id}`);
 
             channel.listen('MigrationProgress', (data: MigrationProgressUpdate) => {
                 setWsProgress(data);
@@ -59,19 +60,21 @@ export default function MigrationProgressPage({ import: migrationImport }: Props
             channel.listen('MigrationFailed', (data: { message: string }) => {
                 setError(data.message);
             });
-
-            return () => {
-                channel.stopListening('MigrationProgress');
-                channel.stopListening('MigrationCompleted');
-                channel.stopListening('MigrationFailed');
-            };
         }
 
-        // Fallback polling when WebSocket is not available
+        // Always poll as a fallback — WebSocket data takes priority via wsProgress ?? polledData
         const interval = setInterval(() => {
             router.reload({ only: ['import'] });
         }, 2000);
-        return () => clearInterval(interval);
+
+        return () => {
+            clearInterval(interval);
+            if (channel) {
+                channel.stopListening('MigrationProgress');
+                channel.stopListening('MigrationCompleted');
+                channel.stopListening('MigrationFailed');
+            }
+        };
     }, [migrationImport.id, migrationImport.status]);
 
     // Auto-scroll log

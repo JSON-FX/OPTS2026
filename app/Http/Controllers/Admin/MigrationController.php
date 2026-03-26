@@ -151,24 +151,25 @@ class MigrationController extends Controller
             return back()->with('error', 'Only completed or failed imports can be rolled back.');
         }
 
-        // Delete all created records in reverse order
         $records = $import->records()
             ->where('status', 'created')
-            ->orderBy('id', 'desc')
             ->get();
 
-        foreach ($records as $record) {
-            try {
-                \Illuminate\Support\Facades\DB::table($record->target_table)
-                    ->where('id', $record->target_id)
-                    ->delete();
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Rollback: Could not delete record', [
-                    'table' => $record->target_table,
-                    'id' => $record->target_id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+        $txIds = $records->where('target_table', 'transactions')->pluck('target_id');
+        $procIds = $records->where('target_table', 'procurements')->pluck('target_id');
+
+        // Delete child records first to avoid foreign key constraint failures
+        foreach ($txIds->chunk(500) as $chunk) {
+            DB::table('transaction_actions')->whereIn('transaction_id', $chunk)->delete();
+            DB::table('transaction_status_history')->whereIn('transaction_id', $chunk)->delete();
+            DB::table('purchase_requests')->whereIn('transaction_id', $chunk)->delete();
+            DB::table('purchase_orders')->whereIn('transaction_id', $chunk)->delete();
+            DB::table('vouchers')->whereIn('transaction_id', $chunk)->delete();
+            DB::table('transactions')->whereIn('id', $chunk)->delete();
+        }
+
+        foreach ($procIds->chunk(500) as $chunk) {
+            DB::table('procurements')->whereIn('id', $chunk)->delete();
         }
 
         // Clean up temp database

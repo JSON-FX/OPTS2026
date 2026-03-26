@@ -78,6 +78,10 @@ class TransactionController extends Controller
             $query->where('transactions.created_by_user_id', $request->user()->id);
         }
 
+        // Apply system-wide year filter
+        $year = $request->user()?->selected_year ?? (int) now()->year;
+        $query->whereYear('transactions.created_at', $year);
+
         // Apply sorting
         $sortBy = $request->get('sort_by', 'created_at');
         $sortDirection = $request->get('sort_direction', 'desc');

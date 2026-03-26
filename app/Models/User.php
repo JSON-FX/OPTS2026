@@ -30,6 +30,7 @@ class User extends Authenticatable
         'sso_uuid',
         'sso_position',
         'last_sso_login_at',
+        'selected_year',
     ];
 
     /**
@@ -54,6 +55,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'last_sso_login_at' => 'datetime',
+            'selected_year' => 'integer',
         ];
     }
 

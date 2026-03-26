@@ -20,18 +20,20 @@ class DashboardController extends Controller
 
     public function index(Request $request): Response
     {
-        // Load active transactions once and share between workload + stagnant panels
-        $activeTransactions = $this->dashboardService->loadActiveTransactions();
+        $year = $request->user()?->selected_year ?? (int) now()->year;
 
-        $summary = $this->dashboardService->getSummaryCards();
+        // Load active transactions once and share between workload + stagnant panels
+        $activeTransactions = $this->dashboardService->loadActiveTransactions($year);
+
+        $summary = $this->dashboardService->getSummaryCards($year);
         $officeWorkload = $this->dashboardService->getOfficeWorkload($activeTransactions);
-        $activityFeed = $this->dashboardService->getRecentActivity(25);
+        $activityFeed = $this->dashboardService->getRecentActivity(25, $year);
         $stagnantTransactions = $this->dashboardService->getStagnantTransactions($activeTransactions, 25);
 
         $slaPerformance = [
-            'office_performance' => $this->dashboardService->getOfficePerformance(),
-            'incidents' => $this->dashboardService->getIncidentSummary(),
-            'volume' => $this->dashboardService->getVolumeSummary(),
+            'office_performance' => $this->dashboardService->getOfficePerformance(365, $year),
+            'incidents' => $this->dashboardService->getIncidentSummary($year),
+            'volume' => $this->dashboardService->getVolumeSummary($year),
         ];
 
         return Inertia::render('Dashboard', [
@@ -62,6 +64,8 @@ class DashboardController extends Controller
             'VCH' => 'vouchers',
         };
 
+        $year = $request->user()?->selected_year ?? (int) now()->year;
+
         $transactions = DB::table('transactions')
             ->select(
                 "{$entityTable}.id as entity_id",
@@ -82,6 +86,7 @@ class DashboardController extends Controller
             ->where('transactions.category', $category)
             ->whereIn('transactions.status', ['Created', 'In Progress'])
             ->whereNull('transactions.deleted_at')
+            ->whereYear('transactions.created_at', $year)
             ->orderBy('transactions.created_at', 'desc')
             ->get();
 

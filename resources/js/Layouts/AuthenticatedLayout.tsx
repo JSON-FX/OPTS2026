@@ -24,19 +24,29 @@ import {
 } from '@/Components/ui/sheet';
 import { Toaster } from '@/Components/ui/toaster';
 import { useToast } from '@/Components/ui/use-toast';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/Components/ui/select';
 import type { PageProps } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { NotificationBell } from '@/Components/NotificationBell';
-import { ChevronDown, Menu } from 'lucide-react';
+import { Calendar, ChevronDown, Menu } from 'lucide-react';
 import { PropsWithChildren, ReactNode, useEffect, useState } from 'react';
 
 export default function Authenticated({
     header,
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
-    const user = usePage<PageProps>().props.auth.user;
-    const flash = usePage<PageProps>().props.flash;
-    const pendingReceiptsCount = usePage<PageProps>().props.pendingReceiptsCount ?? 0;
+    const pageProps = usePage<PageProps>().props;
+    const user = pageProps.auth.user;
+    const flash = pageProps.flash;
+    const pendingReceiptsCount = pageProps.pendingReceiptsCount ?? 0;
+    const selectedYear = pageProps.selectedYear;
+    const availableYears = pageProps.availableYears ?? [new Date().getFullYear()];
     const { toast } = useToast();
 
     const [sheetOpen, setSheetOpen] = useState(false);
@@ -48,6 +58,13 @@ export default function Authenticated({
 
     const hasAnyRole = (...roleNames: string[]): boolean => {
         return user.roles?.some(role => roleNames.includes(role.name)) ?? false;
+    };
+
+    const handleYearChange = (year: string) => {
+        router.put(route('user.selected-year.update'), { year: parseInt(year) }, {
+            preserveState: false,
+            preserveScroll: true,
+        });
     };
 
     useEffect(() => {
@@ -67,7 +84,7 @@ export default function Authenticated({
                         <div className="flex">
                             <div className="flex shrink-0 items-center">
                                 <Link href="/">
-                                    <ApplicationLogo className="block h-9 w-auto fill-current text-gray-800" />
+                                    <ApplicationLogo className="block h-9 w-auto" />
                                 </Link>
                             </div>
 
@@ -195,6 +212,21 @@ export default function Authenticated({
                         </div>
 
                         <div className="hidden md:ms-6 md:flex md:items-center md:space-x-4">
+                            {/* Year Selector */}
+                            <Select value={String(selectedYear)} onValueChange={handleYearChange}>
+                                <SelectTrigger className="w-[100px] h-9">
+                                    <Calendar className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableYears.map((year) => (
+                                        <SelectItem key={year} value={String(year)}>
+                                            {year}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
                             {/* Notification Bell (Story 3.8) */}
                             <NotificationBell />
 
@@ -269,6 +301,26 @@ export default function Authenticated({
                                                 <div className="text-xs text-muted-foreground truncate">{user.email}</div>
                                             </div>
                                         </div>
+
+                                        {/* Year Selector - Mobile */}
+                                        <div className="flex items-center gap-2 px-3 py-2">
+                                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                                            <span className="text-sm text-muted-foreground">Year:</span>
+                                            <Select value={String(selectedYear)} onValueChange={handleYearChange}>
+                                                <SelectTrigger className="w-[100px] h-8">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {availableYears.map((year) => (
+                                                        <SelectItem key={year} value={String(year)}>
+                                                            {year}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <Separator className="my-1" />
 
                                         {/* Mobile Navigation Links */}
                                         <div className="flex flex-col gap-2">
@@ -417,6 +469,10 @@ export default function Authenticated({
             )}
 
             <main>{children}</main>
+
+            <footer className="mt-auto border-t border-gray-200 bg-white py-4 text-center text-xs text-muted-foreground">
+                &copy; {new Date().getFullYear()} Local Government of Quezon Bukidnon. All rights reserved.
+            </footer>
             <Toaster />
         </div>
     );

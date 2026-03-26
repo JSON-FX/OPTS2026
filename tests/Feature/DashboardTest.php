@@ -146,6 +146,10 @@ class DashboardTest extends TestCase
         $office = Office::factory()->create(['name' => 'Test Office']);
         $procurement = Procurement::factory()->create(['created_by_user_id' => $user->id]);
 
+        // Create an active workflow with a step at the test office
+        $workflow = Workflow::factory()->pr()->create();
+        WorkflowStep::factory()->forWorkflow($workflow)->forOffice($office)->create();
+
         Transaction::factory()->create([
             'procurement_id' => $procurement->id,
             'category' => 'PR',

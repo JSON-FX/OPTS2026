@@ -538,7 +538,7 @@ class DashboardServiceTest extends TestCase
             ]);
         }
 
-        $result = $this->service->getStagnantTransactions(3);
+        $result = $this->service->getStagnantTransactions(limit: 3);
 
         $this->assertLessThanOrEqual(3, count($result));
     }

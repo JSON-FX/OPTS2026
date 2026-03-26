@@ -30,6 +30,8 @@ class TransactionReceiveController extends Controller
     {
         $user = auth()->user();
 
+        $year = $user->selected_year ?? (int) now()->year;
+
         $transactions = Transaction::query()
             ->select(
                 'transactions.id',
@@ -47,6 +49,7 @@ class TransactionReceiveController extends Controller
             ->where('current_office_id', $user->office_id)
             ->whereNull('received_at')
             ->where('status', 'In Progress')
+            ->whereYear('created_at', $year)
             ->orderBy('endorsed_at', 'asc')
             ->paginate(20);
 

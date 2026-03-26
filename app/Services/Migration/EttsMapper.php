@@ -74,7 +74,40 @@ class EttsMapper
             return null;
         }
 
+        // Try matching by email first
         $optsUser = User::where('email', $ettsUser->email)->first();
+
+        // If no match, create a legacy user so the actor is properly attributed
+        if (!$optsUser && $ettsUser->email) {
+            $officeId = isset($ettsUser->offices_id)
+                ? $this->mapOffice((int) $ettsUser->offices_id, 'endorsing_offices')
+                : null;
+
+            $roleMapping = config('etts_migration.role_mapping', []);
+            $ettsRole = DB::connection('etts_temp')
+                ->table('roles')
+                ->where('id', $ettsUser->roles_id ?? 0)
+                ->value('name');
+            $optsRoleName = $roleMapping[$ettsRole ?? ''] ?? 'Viewer';
+
+            $optsUser = User::create([
+                'name' => $ettsUser->name,
+                'email' => $ettsUser->email,
+                'password' => null,
+                'office_id' => $officeId,
+                'is_active' => false,
+                'sso_position' => 'ETTS Legacy User',
+            ]);
+
+            $optsUser->assignRole($optsRoleName);
+
+            Log::info('Created legacy user from ETTS migration', [
+                'etts_user_id' => $ettsUserId,
+                'opts_user_id' => $optsUser->id,
+                'email' => $ettsUser->email,
+            ]);
+        }
+
         $this->userCache[$ettsUserId] = $optsUser?->id;
         return $this->userCache[$ettsUserId];
     }
@@ -184,34 +217,27 @@ class EttsMapper
     {
         $results = [];
 
-        // Map endorsing_offices
-        $endorsingOffices = DB::connection('etts_temp')->table('endorsing_offices')->get();
-        foreach ($endorsingOffices as $office) {
-            $targetId = $this->mapOffice($office->id, 'endorsing_offices');
-            $targetOffice = $targetId ? Office::find($targetId) : null;
+        $tablesToMap = ['endorsing_offices', 'receiving_offices', 'offices'];
 
-            $results[] = [
-                'source_id' => $office->id,
-                'source_name' => $office->name ?? $office->abbreviation ?? "Office #{$office->id}",
-                'target_id' => $targetId,
-                'target_name' => $targetOffice?->name,
-                'status' => $targetId ? 'matched' : 'unmatched',
-            ];
-        }
+        foreach ($tablesToMap as $table) {
+            if (!$this->tableExists($table)) {
+                continue;
+            }
 
-        // Map receiving_offices
-        $receivingOffices = DB::connection('etts_temp')->table('receiving_offices')->get();
-        foreach ($receivingOffices as $office) {
-            $targetId = $this->mapOffice($office->id, 'receiving_offices');
-            $targetOffice = $targetId ? Office::find($targetId) : null;
+            $offices = DB::connection('etts_temp')->table($table)->get();
+            foreach ($offices as $office) {
+                $targetId = $this->mapOffice($office->id, $table);
+                $targetOffice = $targetId ? Office::find($targetId) : null;
 
-            $results[] = [
-                'source_id' => $office->id,
-                'source_name' => $office->name ?? $office->abbreviation ?? "Office #{$office->id}",
-                'target_id' => $targetId,
-                'target_name' => $targetOffice?->name,
-                'status' => $targetId ? 'matched' : 'unmatched',
-            ];
+                $results[] = [
+                    'source_table' => $table,
+                    'source_id' => $office->id,
+                    'source_name' => $office->name ?? $office->abbreviation ?? "Office #{$office->id}",
+                    'target_id' => $targetId,
+                    'target_name' => $targetOffice?->name,
+                    'status' => $targetId ? 'matched' : 'unmatched',
+                ];
+            }
         }
 
         return $results;

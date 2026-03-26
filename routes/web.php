@@ -24,6 +24,7 @@ Route::get('/dashboard/workload-detail', [DashboardController::class, 'workloadD
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/user/selected-year', [ProfileController::class, 'updateSelectedYear'])->name('user.selected-year.update');
 
     // Notifications (Story 3.8)
     Route::get('/notifications', [\App\Http\Controllers\NotificationController::class, 'index'])

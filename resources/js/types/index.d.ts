@@ -10,6 +10,7 @@ export interface User {
     sso_uuid?: string;
     sso_position?: string;
     last_sso_login_at?: string;
+    selected_year?: number;
     roles?: Role[];
     office?: Office;
 }
@@ -39,5 +40,7 @@ export type PageProps<
         error?: string;
     };
     pendingReceiptsCount?: number;
+    selectedYear: number;
+    availableYears: number[];
     notifications?: NotificationsData;
 };

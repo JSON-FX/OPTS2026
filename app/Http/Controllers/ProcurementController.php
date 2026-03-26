@@ -76,6 +76,10 @@ class ProcurementController extends Controller
             $query->where('created_by_user_id', $user->id);
         }
 
+        // Apply system-wide year filter
+        $year = $user->selected_year ?? (int) now()->year;
+        $query->whereYear('created_at', $year);
+
         $procurements = $query
             ->orderByDesc('created_at')
             ->paginate(50)

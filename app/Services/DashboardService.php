@@ -22,11 +22,12 @@ class DashboardService
      *
      * @return EloquentCollection<int, Transaction>
      */
-    public function loadActiveTransactions(): EloquentCollection
+    public function loadActiveTransactions(?int $year = null): EloquentCollection
     {
         return Transaction::query()
             ->whereIn('status', ['Created', 'In Progress'])
             ->whereNotNull('current_office_id')
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->with([
                 'currentStep',
                 'workflow.steps',
@@ -43,17 +44,19 @@ class DashboardService
      *
      * @return array{procurements: array, purchase_requests: array, purchase_orders: array, vouchers: array}
      */
-    public function getSummaryCards(): array
+    public function getSummaryCards(?int $year = null): array
     {
         $procurementCounts = DB::table('procurements')
             ->select('status', DB::raw('COUNT(*) as count'))
             ->whereNull('deleted_at')
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->groupBy('status')
             ->pluck('count', 'status');
 
         $transactionCounts = DB::table('transactions')
             ->select('category', 'status', DB::raw('COUNT(*) as count'))
             ->whereNull('deleted_at')
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->groupBy('category', 'status')
             ->get();
 
@@ -96,7 +99,8 @@ class DashboardService
             return collect();
         }
 
-        // Get transaction counts per office for active transactions
+        // Get transaction counts per office for active transactions (scoped to loaded set)
+        $loadedTxIds = $activeTransactions?->pluck('id');
         $transactionCounts = DB::table('transactions')
             ->select(
                 'current_office_id as office_id',
@@ -107,6 +111,7 @@ class DashboardService
             )
             ->whereNull('deleted_at')
             ->whereIn('status', ['Created', 'In Progress'])
+            ->when($loadedTxIds?->isNotEmpty(), fn ($q) => $q->whereIn('id', $loadedTxIds))
             ->groupBy('current_office_id')
             ->get()
             ->keyBy('office_id');
@@ -139,7 +144,7 @@ class DashboardService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getRecentActivity(int $limit = 20): array
+    public function getRecentActivity(int $limit = 20, ?int $year = null): array
     {
         return TransactionAction::query()
             ->with([
@@ -153,6 +158,7 @@ class DashboardService
             ])
             ->select('id', 'transaction_id', 'action_type', 'from_user_id', 'from_office_id', 'to_office_id', 'is_out_of_workflow', 'created_at')
             ->whereIn('action_type', ['endorse', 'receive', 'complete'])
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get()
@@ -215,9 +221,11 @@ class DashboardService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getOfficePerformance(int $days = 30): array
+    public function getOfficePerformance(int $days = 30, ?int $year = null): array
     {
-        $cutoff = now()->subDays($days);
+        $cutoff = $year
+            ? \Illuminate\Support\Carbon::create($year, 1, 1)->startOfYear()
+            : now()->subDays($days);
 
         // Get receive actions within the period
         $receives = DB::table('transaction_actions')
@@ -321,7 +329,7 @@ class DashboardService
      *
      * @return array{current_month: int, previous_month: int, trend_percentage: float}
      */
-    public function getIncidentSummary(): array
+    public function getIncidentSummary(?int $year = null): array
     {
         $currentMonthStart = now()->startOfMonth();
         $previousMonthStart = now()->subMonth()->startOfMonth();
@@ -330,11 +338,13 @@ class DashboardService
         $currentMonth = (int) DB::table('transaction_actions')
             ->where('is_out_of_workflow', true)
             ->where('created_at', '>=', $currentMonthStart)
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->count();
 
         $previousMonth = (int) DB::table('transaction_actions')
             ->where('is_out_of_workflow', true)
             ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->count();
 
         $trendPercentage = $previousMonth > 0
@@ -353,7 +363,7 @@ class DashboardService
      *
      * @return array<int, array{category: string, current_month: int, previous_month: int, trend_percentage: float}>
      */
-    public function getVolumeSummary(): array
+    public function getVolumeSummary(?int $year = null): array
     {
         $currentMonthStart = now()->startOfMonth();
         $previousMonthStart = now()->subMonth()->startOfMonth();
@@ -362,6 +372,7 @@ class DashboardService
         $currentCounts = DB::table('transactions')
             ->whereNull('deleted_at')
             ->where('created_at', '>=', $currentMonthStart)
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->select('category', DB::raw('COUNT(*) as count'))
             ->groupBy('category')
             ->pluck('count', 'category');
@@ -369,6 +380,7 @@ class DashboardService
         $previousCounts = DB::table('transactions')
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->select('category', DB::raw('COUNT(*) as count'))
             ->groupBy('category')
             ->pluck('count', 'category');

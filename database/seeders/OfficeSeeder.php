@@ -25,7 +25,7 @@ class OfficeSeeder extends Seeder
             ['name' => 'MMO - Procurement Office', 'type' => 'Procurement', 'abbreviation' => 'MMO-PO', 'is_active' => true],
             ['name' => 'MMO - Livelihood Division', 'type' => 'Executive', 'abbreviation' => 'MMO-LD', 'is_active' => true],
             ['name' => 'MMO - Permits and Licenses Division', 'type' => 'Regulatory', 'abbreviation' => 'MMO-BPLO', 'is_active' => true],
-            ['name' => 'MMO - General Services Office', 'type' => 'Administrative', 'abbreviation' => 'MMO-GSO', 'is_active' => true],
+            ['name' => 'MMO - Property and Supply Management Division', 'type' => 'Administrative', 'abbreviation' => 'MMO-PSMD', 'is_active' => true],
             ['name' => 'MMO - Nutrition Division', 'type' => 'Social', 'abbreviation' => 'MMO-ND', 'is_active' => true],
             ['name' => 'MMO - Population Development Division', 'type' => 'Social', 'abbreviation' => 'MMO-PDD', 'is_active' => true],
             ['name' => 'MMO - Economic Enterprise Division', 'type' => 'Executive', 'abbreviation' => 'MEMO', 'is_active' => true],
