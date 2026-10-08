@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ConnectPilotHost;
 use App\Services\SSOService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -120,6 +121,9 @@ class SSOController extends Controller
         // Update last SSO login timestamp
         $user->update(['last_sso_login_at' => now()]);
 
+        // An account switch ends the old host binding before the new SSO session starts.
+        app(ConnectPilotHost::class)->revoke($request);
+
         // Store JWT in session for logout
         $request->session()->put('sso_token', $token);
 
@@ -131,6 +135,8 @@ class SSOController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
+        app(ConnectPilotHost::class)->revoke($request);
+
         // Best-effort SSO logout
         $ssoToken = $request->session()->get('sso_token');
         if ($ssoToken) {

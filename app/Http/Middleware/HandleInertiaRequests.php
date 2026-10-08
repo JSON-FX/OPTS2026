@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Transaction;
+use App\Services\ConnectPilotHost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
@@ -36,6 +37,10 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user()?->load(['roles', 'office']),
             ],
+            'connectPilot' => fn () => $request->user() && is_string($request->session()->get('sso_token'))
+                && app(ConnectPilotHost::class)->configured()
+                    ? ['origin' => config('connect_pilot.connect_origin'), 'launchUrl' => route('connect.pilot.launch', [], false)]
+                    : null,
             'pendingReceiptsCount' => fn () => $request->user()
                 ? Transaction::where('current_office_id', $request->user()->office_id)
                     ->whereNull('received_at')

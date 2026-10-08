@@ -1,8 +1,9 @@
 <?php
 
+use App\Http\Controllers\ConnectPilotController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
-use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -19,6 +20,8 @@ Route::get('/dashboard/workload-detail', [DashboardController::class, 'workloadD
     ->name('dashboard.workload-detail');
 
 Route::middleware('auth')->group(function () {
+    Route::post('/connect/pilot/launch', [ConnectPilotController::class, 'launch'])
+        ->middleware('throttle:30,1')->name('connect.pilot.launch');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/user/selected-year', [ProfileController::class, 'updateSelectedYear'])->name('user.selected-year.update');
 
@@ -50,6 +53,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/vouchers/{id}', [\App\Http\Controllers\VoucherController::class, 'show'])
         ->name('vouchers.show');
 });
+
+// Connect signs this server-to-server request. It carries no browser cookie or CSRF token.
+Route::post('/connect/pilot/introspect', [ConnectPilotController::class, 'introspect'])
+    ->withoutMiddleware(ValidateCsrfToken::class)
+    ->middleware('throttle:300,1')->name('connect.pilot.introspect');
 
 Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
     // Transaction receive routes (Story 3.5)

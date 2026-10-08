@@ -1,4 +1,5 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import { ConnectPilotWidget } from '@/Components/ConnectPilotWidget';
 import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
 import { Button } from '@/Components/ui/button';
 import {
@@ -474,6 +475,7 @@ export default function Authenticated({
                 &copy; {new Date().getFullYear()} Local Government of Quezon Bukidnon. All rights reserved.
             </footer>
             <Toaster />
+            {pageProps.connectPilot && <ConnectPilotWidget {...pageProps.connectPilot} />}
         </div>
     );
 }

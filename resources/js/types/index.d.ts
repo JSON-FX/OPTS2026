@@ -43,4 +43,5 @@ export type PageProps<
     selectedYear: number;
     availableYears: number[];
     notifications?: NotificationsData;
+    connectPilot?: { origin: string; launchUrl: string } | null;
 };

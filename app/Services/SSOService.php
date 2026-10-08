@@ -89,6 +89,40 @@ class SSOService
         }
     }
 
+    /** @return array{status: 'granted'|'denied'|'unavailable', uuid?: string} */
+    public function authorizeForConnectPilot(string $token): array
+    {
+        try {
+            $response = Http::withHeaders([
+                'X-Client-ID' => $this->clientId,
+                'X-Client-Secret' => $this->clientSecret,
+            ])->connectTimeout(3)->timeout(8)->withoutRedirecting()
+                ->post($this->apiUrl.'/api/v1/sso/authorize', ['token' => $token]);
+        } catch (\Throwable) {
+            return ['status' => 'unavailable'];
+        }
+
+        if (in_array($response->status(), [401, 403], true)) {
+            return ['status' => 'denied'];
+        }
+        if (! $response->successful() || strlen($response->body()) > 2048) {
+            return ['status' => 'unavailable'];
+        }
+        $data = $response->json();
+        if (! is_array($data)) {
+            return ['status' => 'unavailable'];
+        }
+        if (($data['authorized'] ?? null) === false) {
+            return ['status' => 'denied'];
+        }
+        $uuid = $data['employee']['uuid'] ?? null;
+        if (($data['authorized'] ?? null) !== true || ! is_string($uuid)) {
+            return ['status' => 'unavailable'];
+        }
+
+        return ['status' => 'granted', 'uuid' => $uuid];
+    }
+
     public function logout(string $token): bool
     {
         try {
