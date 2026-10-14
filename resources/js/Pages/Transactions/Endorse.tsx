@@ -37,6 +37,7 @@ interface ActionTakenOption {
 interface OfficeOption {
     id: number;
     name: string;
+    abbreviation: string;
 }
 
 interface TransactionData {
@@ -300,7 +301,7 @@ export default function Endorse({
                                                     key={office.id}
                                                     value={office.id.toString()}
                                                 >
-                                                    {office.name}
+                                                    {office.abbreviation}
                                                     {expectedNextOffice?.id === office.id &&
                                                         ' (Next in workflow)'}
                                                 </SelectItem>

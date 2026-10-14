@@ -98,11 +98,11 @@ class ProcurementController extends Controller
             ],
             'options' => [
                 'statuses' => Procurement::STATUSES,
-                'offices' => Office::query()->orderBy('name')->get(['id', 'name']),
+                'offices' => Office::query()->orderBy('name')->get(['id', 'name', 'abbreviation']),
                 'particulars' => Particular::query()->orderBy('description')->get(['id', 'description']),
             ],
             'can' => [
-                'manage' => $user->hasAnyRole(['Endorser', 'Administrator']),
+                'manage' => $user->canProcessTransactions(),
             ],
         ]);
     }
@@ -110,7 +110,7 @@ class ProcurementController extends Controller
     public function create(): Response
     {
         return Inertia::render('Procurements/Create', [
-            'offices' => Office::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'offices' => Office::query()->where('is_active', true)->whereNotNull('sso_id')->orderBy('name')->get(['id', 'name', 'abbreviation']),
             'particulars' => Particular::query()->where('is_active', true)->orderBy('description')->get(['id', 'description']),
         ]);
     }
@@ -179,7 +179,7 @@ class ProcurementController extends Controller
             'procurement' => $procurement->makeVisible(['abc_amount']),
             'activityTimeline' => $activityTimeline,
             'can' => [
-                'manage' => request()->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false,
+                'manage' => request()->user()?->canProcessTransactions() ?? false,
             ],
             'canCreatePR' => $this->businessRules->canCreatePR($procurement),
             'canCreatePO' => $this->businessRules->canCreatePO($procurement),
@@ -189,11 +189,11 @@ class ProcurementController extends Controller
 
     public function edit(Procurement $procurement): Response
     {
-        $procurement->load(['endUser:id,name', 'particular:id,description'])->loadCount('transactions');
+        $procurement->load(['endUser:id,name,abbreviation', 'particular:id,description'])->loadCount('transactions');
 
         return Inertia::render('Procurements/Edit', [
             'procurement' => $procurement,
-            'offices' => Office::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'offices' => Office::query()->where('is_active', true)->whereNotNull('sso_id')->orderBy('name')->get(['id', 'name', 'abbreviation']),
             'particulars' => Particular::query()->where('is_active', true)->orderBy('description')->get(['id', 'description']),
             'locked' => $procurement->transactions_count > 0,
         ]);

@@ -58,7 +58,7 @@ interface Filters {
 
 interface FilterOptions {
     statuses: ProcurementStatus[];
-    offices: Pick<Office, 'id' | 'name'>[];
+    offices: Pick<Office, 'id' | 'name' | 'abbreviation'>[];
     particulars: Pick<Particular, 'id' | 'description'>[];
 }
 
@@ -411,7 +411,7 @@ export default function Index({ auth, procurements, filters, options, can }: Pro
                                         <option value="">All Offices</option>
                                         {options.offices.map((office) => (
                                             <option key={office.id} value={office.id}>
-                                                {office.name}
+                                                {office.abbreviation}
                                             </option>
                                         ))}
                                     </select>

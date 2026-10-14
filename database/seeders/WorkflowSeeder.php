@@ -9,6 +9,7 @@ use App\Models\Office;
 use App\Models\Workflow;
 use App\Models\WorkflowStep;
 use Illuminate\Database\Seeder;
+use RuntimeException;
 
 /**
  * Seeds workflows and workflow steps for transaction routing.
@@ -26,7 +27,7 @@ class WorkflowSeeder extends Seeder
     public function run(): void
     {
         // Cache offices by abbreviation for step creation
-        $offices = Office::all()->keyBy('abbreviation');
+        $offices = Office::where('is_active', true)->whereNotNull('sso_id')->get()->keyBy('abbreviation');
 
         // Cache action_taken by description for default action assignment
         $actionTaken = ActionTaken::all()->keyBy('description');
@@ -55,9 +56,9 @@ class WorkflowSeeder extends Seeder
         $steps = [
             ['abbreviation' => 'MBO', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'Creation of Purchase Request'],
             ['abbreviation' => 'MMO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'For Approval'],
-            ['abbreviation' => 'BAC', 'step_order' => 3, 'expected_days' => 3, 'is_final_step' => false, 'action_taken' => 'For BAC Meeting (Mode of Procurement)'],
+            ['abbreviation' => 'MMO-BAC', 'step_order' => 3, 'expected_days' => 3, 'is_final_step' => false, 'action_taken' => 'For BAC Meeting (Mode of Procurement)'],
             ['abbreviation' => 'MMO-PO', 'step_order' => 4, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'For Canvassing'],
-            ['abbreviation' => 'BAC', 'step_order' => 5, 'expected_days' => 2, 'is_final_step' => true, 'action_taken' => 'To Complete P.R'],
+            ['abbreviation' => 'MMO-BAC', 'step_order' => 5, 'expected_days' => 2, 'is_final_step' => true, 'action_taken' => 'To Complete P.R'],
         ];
 
         $this->createWorkflowSteps($workflow, $steps, $offices, $actionTaken);
@@ -80,7 +81,7 @@ class WorkflowSeeder extends Seeder
         ]);
 
         $steps = [
-            ['abbreviation' => 'BAC', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'Creation of Purchase Order'],
+            ['abbreviation' => 'MMO-BAC', 'step_order' => 1, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'Creation of Purchase Order'],
             ['abbreviation' => 'MMO-PO', 'step_order' => 2, 'expected_days' => 2, 'is_final_step' => false, 'action_taken' => 'For Supplier Signature'],
             ['abbreviation' => 'MMO-PSMD', 'step_order' => 3, 'expected_days' => 2, 'is_final_step' => true, 'action_taken' => 'Waiting For Delivery'],
         ];
@@ -129,9 +130,7 @@ class WorkflowSeeder extends Seeder
             $office = $offices->get($stepConfig['abbreviation']);
 
             if (! $office) {
-                $this->command->warn("Office with abbreviation '{$stepConfig['abbreviation']}' not found. Skipping step.");
-
-                continue;
+                throw new RuntimeException("Office with abbreviation '{$stepConfig['abbreviation']}' not found for workflow '{$workflow->name}'.");
             }
 
             $actionTakenId = null;

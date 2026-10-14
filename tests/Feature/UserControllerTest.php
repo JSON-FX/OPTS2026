@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Office;
+use App\Exceptions\SSOUnavailableException;
 use App\Models\User;
+use App\Services\SSOService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -16,148 +18,120 @@ class UserControllerTest extends TestCase
     {
         parent::setUp();
 
-        // Seed roles
-        Role::create(['name' => 'Viewer', 'guard_name' => 'web']);
-        Role::create(['name' => 'Endorser', 'guard_name' => 'web']);
-        Role::create(['name' => 'Administrator', 'guard_name' => 'web']);
+        foreach (['Viewer', 'Endorser', 'Administrator'] as $role) {
+            Role::create(['name' => $role, 'guard_name' => 'web']);
+        }
     }
 
-    public function test_administrator_can_access_user_management(): void
+    public function test_directory_uses_live_sso_people_and_only_safe_display_fields(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
+        User::factory()->create(['name' => 'Local historical person']);
+        $this->partialMock(SSOService::class, function ($mock) {
+            $mock->shouldReceive('directory')->once()->with(['search' => '', 'page' => 1, 'per_page' => 20])
+                ->andReturn([
+                    'data' => array_map(fn ($role) => [
+                        ...$this->person(), 'role' => $role,
+                        'email' => 'private@example.test', 'username' => 'private', 'grants' => ['other-app'],
+                    ], ['guest', 'standard', 'administrator', 'super_administrator']),
+                    'meta' => ['page' => 1, 'per_page' => 20, 'has_more' => false],
+                ]);
+        });
 
-        $response = $this->actingAs($admin)->get('/admin/users');
-
-        $response->assertStatus(200);
+        $this->actingAs($this->user('Administrator'))->get('/admin/users')
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Users/Index')
+                ->has('directory.data', 4)
+                ->where('directory.data.0.full_name', 'Demo Mayor')
+                ->where('directory.data.0.opts_role', 'Viewer')
+                ->where('directory.data.1.opts_role', 'Endorser')
+                ->where('directory.data.2.opts_role', 'Administrator')
+                ->where('directory.data.3.opts_role', 'Administrator')
+                ->missing('directory.data.0.email')
+                ->missing('directory.data.0.username')
+                ->missing('directory.data.0.grants')
+                ->missing('users')
+                ->missing('roles')
+                ->missing('offices'));
     }
 
-    public function test_viewer_cannot_access_user_management(): void
+    public function test_search_and_pagination_forward_only_allowed_query_fields(): void
     {
-        $viewer = User::factory()->create();
-        $viewer->assignRole('Viewer');
+        $this->partialMock(SSOService::class, function ($mock) {
+            $mock->shouldReceive('directory')->once()->with(['search' => 'Demo Mayor', 'page' => 2, 'per_page' => 20])
+                ->andReturn(['data' => [], 'meta' => ['page' => 2, 'per_page' => 20, 'has_more' => true]]);
+        });
 
-        $response = $this->actingAs($viewer)->get('/admin/users');
-
-        $response->assertStatus(403);
+        $this->actingAs($this->user('Administrator'))
+            ->get('/admin/users?search=Demo%20Mayor&page=2&roles[]=super_administrator&per_page=50&application_id=other')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.search', 'Demo Mayor')
+                ->where('directory.meta.page', 2)
+                ->where('directory.meta.has_more', true));
     }
 
-    public function test_endorser_cannot_access_user_management(): void
+    public function test_invalid_directory_queries_are_rejected_before_sso(): void
     {
-        $endorser = User::factory()->create();
-        $endorser->assignRole('Endorser');
+        $this->mock(SSOService::class)->shouldNotReceive('directory');
 
-        $response = $this->actingAs($endorser)->get('/admin/users');
-
-        $response->assertStatus(403);
+        $this->actingAs($this->user('Administrator'))->getJson('/admin/users?page=0&search='.str_repeat('a', 101))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['page', 'search']);
     }
 
-    public function test_create_user_route_no_longer_exists(): void
+    public function test_directory_failure_returns_503_without_local_fallback(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
+        User::factory()->create(['name' => 'Private local record']);
+        $this->mock(SSOService::class)->shouldReceive('directory')->once()
+            ->andThrow(new SSOUnavailableException('Sensitive upstream failure'));
 
-        $response = $this->actingAs($admin)->get('/admin/users/create');
-
-        $response->assertStatus(404);
+        $this->actingAs($this->user('Administrator'))->get('/admin/users')
+            ->assertStatus(503)
+            ->assertDontSee('Private local record')
+            ->assertDontSee('Sensitive upstream failure');
     }
 
-    public function test_store_user_route_no_longer_exists(): void
+    public function test_viewers_and_endorsers_cannot_access_directory(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
+        $this->mock(SSOService::class)->shouldNotReceive('directory');
 
-        $response = $this->actingAs($admin)->post('/admin/users', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'role' => 'Viewer',
-        ]);
-
-        $response->assertStatus(405);
+        foreach (['Viewer', 'Endorser'] as $role) {
+            $this->actingAs($this->user($role))->get('/admin/users')->assertForbidden();
+        }
     }
 
-    public function test_can_update_user_role(): void
+    public function test_sso_owned_users_cannot_be_created_edited_or_deleted_locally(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
+        $admin = $this->user('Administrator');
+        $user = $this->user('Viewer');
+        $this->actingAs($admin);
 
+        $this->get('/admin/users/create')->assertNotFound();
+        $this->post('/admin/users', ['name' => 'Unexpected user'])->assertStatus(405);
+        $this->get("/admin/users/{$user->id}/edit")->assertNotFound();
+        $this->put("/admin/users/{$user->id}", ['role' => 'Administrator', 'is_active' => false])->assertNotFound();
+        $this->delete("/admin/users/{$user->id}")->assertNotFound();
+        $this->assertTrue($user->fresh()->hasRole('Viewer'));
+        $this->assertTrue($user->fresh()->is_active);
+    }
+
+    private function user(string $role): User
+    {
         $user = User::factory()->create();
-        $user->assignRole('Viewer');
+        $user->assignRole($role);
 
-        $response = $this->actingAs($admin)->put("/admin/users/{$user->id}", [
-            'role' => 'Endorser',
-        ]);
-
-        $response->assertRedirect('/admin/users');
-        $this->assertTrue($user->fresh()->hasRole('Endorser'));
+        return $user;
     }
 
-    public function test_can_update_user_office(): void
+    private function person(): array
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $office = Office::create([
-            'name' => 'Test Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'TO',
-            'is_active' => true,
-        ]);
-
-        $user = User::factory()->create();
-        $user->assignRole('Viewer');
-
-        $response = $this->actingAs($admin)->put("/admin/users/{$user->id}", [
-            'role' => 'Viewer',
-            'office_id' => $office->id,
-        ]);
-
-        $response->assertRedirect('/admin/users');
-        $this->assertEquals($office->id, $user->fresh()->office_id);
-    }
-
-    public function test_can_deactivate_user(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $user = User::factory()->create(['is_active' => true]);
-        $user->assignRole('Viewer');
-
-        $response = $this->actingAs($admin)->put("/admin/users/{$user->id}", [
-            'role' => 'Viewer',
-            'is_active' => false,
-        ]);
-
-        $response->assertRedirect('/admin/users');
-        $this->assertFalse($user->fresh()->is_active);
-    }
-
-    public function test_can_delete_user(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $user = User::factory()->create();
-        $user->assignRole('Viewer');
-
-        $response = $this->actingAs($admin)->delete("/admin/users/{$user->id}");
-
-        $response->assertRedirect('/admin/users');
-        $this->assertDatabaseMissing('users', [
-            'id' => $user->id,
-            'deleted_at' => null,
-        ]);
-    }
-
-    public function test_cannot_delete_self(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $response = $this->actingAs($admin)->delete("/admin/users/{$admin->id}");
-
-        $response->assertRedirect('/admin/users');
-        $this->assertNotNull($admin->fresh());
+        return [
+            'uuid' => '00000000-0000-4000-8000-000000000001',
+            'full_name' => 'Demo Mayor', 'initials' => 'D.M', 'role' => 'guest',
+            'office_id' => 34, 'office_name' => 'Municipal Mayor Office', 'office_abbreviation' => 'MMO',
+            'position_id' => 1, 'position_title' => 'Municipal Mayor',
+        ];
     }
 }

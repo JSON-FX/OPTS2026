@@ -10,7 +10,7 @@ class StoreProcurementRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false;
+        return $this->user()?->canProcessTransactions() ?? false;
     }
 
     /**
@@ -19,7 +19,7 @@ class StoreProcurementRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'end_user_id' => ['required', 'integer', 'exists:offices,id'],
+            'end_user_id' => ['required', 'integer', new \App\Rules\ActiveSsoOffice],
             'particular_id' => ['required', 'integer', 'exists:particulars,id'],
             'purpose' => ['required', 'string', 'max:1000'],
             'abc_amount' => ['required', 'numeric', 'min:0.01'],

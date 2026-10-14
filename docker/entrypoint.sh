@@ -15,9 +15,9 @@ echo "MySQL is ready."
 echo "Running migrations..."
 php artisan migrate --force
 
-# Seed if users table is empty
-USER_COUNT=$(php artisan tinker --execute="echo \App\Models\User::count();" 2>/dev/null || echo "0")
-if [ "$USER_COUNT" = "0" ]; then
+# Seed reference data on first boot; users are provisioned only through SSO.
+ROLE_COUNT=$(php artisan tinker --execute="echo \Spatie\Permission\Models\Role::count();" 2>/dev/null || echo "0")
+if [ "$ROLE_COUNT" = "0" ]; then
     echo "Seeding database..."
     php artisan db:seed --force
 fi

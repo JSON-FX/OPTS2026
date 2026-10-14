@@ -32,6 +32,14 @@ class OutOfWorkflowNotificationTest extends TestCase
         parent::setUp();
         $this->seed(\Database\Seeders\RoleSeeder::class);
         $this->service = app(EndorsementService::class);
+        // These tests cover notification routing; current SSO eligibility has its own suite.
+        $this->mock(\App\Services\SSOIdentityService::class, function ($mock) {
+            $mock->shouldReceive('eligibleRecipient')->andReturnTrue();
+            $mock->shouldReceive('eligibleRecipients')->andReturnUsing(function (array $roles = \App\Services\SSOService::DIRECTORY_ROLES, ?int $officeId = null) {
+                return User::query()->when($officeId !== null, fn ($query) => $query->where('office_id', $officeId))
+                    ->when($roles === ['administrator', 'super_administrator'], fn ($query) => $query->role('Administrator'))->get();
+            });
+        });
     }
 
     /**
@@ -176,7 +184,7 @@ class OutOfWorkflowNotificationTest extends TestCase
 
         $action->load(['transaction.currentStep', 'toOffice', 'fromUser']);
 
-        $listener = new NotifyOutOfWorkflowEndorsement;
+        $listener = app(NotifyOutOfWorkflowEndorsement::class);
         $listener->handle(new OutOfWorkflowEndorsement($action));
 
         Notification::assertSentTo($setup['admin'], OutOfWorkflowNotification::class);
@@ -201,7 +209,7 @@ class OutOfWorkflowNotificationTest extends TestCase
 
         $action->load(['transaction.currentStep', 'toOffice', 'fromUser']);
 
-        $listener = new NotifyOutOfWorkflowEndorsement;
+        $listener = app(NotifyOutOfWorkflowEndorsement::class);
         $listener->handle(new OutOfWorkflowEndorsement($action));
 
         Notification::assertSentTo($setup['expectedOfficeUser'], OutOfWorkflowNotification::class);

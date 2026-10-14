@@ -273,6 +273,43 @@ class BroadcastNotificationTest extends TestCase
         $this->assertEquals('completed', $data['type']);
     }
 
+    public function test_queued_notification_events_only_invalidate_and_keep_details_in_database(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake([\Illuminate\Broadcasting\BroadcastEvent::class]);
+        $setup = $this->createTestSetup();
+        $action = TransactionAction::create([
+            'transaction_id' => $setup['transaction']->id,
+            'action_type' => TransactionAction::TYPE_RECEIVE,
+            'from_office_id' => $setup['office1']->id,
+            'to_office_id' => $setup['office2']->id,
+            'from_user_id' => $setup['endorser']->id,
+            'to_user_id' => $setup['receiver']->id,
+        ]);
+        $notifications = [
+            new TransactionReceivedNotification($action),
+            new TransactionCompletedNotification($setup['transaction'], $setup['receiver']),
+            new TransactionOverdueNotification($setup['transaction'], 3),
+            new OutOfWorkflowNotification($action, $setup['office1']),
+        ];
+        foreach ($notifications as $notification) {
+            $setup['receiver']->notify($notification);
+        }
+
+        \Illuminate\Support\Facades\Queue::assertPushed(\Illuminate\Broadcasting\BroadcastEvent::class, 4);
+        foreach (\Illuminate\Support\Facades\Queue::pushed(\Illuminate\Broadcasting\BroadcastEvent::class) as $queued) {
+            // Simulate a delayed worker after a grant has been revoked.
+            $job = unserialize(serialize($queued));
+            $this->assertSame(['refresh' => true], $job->event->broadcastWith());
+            $this->assertSame(['refresh' => true], $job->event->data);
+        }
+        $stored = $setup['receiver']->notifications()->get();
+        $this->assertCount(4, $stored);
+        foreach ($stored as $notification) {
+            $this->assertSame($setup['transaction']->id, $notification->data['transaction_id']);
+            $this->assertArrayHasKey('message', $notification->data);
+        }
+    }
+
     // -------------------------------------------------------
     // Private channel authorization tests
     // -------------------------------------------------------

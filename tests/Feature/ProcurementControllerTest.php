@@ -36,7 +36,7 @@ class ProcurementControllerTest extends TestCase
     {
         $office = Office::factory()->create();
         $particular = Particular::factory()->create();
-        $creator = User::factory()->create();
+        $creator = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $creator->assignRole('Endorser');
 
         Procurement::factory()->create([
@@ -45,7 +45,7 @@ class ProcurementControllerTest extends TestCase
             'created_by_user_id' => $creator->id,
         ]);
 
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $viewer->assignRole('Viewer');
 
         $response = $this->actingAs($viewer)->get(route('procurements.index'));
@@ -59,7 +59,7 @@ class ProcurementControllerTest extends TestCase
 
     public function test_endorser_can_create_procurement(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -83,9 +83,29 @@ class ProcurementControllerTest extends TestCase
         ]);
     }
 
+    public function test_unchanged_historical_office_allows_procurement_edits(): void
+    {
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
+        $endorser->assignRole('Endorser');
+        $historical = Office::factory()->create(['is_active' => false, 'sso_id' => null]);
+        $procurement = Procurement::factory()->create(['end_user_id' => $historical->id]);
+        Transaction::factory()->create(['procurement_id' => $procurement->id]);
+
+        $this->actingAs($endorser)->put(route('procurements.update', $procurement), [
+            'end_user_id' => $historical->id,
+            'particular_id' => $procurement->particular_id,
+            'purpose' => 'Updated historical procurement',
+            'abc_amount' => 1000,
+            'date_of_entry' => now()->toDateString(),
+        ])->assertSessionHasNoErrors()->assertRedirect(route('procurements.index'));
+
+        $this->assertSame('Updated historical procurement', $procurement->fresh()->purpose);
+        $this->assertSame($historical->id, $procurement->fresh()->end_user_id);
+    }
+
     public function test_viewer_cannot_access_create_form(): void
     {
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $viewer->assignRole('Viewer');
 
         $response = $this->actingAs($viewer)->get(route('procurements.create'));
@@ -95,7 +115,7 @@ class ProcurementControllerTest extends TestCase
 
     public function test_endorser_cannot_change_end_user_when_transactions_exist(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $officeA = Office::factory()->create();
@@ -133,7 +153,7 @@ class ProcurementControllerTest extends TestCase
 
     public function test_endorser_can_archive_procurement(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create([
@@ -149,7 +169,7 @@ class ProcurementControllerTest extends TestCase
     /** Story 2.9 - Procurement Detail View Tests */
     public function test_procurement_show_page_displays_complete_information(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create([
@@ -225,7 +245,7 @@ class ProcurementControllerTest extends TestCase
 
     public function test_procurement_show_displays_not_created_cards_when_transactions_missing(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create([
@@ -249,7 +269,7 @@ class ProcurementControllerTest extends TestCase
 
     public function test_viewer_sees_read_only_procurement_detail(): void
     {
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $viewer->assignRole('Viewer');
 
         $procurement = Procurement::factory()->create();
@@ -265,7 +285,7 @@ class ProcurementControllerTest extends TestCase
 
     public function test_endorser_can_see_action_buttons(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create([

@@ -89,7 +89,6 @@ class Transaction extends Model
         'endorsed_at',
         'last_overdue_notified_at',
         'created_by_user_id',
-        'is_legacy',
     ];
 
     /**
@@ -104,7 +103,6 @@ class Transaction extends Model
             'received_at' => 'datetime',
             'endorsed_at' => 'datetime',
             'last_overdue_notified_at' => 'datetime',
-            'is_legacy' => 'boolean',
         ];
     }
 
@@ -131,6 +129,11 @@ class Transaction extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function currentOffice(): BelongsTo
+    {
+        return $this->belongsTo(Office::class, 'current_office_id');
     }
 
     /**
@@ -180,7 +183,7 @@ class Transaction extends Model
      */
     public function latestAction(): HasOne
     {
-        return $this->hasOne(TransactionAction::class)->latestOfMany();
+        return $this->hasOne(TransactionAction::class)->ofMany(['created_at' => 'max', 'id' => 'max']);
     }
 
     /**

@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -127,18 +126,9 @@ Route::middleware(['auth', 'role:Administrator'])->group(function () {
     ]);
 
     Route::get('admin/users', [App\Http\Controllers\Admin\UserController::class, 'index'])->name('admin.users.index');
-    Route::get('admin/users/{user}/edit', [App\Http\Controllers\Admin\UserController::class, 'edit'])->name('admin.users.edit');
-    Route::put('admin/users/{user}', [App\Http\Controllers\Admin\UserController::class, 'update'])->name('admin.users.update');
-    Route::delete('admin/users/{user}', [App\Http\Controllers\Admin\UserController::class, 'destroy'])->name('admin.users.destroy');
 
-    Route::resource('admin/repositories/offices', App\Http\Controllers\Admin\OfficeController::class)->names([
-        'index' => 'admin.repositories.offices.index',
-        'create' => 'admin.repositories.offices.create',
-        'store' => 'admin.repositories.offices.store',
-        'edit' => 'admin.repositories.offices.edit',
-        'update' => 'admin.repositories.offices.update',
-        'destroy' => 'admin.repositories.offices.destroy',
-    ]);
+    Route::get('admin/repositories/offices', [App\Http\Controllers\Admin\OfficeController::class, 'index'])
+        ->name('admin.repositories.offices.index');
 
     Route::resource('admin/repositories/suppliers', App\Http\Controllers\Admin\SupplierController::class)->names([
         'index' => 'admin.repositories.suppliers.index',
@@ -175,30 +165,6 @@ Route::middleware(['auth', 'role:Administrator'])->group(function () {
         'update' => 'admin.repositories.action-taken.update',
         'destroy' => 'admin.repositories.action-taken.destroy',
     ]);
-
-    // ETTS Data Migration
-    Route::get('admin/migration', [App\Http\Controllers\Admin\MigrationController::class, 'index'])
-        ->name('admin.migration.index');
-    Route::post('admin/migration/upload', [App\Http\Controllers\Admin\MigrationController::class, 'upload'])
-        ->name('admin.migration.upload');
-    Route::get('admin/migration/{import}/mappings', [App\Http\Controllers\Admin\MigrationController::class, 'mappings'])
-        ->name('admin.migration.mappings');
-    Route::post('admin/migration/{import}/mappings', [App\Http\Controllers\Admin\MigrationController::class, 'saveMappings'])
-        ->name('admin.migration.save-mappings');
-    Route::post('admin/migration/{import}/dry-run', [App\Http\Controllers\Admin\MigrationController::class, 'dryRun'])
-        ->name('admin.migration.dry-run');
-    Route::get('admin/migration/{import}/dry-run', [App\Http\Controllers\Admin\MigrationController::class, 'dryRunResults'])
-        ->name('admin.migration.dry-run-results');
-    Route::post('admin/migration/{import}/execute', [App\Http\Controllers\Admin\MigrationController::class, 'execute'])
-        ->name('admin.migration.execute');
-    Route::get('admin/migration/{import}/progress', [App\Http\Controllers\Admin\MigrationController::class, 'progress'])
-        ->name('admin.migration.progress');
-    Route::get('admin/migration/{import}/results', [App\Http\Controllers\Admin\MigrationController::class, 'results'])
-        ->name('admin.migration.results');
-    Route::post('admin/migration/{import}/rollback', [App\Http\Controllers\Admin\MigrationController::class, 'rollback'])
-        ->name('admin.migration.rollback');
-    Route::post('admin/migration/clear-all', [App\Http\Controllers\Admin\MigrationController::class, 'clearAllProcurements'])
-        ->name('admin.migration.clear-all');
 });
 
 require __DIR__.'/auth.php';

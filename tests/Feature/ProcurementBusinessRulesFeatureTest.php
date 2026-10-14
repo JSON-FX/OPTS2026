@@ -11,10 +11,10 @@ use App\Models\Particular;
 use App\Models\Procurement;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
+use App\Models\Supplier;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Validator;
 use Tests\TestCase;
 
 class ProcurementBusinessRulesFeatureTest extends TestCase
@@ -24,122 +24,80 @@ class ProcurementBusinessRulesFeatureTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed();
+        $this->seed(\Database\Seeders\RoleSeeder::class);
+        foreach (['Viewer', 'Endorser', 'Administrator'] as $role) {
+            User::factory()->create(['office_id' => Office::factory()->create()->id])->assignRole($role);
+        }
     }
 
-    /** @test */
-    public function po_validation_fails_when_no_pr_exists(): void
+    public function test_po_validation_fails_when_no_pr_exists(): void
     {
-        $user = User::role('Endorser')->first();
         $procurement = $this->createProcurement();
 
-        $request = StorePurchaseOrderRequest::createFrom(
-            request()->replace([
-                'procurement_id' => $procurement->id,
-                'supplier_id' => 1,
-                'supplier_address' => 'Test Address',
-                'particulars' => 'Test',
-                'fund_type_id' => 1,
-                'total_cost' => 10000.00,
-                'date_of_po' => now()->toDateString(),
-                'delivery_date' => now()->addDays(30)->toDateString(),
-                'delivery_term' => 'Test term',
-                'payment_term' => 'Test term',
-                'amount_in_words' => 'Ten thousand',
-                'mode_of_procurement' => 'Public Bidding',
-            ])
-        );
-        $request->setUserResolver(fn () => $user);
+        $response = $this->actingAs(User::role('Endorser')->first())
+            ->post(route('procurements.purchase-orders.store', $procurement), $this->poInput());
 
-        $validator = Validator::make(
-            $request->all(),
-            $request->rules()
-        );
-
-        $this->assertTrue($validator->fails());
-        $this->assertStringContainsString(
-            'You must create a Purchase Request before adding a Purchase Order for this procurement',
-            $validator->errors()->first('procurement_id')
-        );
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('procurement');
+        $this->assertDatabaseMissing('transactions', ['procurement_id' => $procurement->id, 'category' => 'PO']);
     }
 
-    /** @test */
-    public function po_validation_passes_when_pr_exists(): void
+    public function test_po_validation_passes_when_pr_exists(): void
     {
-        $user = User::role('Endorser')->first();
         $procurement = $this->createProcurement();
         $this->createPurchaseRequest($procurement);
 
-        $request = StorePurchaseOrderRequest::createFrom(
-            request()->replace([
-                'procurement_id' => $procurement->id,
-                'supplier_id' => 1,
-                'supplier_address' => 'Test Address',
-                'contract_price' => 10000.00,
-            ])
-        );
-        $request->setUserResolver(fn () => $user);
+        $response = $this->actingAs(User::role('Endorser')->first())
+            ->post(route('procurements.purchase-orders.store', $procurement), $this->poInput());
 
-        $validator = Validator::make(
-            $request->all(),
-            $request->rules()
-        );
-
-        $this->assertFalse($validator->fails());
+        $response->assertRedirect(route('procurements.show', $procurement));
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('transactions', ['procurement_id' => $procurement->id, 'category' => 'PO']);
     }
 
-    /** @test */
-    public function vch_validation_fails_when_no_po_exists(): void
+    public function test_vch_validation_fails_when_no_po_exists(): void
     {
-        $user = User::role('Endorser')->first();
         $procurement = $this->createProcurement();
         $this->createPurchaseRequest($procurement);
 
-        $request = StoreVoucherRequest::createFrom(
-            request()->replace([
-                'procurement_id' => $procurement->id,
-                'supplier_id' => 1,
-                'obr_number' => 'OBR-TEST',
-                'particulars' => 'Test',
-                'gross_amount' => 10000.00,
-            ])
-        );
-        $request->setUserResolver(fn () => $user);
+        $response = $this->actingAs(User::role('Endorser')->first())
+            ->post(route('procurements.vouchers.store', $procurement), [
+                'reference_number' => 'VCH-TEST-001',
+                'payee' => 'Demo Payee',
+            ]);
 
-        $validator = Validator::make(
-            $request->all(),
-            $request->rules()
-        );
-
-        $this->assertTrue($validator->fails());
-        $this->assertStringContainsString(
-            'You must create a Purchase Order before adding a Voucher for this procurement',
-            $validator->errors()->first('procurement_id')
-        );
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('procurement');
+        $this->assertDatabaseMissing('transactions', ['procurement_id' => $procurement->id, 'category' => 'VCH']);
     }
 
-    /** @test */
-    public function vch_validation_passes_when_po_exists(): void
+    public function test_vch_validation_passes_when_po_exists(): void
     {
-        $user = User::role('Endorser')->first();
         $procurement = $this->createProcurement();
         $pr = $this->createPurchaseRequest($procurement);
         $this->createPurchaseOrder($procurement, $pr);
 
-        $request = StoreVoucherRequest::createFrom(
-            request()->replace([
-                'procurement_id' => $procurement->id,
-                'payee' => 'Test Payee',
-            ])
-        );
-        $request->setUserResolver(fn () => $user);
+        $response = $this->actingAs(User::role('Endorser')->first())
+            ->post(route('procurements.vouchers.store', $procurement), [
+                'reference_number' => 'VCH-TEST-001',
+                'payee' => 'Demo Payee',
+            ]);
 
-        $validator = Validator::make(
-            $request->all(),
-            $request->rules()
-        );
+        $response->assertRedirect(route('procurements.show', $procurement));
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('transactions', ['procurement_id' => $procurement->id, 'category' => 'VCH']);
+    }
 
-        $this->assertFalse($validator->fails());
+    private function poInput(): array
+    {
+        return [
+            'supplier_id' => Supplier::factory()->create()->id,
+            'contract_price' => 10000,
+            'ref_year' => '2026',
+            'ref_month' => '10',
+            'ref_number' => '001',
+            'is_continuation' => false,
+        ];
     }
 
     /** @test */
@@ -225,13 +183,7 @@ class ProcurementBusinessRulesFeatureTest extends TestCase
             'created_by_user_id' => $procurement->created_by_user_id,
         ]);
 
-        PurchaseRequest::create([
-            'transaction_id' => $transaction->id,
-            'supplier_id' => 1,
-            'purpose' => 'Test PR Purpose',
-            'estimated_budget' => 10000.00,
-            'date_of_pr' => now()->toDateString(),
-        ]);
+        PurchaseRequest::factory()->create(['transaction_id' => $transaction->id]);
 
         return $transaction;
     }
@@ -246,24 +198,7 @@ class ProcurementBusinessRulesFeatureTest extends TestCase
             'created_by_user_id' => $procurement->created_by_user_id,
         ]);
 
-        // Get the PurchaseRequest record from the transaction
-        $prRecord = PurchaseRequest::where('transaction_id', $prTransaction->id)->first();
-
-        PurchaseOrder::create([
-            'transaction_id' => $transaction->id,
-            'purchase_request_id' => $prRecord->id,
-            'supplier_id' => 1,
-            'supplier_address' => 'Test Address',
-            'particulars' => 'Test Particulars',
-            'fund_type_id' => 1,
-            'total_cost' => 9500.00,
-            'date_of_po' => now()->toDateString(),
-            'delivery_date' => now()->addDays(30)->toDateString(),
-            'delivery_term' => 'Test delivery term',
-            'payment_term' => 'Test payment term',
-            'amount_in_words' => 'Nine thousand five hundred pesos only',
-            'mode_of_procurement' => 'Public Bidding',
-        ]);
+        PurchaseOrder::factory()->create(['transaction_id' => $transaction->id]);
 
         return $transaction;
     }

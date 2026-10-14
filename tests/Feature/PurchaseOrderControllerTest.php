@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\FundType;
+use App\Models\Office;
 use App\Models\Procurement;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
@@ -38,13 +39,13 @@ class PurchaseOrderControllerTest extends TestCase
 
         $this->seed(RoleSeeder::class);
 
-        $this->endorser = User::factory()->create();
+        $this->endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $this->endorser->assignRole('Endorser');
 
-        $this->administrator = User::factory()->create();
+        $this->administrator = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $this->administrator->assignRole('Administrator');
 
-        $this->viewer = User::factory()->create();
+        $this->viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $this->viewer->assignRole('Viewer');
 
         $this->fundType = FundType::factory()->create(['abbreviation' => 'GAA']);
@@ -106,6 +107,66 @@ class PurchaseOrderControllerTest extends TestCase
         ]);
     }
 
+    public function test_store_rejects_duplicate_po_reference_number(): void
+    {
+        $prTransaction = Transaction::factory()->create([
+            'procurement_id' => $this->procurement->id,
+            'category' => 'PR',
+            'reference_number' => 'PR-GAA-2025-10-001',
+        ]);
+        PurchaseRequest::factory()->create([
+            'transaction_id' => $prTransaction->id,
+            'fund_type_id' => $this->fundType->id,
+        ]);
+        Transaction::factory()->create([
+            'category' => 'PO',
+            'reference_number' => 'PO-2025-10-042',
+        ]);
+
+        $response = $this->actingAs($this->endorser)
+            ->post(route('procurements.purchase-orders.store', $this->procurement), [
+                'supplier_id' => $this->supplier->id,
+                'contract_price' => 125000.50,
+                'ref_year' => '2025',
+                'ref_month' => '10',
+                'ref_number' => '042',
+                'is_continuation' => false,
+            ]);
+
+        $response->assertSessionHasErrors('ref_number');
+        $this->assertEquals(1, Transaction::where('reference_number', 'PO-2025-10-042')->count());
+    }
+
+    public function test_store_rejects_second_po_for_same_procurement_with_different_reference(): void
+    {
+        $prTransaction = Transaction::factory()->create([
+            'procurement_id' => $this->procurement->id,
+            'category' => 'PR',
+        ]);
+        PurchaseRequest::factory()->create(['transaction_id' => $prTransaction->id]);
+        $poTransaction = Transaction::factory()->create([
+            'procurement_id' => $this->procurement->id,
+            'category' => 'PO',
+            'reference_number' => 'PO-2025-10-041',
+        ]);
+        PurchaseOrder::factory()->create(['transaction_id' => $poTransaction->id]);
+
+        $response = $this->actingAs($this->endorser)
+            ->post(route('procurements.purchase-orders.store', $this->procurement), [
+                'supplier_id' => $this->supplier->id,
+                'contract_price' => 1000,
+                'ref_year' => '2025',
+                'ref_month' => '10',
+                'ref_number' => '042',
+                'is_continuation' => false,
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('procurement');
+        $this->assertSame(1, $this->procurement->transactions()->where('category', 'PO')->count());
+        $this->assertDatabaseMissing('transactions', ['reference_number' => 'PO-2025-10-042']);
+    }
+
     /** @test */
     public function test_create_po_fails_if_no_pr_exists(): void
     {
@@ -119,8 +180,12 @@ class PurchaseOrderControllerTest extends TestCase
                 'is_continuation' => false,
             ]);
 
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['procurement']);
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('procurement');
+        $this->assertDatabaseMissing('transactions', [
+            'procurement_id' => $this->procurement->id,
+            'category' => 'PO',
+        ]);
     }
 
     /** @test */
@@ -330,10 +395,11 @@ class PurchaseOrderControllerTest extends TestCase
         $response = $this->actingAs($this->endorser)
             ->delete(route('purchase-orders.destroy', $po->id));
 
-        $response->assertStatus(422);
-        $response->assertJsonFragment(['message' => 'Cannot delete Purchase Order because Voucher VCH-2025-000001 exists. Delete the Voucher first.']);
+        $response->assertRedirect();
+        $response->assertSessionHas('error', 'Cannot delete Purchase Order because Voucher VCH-2025-000001 exists. Delete the Voucher first.');
 
-        $this->assertDatabaseHas('purchase_orders', ['id' => $po->id]); // Not deleted
+        $this->assertDatabaseHas('purchase_orders', ['id' => $po->id]);
+        $this->assertDatabaseHas('transactions', ['id' => $poTransaction->id, 'deleted_at' => null]);
     }
 
     /** @test */
@@ -388,8 +454,8 @@ class PurchaseOrderControllerTest extends TestCase
                 'is_continuation' => false,
             ]);
 
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['contract_price']);
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('contract_price');
 
         // Test required
         $response = $this->actingAs($this->endorser)
@@ -402,7 +468,7 @@ class PurchaseOrderControllerTest extends TestCase
                 'is_continuation' => false,
             ]);
 
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['contract_price']);
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('contract_price');
     }
 }

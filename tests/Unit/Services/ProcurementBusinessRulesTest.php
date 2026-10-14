@@ -25,7 +25,8 @@ class ProcurementBusinessRulesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed();
+        $this->seed(\Database\Seeders\RoleSeeder::class);
+        User::factory()->create(['office_id' => Office::factory()->create()->id])->assignRole('Endorser');
         $this->businessRules = app(ProcurementBusinessRules::class);
     }
 
@@ -247,13 +248,7 @@ class ProcurementBusinessRulesTest extends TestCase
             'created_by_user_id' => $procurement->created_by_user_id,
         ]);
 
-        PurchaseRequest::create([
-            'transaction_id' => $transaction->id,
-            'supplier_id' => 1, // Assumes seeded data
-            'purpose' => 'Test PR Purpose',
-            'estimated_budget' => 10000.00,
-            'date_of_pr' => now()->toDateString(),
-        ]);
+        PurchaseRequest::factory()->create(['transaction_id' => $transaction->id]);
 
         return $transaction;
     }
@@ -274,21 +269,7 @@ class ProcurementBusinessRulesTest extends TestCase
             'created_by_user_id' => $procurement->created_by_user_id,
         ]);
 
-        PurchaseOrder::create([
-            'transaction_id' => $transaction->id,
-            'purchase_request_id' => $pr->id,
-            'supplier_id' => 1, // Assumes seeded data
-            'supplier_address' => 'Test Address',
-            'particulars' => 'Test Particulars',
-            'fund_type_id' => 1,
-            'total_cost' => 9500.00,
-            'date_of_po' => now()->toDateString(),
-            'delivery_date' => now()->addDays(30)->toDateString(),
-            'delivery_term' => 'Test delivery term',
-            'payment_term' => 'Test payment term',
-            'amount_in_words' => 'Nine thousand five hundred pesos only',
-            'mode_of_procurement' => 'Public Bidding',
-        ]);
+        PurchaseOrder::factory()->create(['transaction_id' => $transaction->id]);
 
         return $transaction;
     }
@@ -309,14 +290,7 @@ class ProcurementBusinessRulesTest extends TestCase
             'created_by_user_id' => $procurement->created_by_user_id,
         ]);
 
-        Voucher::create([
-            'transaction_id' => $transaction->id,
-            'purchase_order_id' => $po->id,
-            'supplier_id' => 1,
-            'obr_number' => 'OBR-TEST-'.uniqid(),
-            'particulars' => 'Test Voucher Particulars',
-            'gross_amount' => 9500.00,
-        ]);
+        Voucher::factory()->create(['transaction_id' => $transaction->id]);
 
         return $transaction;
     }

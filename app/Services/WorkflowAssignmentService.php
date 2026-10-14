@@ -26,6 +26,8 @@ class WorkflowAssignmentService
     {
         return Workflow::where('category', $category)
             ->where('is_active', true)
+            ->whereHas('steps')
+            ->whereDoesntHave('steps', fn ($steps) => $steps->whereDoesntHave('office', fn ($offices) => $offices->where('is_active', true)->whereNotNull('sso_id')))
             ->with('steps.office')
             ->orderByDesc('created_at')
             ->first();
@@ -38,9 +40,7 @@ class WorkflowAssignmentService
      */
     public function hasActiveWorkflow(string $category): bool
     {
-        return Workflow::where('category', $category)
-            ->where('is_active', true)
-            ->exists();
+        return $this->getActiveWorkflow($category) !== null;
     }
 
     /**
@@ -53,9 +53,12 @@ class WorkflowAssignmentService
      *
      * @throws NoActiveWorkflowException If no active workflow exists for the category
      */
-    public function assignWorkflow(Transaction $transaction, User $user): void
+    public function assignWorkflow(Transaction $transaction, User $user, ?int $workflowId = null): void
     {
-        $workflow = $this->getActiveWorkflow($transaction->category);
+        $workflow = $workflowId === null ? $this->getActiveWorkflow($transaction->category) : Workflow::whereKey($workflowId)
+            ->where('category', $transaction->category)->where('is_active', true)
+            ->whereHas('steps')->whereDoesntHave('steps', fn ($steps) => $steps->whereDoesntHave('office', fn ($offices) => $offices->where('is_active', true)->whereNotNull('sso_id')))
+            ->first();
 
         if (! $workflow) {
             throw new NoActiveWorkflowException(
@@ -69,7 +72,7 @@ class WorkflowAssignmentService
             'workflow_id' => $workflow->id,
             'current_step_id' => $firstStep?->id,
             'current_office_id' => $firstStep?->office_id ?? $user->office_id,
-            'current_user_id' => $user->id,
+            'current_user_id' => $firstStep?->office_id === $user->office_id ? $user->id : null,
             'received_at' => now(),
         ]);
     }

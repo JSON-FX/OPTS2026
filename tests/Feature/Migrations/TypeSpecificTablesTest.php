@@ -1,179 +1,94 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature\Migrations;
 
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequest;
+use App\Models\Voucher;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Tests\Support\MigrationTestHelper;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class TypeSpecificTablesTest extends TestCase
 {
-    use MigrationTestHelper;
     use RefreshDatabase;
 
-    public function test_purchase_requests_table_structure_and_constraints(): void
+    public static function documentTypes(): array
     {
-        $this->assertTrue(Schema::hasTable('purchase_requests'));
-
-        $columns = [
-            'id',
-            'transaction_id',
-            'supplier_id',
-            'purpose',
-            'estimated_budget',
-            'date_of_pr',
-            'created_at',
-            'updated_at',
+        return [
+            'purchase request' => [PurchaseRequest::class, 'purchase_requests', [
+                'id', 'transaction_id', 'fund_type_id', 'created_at', 'updated_at', 'deleted_at',
+            ]],
+            'purchase order' => [PurchaseOrder::class, 'purchase_orders', [
+                'id', 'transaction_id', 'supplier_id', 'supplier_address', 'contract_price', 'created_at', 'updated_at',
+            ]],
+            'voucher' => [Voucher::class, 'vouchers', [
+                'id', 'transaction_id', 'payee', 'created_at', 'updated_at', 'deleted_at',
+            ]],
         ];
-
-        foreach ($columns as $column) {
-            $this->assertTrue(Schema::hasColumn('purchase_requests', $column));
-        }
-
-        $hasUniqueIndex = collect(DB::select('PRAGMA index_list("purchase_requests")'))
-            ->contains(function ($index): bool {
-                if ((int) $index->unique !== 1) {
-                    return false;
-                }
-
-                $columns = collect(DB::select(sprintf('PRAGMA index_info("%s")', $index->name)))->pluck('name');
-
-                return $columns->count() === 1 && $columns->contains('transaction_id');
-            });
-        $this->assertTrue($hasUniqueIndex);
-
-        $transaction = $this->createTransaction(['category' => 'PR']);
-        $purchaseRequest = $this->createPurchaseRequest($transaction['id']);
-
-        $this->expectException(QueryException::class);
-        $this->createPurchaseRequest($transaction['id'], ['supplier_id' => $this->createSupplier()]);
-
-        $this->expectException(QueryException::class);
-        DB::table('transactions')->where('id', $purchaseRequest['transaction_id'])->delete();
     }
 
-    public function test_purchase_orders_table_structure_and_constraints(): void
+    public function test_uniqueness_upgrade_can_be_reversed_and_reapplied_without_losing_documents(): void
     {
-        $this->assertTrue(Schema::hasTable('purchase_orders'));
+        $document = PurchaseRequest::factory()->create();
+        $upgrade = require database_path('migrations/2026_10_14_140000_enforce_unique_purchase_request_transaction.php');
 
-        $columns = [
-            'id',
-            'transaction_id',
-            'supplier_id',
-            'supplier_address',
-            'purchase_request_id',
-            'particulars',
-            'fund_type_id',
-            'total_cost',
-            'date_of_po',
-            'delivery_date',
-            'delivery_term',
-            'payment_term',
-            'amount_in_words',
-            'mode_of_procurement',
-            'created_at',
-            'updated_at',
-        ];
-
-        foreach ($columns as $column) {
-            $this->assertTrue(Schema::hasColumn('purchase_orders', $column));
-        }
-
-        $hasUniqueIndex = collect(DB::select('PRAGMA index_list("purchase_orders")'))
-            ->contains(function ($index): bool {
-                if ((int) $index->unique !== 1) {
-                    return false;
-                }
-
-                $columns = collect(DB::select(sprintf('PRAGMA index_info("%s")', $index->name)))->pluck('name');
-
-                return $columns->count() === 1 && $columns->contains('transaction_id');
-            });
-        $this->assertTrue($hasUniqueIndex);
-
-        $procurement = $this->createProcurement();
-        $prTransaction = $this->createTransaction(['procurement_id' => $procurement['id'], 'category' => 'PR']);
-        $purchaseRequest = $this->createPurchaseRequest($prTransaction['id']);
-        $poTransaction = $this->createTransaction(['procurement_id' => $procurement['id'], 'category' => 'PO']);
-        $purchaseOrder = $this->createPurchaseOrder(
-            $poTransaction['id'],
-            $purchaseRequest['id'],
-            ['supplier_id' => $purchaseRequest['supplier_id']]
-        );
-
-        $this->expectException(QueryException::class);
-        $this->createPurchaseOrder(
-            $poTransaction['id'],
-            $purchaseRequest['id'],
-            [
-                'supplier_id' => $purchaseRequest['supplier_id'],
-                'fund_type_id' => $purchaseOrder['fund_type_id'],
-            ]
-        );
-
-        $this->expectException(QueryException::class);
-        DB::table('purchase_requests')->where('id', $purchaseOrder['purchase_request_id'])->delete();
+        $upgrade->down();
+        $this->assertFalse(Schema::hasIndex('purchase_requests', ['transaction_id'], 'unique'));
+        $this->assertTrue(Schema::hasIndex('purchase_requests', ['transaction_id']));
+        $upgrade->up();
+        $upgrade->up();
+        $this->assertTrue(Schema::hasIndex('purchase_requests', ['transaction_id'], 'unique'));
+        $this->assertDatabaseHas('purchase_requests', ['id' => $document->id, 'transaction_id' => $document->transaction_id]);
     }
 
-    public function test_vouchers_table_structure_and_constraints(): void
+    public function test_uniqueness_upgrade_preserves_existing_duplicates_and_stops(): void
     {
-        $this->assertTrue(Schema::hasTable('vouchers'));
+        Schema::table('purchase_requests', function ($table) {
+            $table->dropUnique('purchase_requests_one_per_transaction_unique');
+        });
+        $first = PurchaseRequest::factory()->create();
+        PurchaseRequest::factory()->create(['transaction_id' => $first->transaction_id]);
+        $upgrade = require database_path('migrations/2026_10_14_140000_enforce_unique_purchase_request_transaction.php');
 
-        $columns = [
-            'id',
-            'transaction_id',
-            'purchase_order_id',
-            'supplier_id',
-            'obr_number',
-            'particulars',
-            'gross_amount',
-            'created_at',
-            'updated_at',
-        ];
-
-        foreach ($columns as $column) {
-            $this->assertTrue(Schema::hasColumn('vouchers', $column));
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Resolve duplicate purchase request transaction links');
+        try {
+            $upgrade->up();
+        } finally {
+            $this->assertSame(2, DB::table('purchase_requests')->where('transaction_id', $first->transaction_id)->count());
+            $this->assertFalse(Schema::hasIndex('purchase_requests', ['transaction_id'], 'unique'));
         }
+    }
 
-        $hasUniqueIndex = collect(DB::select('PRAGMA index_list("vouchers")'))
-            ->contains(function ($index): bool {
-                if ((int) $index->unique !== 1) {
-                    return false;
-                }
+    #[DataProvider('documentTypes')]
+    public function test_current_document_schema_supports_its_model(string $model, string $table, array $columns): void
+    {
+        $this->assertTrue(Schema::hasColumns($table, $columns));
+        $document = $model::factory()->create();
+        $this->assertDatabaseHas($table, ['id' => $document->id, 'transaction_id' => $document->transaction_id]);
+    }
 
-                $columns = collect(DB::select(sprintf('PRAGMA index_info("%s")', $index->name)))->pluck('name');
-
-                return $columns->count() === 1 && $columns->contains('transaction_id');
-            });
-        $this->assertTrue($hasUniqueIndex);
-
-        $procurement = $this->createProcurement();
-        $prTransaction = $this->createTransaction(['procurement_id' => $procurement['id'], 'category' => 'PR']);
-        $purchaseRequest = $this->createPurchaseRequest($prTransaction['id']);
-        $poTransaction = $this->createTransaction(['procurement_id' => $procurement['id'], 'category' => 'PO']);
-        $purchaseOrder = $this->createPurchaseOrder(
-            $poTransaction['id'],
-            $purchaseRequest['id'],
-            ['supplier_id' => $purchaseRequest['supplier_id']]
-        );
-        $voucherTransaction = $this->createTransaction(['procurement_id' => $procurement['id'], 'category' => 'VCH']);
-        $voucher = $this->createVoucher(
-            $voucherTransaction['id'],
-            $purchaseOrder['id'],
-            ['supplier_id' => $purchaseOrder['supplier_id']]
-        );
+    #[DataProvider('documentTypes')]
+    public function test_only_one_document_can_reference_a_transaction(string $model, string $table, array $columns): void
+    {
+        $document = $model::factory()->create();
 
         $this->expectException(QueryException::class);
-        $this->createVoucher(
-            $voucherTransaction['id'],
-            $purchaseOrder['id'],
-            ['supplier_id' => $purchaseOrder['supplier_id']]
-        );
+        $model::factory()->create(['transaction_id' => $document->transaction_id]);
+    }
+
+    #[DataProvider('documentTypes')]
+    public function test_referenced_transaction_cannot_be_hard_deleted(string $model, string $table, array $columns): void
+    {
+        $document = $model::factory()->create();
 
         $this->expectException(QueryException::class);
-        DB::table('purchase_orders')->where('id', $voucher['purchase_order_id'])->delete();
+        DB::table('transactions')->where('id', $document->transaction_id)->delete();
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Office;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -31,7 +32,7 @@ class TimelineService
 
         // Get receive actions keyed by workflow_step_id for completed step data
         $receiveActions = $transaction->actions()
-            ->whereIn('action_type', ['receive', 'endorse'])
+            ->whereIn('action_type', ['receive', 'endorse', 'complete'])
             ->with(['fromUser:id,name', 'toUser:id,name', 'toOffice:id,name'])
             ->orderBy('created_at')
             ->get();
@@ -92,6 +93,10 @@ class TimelineService
                     'is_final_step' => $step->is_final_step,
                     'status' => 'current',
                     'current_holder' => $currentUser,
+                    'awaiting_office' => $transaction->received_at === null
+                        && $transaction->current_office_id !== $step->office_id
+                        ? Office::select(['id', 'name'])->find($transaction->current_office_id)
+                        : null,
                     'days_at_step' => $transaction->days_at_current_step,
                     'eta' => $transaction->eta_current_step,
                     'is_overdue' => $transaction->delay_days > 0,

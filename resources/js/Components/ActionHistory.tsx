@@ -28,7 +28,7 @@ function describeAction(entry: ActionHistoryEntry): string {
                 ? `${user} endorsed from ${fromOffice ?? '--'} to ${toOffice}`
                 : `${user} endorsed from ${fromOffice ?? '--'}`;
         case 'receive':
-            return `${user} received at ${fromOffice ?? '--'}`;
+            return `${entry.to_user?.name ?? 'Unknown'} received at ${toOffice ?? '--'}`;
         case 'complete':
             return `${user} completed at ${fromOffice ?? '--'}`;
         case 'hold':

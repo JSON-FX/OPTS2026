@@ -1,273 +1,94 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import { PageProps } from '@/types';
-import { User, Role, Office, PaginatedData } from '@/types/models';
-import { useState } from 'react';
-import { ColumnDef } from '@tanstack/react-table';
-import { DataTable } from '@/Components/DataTable';
+import { SsoDirectoryPage } from '@/types/models';
+import { FormEvent, useState } from 'react';
 import { Badge } from '@/Components/ui/badge';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/Components/ui/select';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/Components/ui/dropdown-menu';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/Components/ui/alert-dialog';
-import { MoreHorizontal, ArrowUpDown, Pencil, Trash2 } from 'lucide-react';
+import { Label } from '@/Components/ui/label';
 
 interface Props extends PageProps {
-    users: PaginatedData<User>;
-    roles: Role[];
-    offices: Office[];
+    directory: SsoDirectoryPage;
+    filters: { search: string };
 }
 
-export default function Index({ users, roles, offices }: Props) {
-    const [search, setSearch] = useState('');
-    const [roleFilter, setRoleFilter] = useState('all');
-    const [officeFilter, setOfficeFilter] = useState('all');
-    const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
+export default function Index({ directory, filters }: Props) {
+    const [search, setSearch] = useState(filters.search);
+    const [loading, setLoading] = useState(false);
 
-    const handleDelete = (userId: number) => {
-        setDeleteUserId(userId);
+    const loadPage = (page: number, term = filters.search) => {
+        router.get(route('admin.users.index'), { search: term, page }, {
+            preserveState: true,
+            preserveScroll: true,
+            onStart: () => setLoading(true),
+            onFinish: () => setLoading(false),
+        });
     };
 
-    const confirmDelete = () => {
-        if (deleteUserId) {
-            router.delete(route('admin.users.destroy', deleteUserId), {
-                preserveScroll: true,
-                onSuccess: () => setDeleteUserId(null),
-            });
-        }
+    const submit = (event: FormEvent) => {
+        event.preventDefault();
+        loadPage(1, search);
     };
-
-    const columns: ColumnDef<User>[] = [
-        {
-            accessorKey: 'name',
-            header: ({ column }) => (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                >
-                    Name
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            ),
-        },
-        {
-            accessorKey: 'email',
-            header: ({ column }) => (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                >
-                    Email
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            ),
-        },
-        {
-            id: 'role',
-            accessorFn: (row) => row.roles?.[0]?.name || 'No role',
-            header: 'Role',
-            cell: ({ row }) => {
-                const role = row.original.roles?.[0]?.name || 'No role';
-                const variant =
-                    role === 'Administrator'
-                        ? 'default'
-                        : role === 'Endorser'
-                          ? 'secondary'
-                          : 'outline';
-                return <Badge variant={variant}>{role}</Badge>;
-            },
-            filterFn: (row, _id, filterValue) => {
-                if (!filterValue || filterValue === 'all') return true;
-                return row.original.roles?.[0]?.name === filterValue;
-            },
-        },
-        {
-            id: 'office',
-            accessorFn: (row) => row.office?.name || '',
-            header: 'Office',
-            cell: ({ row }) => row.original.office?.name || '-',
-            filterFn: (row, _id, filterValue) => {
-                if (!filterValue || filterValue === 'all') return true;
-                return String(row.original.office_id) === filterValue;
-            },
-        },
-        {
-            accessorKey: 'created_at',
-            header: ({ column }) => (
-                <Button
-                    variant="ghost"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                >
-                    Created
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            ),
-            cell: ({ row }) =>
-                new Date(row.getValue('created_at')).toLocaleDateString(),
-        },
-        {
-            id: 'actions',
-            cell: ({ row }) => (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Open menu</span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                            onClick={() =>
-                                router.visit(
-                                    route('admin.users.edit', row.original.id)
-                                )
-                            }
-                        >
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onClick={() => handleDelete(row.original.id)}
-                            className="text-destructive focus:text-destructive"
-                        >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            ),
-        },
-    ];
-
-    // Apply client-side filters to the current page data
-    const filteredData = users.data.filter((user) => {
-        const matchesSearch =
-            !search ||
-            user.name.toLowerCase().includes(search.toLowerCase()) ||
-            user.email.toLowerCase().includes(search.toLowerCase());
-        const matchesRole =
-            roleFilter === 'all' || user.roles?.[0]?.name === roleFilter;
-        const matchesOffice =
-            officeFilter === 'all' ||
-            String(user.office_id) === officeFilter;
-        return matchesSearch && matchesRole && matchesOffice;
-    });
 
     return (
-        <AuthenticatedLayout
-            header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                    User Management
-                </h2>
-            }
-        >
-            <Head title="User Management" />
-
+        <AuthenticatedLayout header={<h2 className="text-xl font-semibold leading-tight text-gray-800">SSO User Directory</h2>}>
+            <Head title="SSO User Directory" />
             <div className="py-12">
-                <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
-                    <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                        <div className="p-6">
-                            <DataTable columns={columns} data={filteredData}>
-                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                                    <Input
-                                        placeholder="Search by name or email..."
-                                        value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
-                                        className="max-w-sm"
-                                    />
-                                    <Select
-                                        value={roleFilter}
-                                        onValueChange={setRoleFilter}
-                                    >
-                                        <SelectTrigger className="w-[180px]">
-                                            <SelectValue placeholder="All Roles" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">
-                                                All Roles
-                                            </SelectItem>
-                                            {roles.map((role) => (
-                                                <SelectItem
-                                                    key={role.id}
-                                                    value={role.name}
-                                                >
-                                                    {role.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <Select
-                                        value={officeFilter}
-                                        onValueChange={setOfficeFilter}
-                                    >
-                                        <SelectTrigger className="w-[180px]">
-                                            <SelectValue placeholder="All Offices" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">
-                                                All Offices
-                                            </SelectItem>
-                                            {offices.map((office) => (
-                                                <SelectItem
-                                                    key={office.id}
-                                                    value={String(office.id)}
-                                                >
-                                                    {office.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </DataTable>
+                <div className="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
+                    <section className="rounded-lg bg-white p-6 shadow-sm space-y-4">
+                        <h3 className="font-semibold">Access comes from SSO</h3>
+                        <p className="text-sm text-muted-foreground">
+                            Only people with current OPTS access are listed. Names, offices, positions and access roles are managed in SSO.
+                            A job title never grants permission to process transactions.
+                        </p>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <caption className="sr-only">SSO roles and their OPTS permissions</caption>
+                                <thead><tr className="border-b"><th className="p-2">SSO role</th><th className="p-2">OPTS role</th><th className="p-2">Access</th></tr></thead>
+                                <tbody className="divide-y">
+                                    <tr><td className="p-2">Guest</td><td className="p-2">Viewer</td><td className="p-2">View dashboards and procurement details. Cannot create, receive, endorse or complete transactions.</td></tr>
+                                    <tr><td className="p-2">Standard</td><td className="p-2">Endorser</td><td className="p-2">Manage procurement records. Receive, endorse and complete transactions assigned to their active office.</td></tr>
+                                    <tr><td className="p-2">Administrator / Super administrator</td><td className="p-2">Administrator</td><td className="p-2">Manage workflows and configuration, view directories and process transactions under office eligibility rules.</td></tr>
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
+                    </section>
+                    <section className="rounded-lg bg-white p-6 shadow-sm space-y-6" aria-label="Eligible users">
+                        <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+                            <div className="space-y-2">
+                                <Label htmlFor="directory-search">Search people by name</Label>
+                                <Input id="directory-search" type="search" maxLength={100} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search names..." />
+                            </div>
+                            <Button type="submit" disabled={loading}>Search</Button>
+                        </form>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm" aria-busy={loading}>
+                                <thead className="border-b"><tr><th className="p-3">Name</th><th className="p-3">SSO role</th><th className="p-3">OPTS access</th><th className="p-3">Office</th><th className="p-3">Position</th></tr></thead>
+                                <tbody className="divide-y">
+                                    {directory.data.map((user) => (
+                                        <tr key={user.uuid}>
+                                            <td className="p-3 font-medium">{user.full_name}</td>
+                                            <td className="p-3 capitalize">{user.role.replace(/_/g, ' ')}</td>
+                                            <td className="p-3"><Badge variant={user.opts_role === 'Administrator' ? 'default' : 'secondary'}>{user.opts_role}</Badge></td>
+                                            <td className="p-3" title={user.office_name ?? undefined}>{user.office_abbreviation ?? 'No office assigned'}</td>
+                                            <td className="p-3">{user.position_title ?? 'No position assigned'}</td>
+                                        </tr>
+                                    ))}
+                                    {directory.data.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No eligible users found.</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm text-muted-foreground">Page {directory.meta.page}</span>
+                            <div className="flex gap-2">
+                                <Button variant="outline" disabled={loading || directory.meta.page <= 1} onClick={() => loadPage(directory.meta.page - 1)}>Previous</Button>
+                                <Button variant="outline" disabled={loading || !directory.meta.has_more} onClick={() => loadPage(directory.meta.page + 1)}>Next</Button>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             </div>
-
-            <AlertDialog
-                open={deleteUserId !== null}
-                onOpenChange={(open) => !open && setDeleteUserId(null)}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently
-                            delete the user account.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={confirmDelete}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </AuthenticatedLayout>
     );
 }

@@ -31,7 +31,7 @@ class EndorseTransactionRequest extends FormRequest
     {
         return [
             'action_taken_id' => ['required', 'integer', 'exists:action_taken,id'],
-            'to_office_id' => ['required', 'integer', 'exists:offices,id'],
+            'to_office_id' => ['required', 'integer', new \App\Rules\ActiveSsoOffice],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }

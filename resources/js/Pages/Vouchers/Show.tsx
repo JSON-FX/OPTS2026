@@ -38,6 +38,7 @@ interface Transaction {
     created_at: string;
     procurement_id: number;
     current_office_id: number | null;
+    current_office?: { id: number; name: string } | null;
     received_at: string | null;
     eta_current_step: string | null;
     eta_completion: string | null;
@@ -390,10 +391,10 @@ export default function Show({ voucher, purchaseRequest, purchaseOrder, canEdit,
                                     <span className="font-semibold">Created At:</span>{' '}
                                     {new Date(transaction?.created_at || '').toLocaleString()}
                                 </div>
-                                {transaction?.current_step?.office && (
+                                {transaction?.current_office && (
                                     <div>
                                         <span className="font-semibold">Current Office:</span>{' '}
-                                        {transaction.current_step.office.name}
+                                        {transaction.current_office.name}
                                     </div>
                                 )}
                                 {transaction?.received_at && (
@@ -603,10 +604,10 @@ export default function Show({ voucher, purchaseRequest, purchaseOrder, canEdit,
                                 <span className="text-sm text-gray-500">Status</span>
                                 <span className="text-sm font-medium">{transaction.status}</span>
                             </div>
-                            {transaction.current_step?.office && (
+                            {transaction.current_office && (
                                 <div className="flex justify-between">
                                     <span className="text-sm text-gray-500">Current Office</span>
-                                    <span className="text-sm font-medium">{transaction.current_step.office.name}</span>
+                                    <span className="text-sm font-medium">{transaction.current_office.name}</span>
                                 </div>
                             )}
                         </div>

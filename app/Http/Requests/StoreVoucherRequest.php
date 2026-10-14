@@ -13,7 +13,7 @@ class StoreVoucherRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false;
+        return $this->user()?->canProcessTransactions() ?? false;
     }
 
     /**
@@ -26,7 +26,7 @@ class StoreVoucherRequest extends FormRequest
         return [
             'reference_number' => ['required', 'string', 'max:50', 'unique:transactions,reference_number'],
             'payee' => ['required', 'string', 'max:255'],
-            'workflow_id' => ['nullable', 'integer', 'exists:workflows,id'],
+            'workflow_id' => ['nullable', 'integer', new \App\Rules\ActiveSsoWorkflow('VCH')],
         ];
     }
 }

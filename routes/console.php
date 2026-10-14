@@ -1,5 +1,7 @@
 <?php
 
+Illuminate\Support\Facades\Schedule::command('opts:sync-sso-offices')->everyMinute()->withoutOverlapping();
+
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 

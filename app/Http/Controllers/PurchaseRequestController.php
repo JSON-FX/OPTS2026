@@ -46,6 +46,8 @@ class PurchaseRequestController extends Controller
 
         $workflows = \App\Models\Workflow::where('is_active', true)
             ->where('category', 'PR')
+            ->whereHas('steps')
+            ->whereDoesntHave('steps', fn ($steps) => $steps->whereDoesntHave('office', fn ($offices) => $offices->where('is_active', true)->whereNotNull('sso_id')))
             ->with('steps.office')
             ->orderBy('name')
             ->get();
@@ -60,6 +62,10 @@ class PurchaseRequestController extends Controller
 
     public function store(StorePurchaseRequestRequest $request, Procurement $procurement): RedirectResponse
     {
+        if (! $this->businessRules->canCreatePR($procurement)) {
+            return back()->withInput()->withErrors(['procurement' => 'This procurement already has a Purchase Request.']);
+        }
+
         try {
             $fundType = FundType::findOrFail($request->input('fund_type_id'));
 
@@ -72,18 +78,22 @@ class PurchaseRequestController extends Controller
             );
 
             DB::transaction(function () use ($request, $procurement, $referenceNumber) {
+                $lockedProcurement = Procurement::whereKey($procurement->id)->lockForUpdate()->firstOrFail();
+                if (! $this->businessRules->canCreatePR($lockedProcurement)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['procurement' => 'The procurement already contains this document or its prerequisite is missing.']);
+                }
+
                 $transaction = Transaction::create([
                     'procurement_id' => $procurement->id,
                     'category' => Transaction::CATEGORY_PURCHASE_REQUEST,
                     'reference_number' => $referenceNumber,
                     'is_continuation' => $request->boolean('is_continuation'),
                     'status' => 'Created',
-                    'workflow_id' => $request->input('workflow_id'),
                     'created_by_user_id' => auth()->id(),
                 ]);
 
                 try {
-                    $this->workflowService->assignWorkflow($transaction, auth()->user());
+                    $this->workflowService->assignWorkflow($transaction, auth()->user(), $request->filled('workflow_id') ? $request->integer('workflow_id') : null);
                 } catch (NoActiveWorkflowException $e) {
                     // Workflow is optional - continue without it
                 }
@@ -116,14 +126,15 @@ class PurchaseRequestController extends Controller
             'transaction.procurement.particular',
             'transaction.procurement', // Ensure procurement is fully loaded
             'transaction.currentStep.office',
+            'transaction.currentOffice:id,name',
             'fundType',
-            'transaction.createdBy',
+            'transaction.createdBy:id,name',
         ])->findOrFail($id);
 
         $user = auth()->user();
         $transaction = $purchaseRequest->transaction;
 
-        $canEdit = $user->hasAnyRole(['Endorser', 'Administrator']);
+        $canEdit = $user->canProcessTransactions();
         $canDelete = $canEdit && $this->businessRules->canDeletePR($transaction->procurement);
         $canEndorse = $this->endorsementService->canEndorse($transaction, $user);
         $cannotEndorseReason = $canEndorse ? null : $this->endorsementService->getCannotEndorseReason($transaction, $user);
@@ -185,7 +196,7 @@ class PurchaseRequestController extends Controller
             'fundType',
         ])->findOrFail($id);
 
-        if (! auth()->user()->hasAnyRole(['Endorser', 'Administrator'])) {
+        if (! auth()->user()->canProcessTransactions()) {
             abort(403);
         }
 

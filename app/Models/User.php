@@ -29,6 +29,8 @@ class User extends Authenticatable
         'is_active',
         'sso_uuid',
         'sso_position',
+        'sso_position_id',
+        'sso_role',
         'last_sso_login_at',
         'selected_year',
     ];
@@ -56,12 +58,19 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'last_sso_login_at' => 'datetime',
             'selected_year' => 'integer',
+            'sso_position_id' => 'integer',
         ];
     }
 
     public function office(): BelongsTo
     {
         return $this->belongsTo(Office::class);
+    }
+
+    public function canProcessTransactions(): bool
+    {
+        return $this->is_active && $this->hasAnyRole(['Endorser', 'Administrator'])
+            && $this->office?->is_active && $this->office?->sso_id !== null;
     }
 
     public function procurements()
