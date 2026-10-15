@@ -289,9 +289,21 @@ function SearchChoice({
     describedBy?: string;
 }) {
     const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState("");
+    const list = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        // cmdk may keep the same selection after filtering; reset its viewport independently.
+        if (list.current) list.current.scrollTop = 0;
+    }, [query, open]);
     const selected = options.find((option) => option.value === value);
     return (
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+            open={open}
+            onOpenChange={(nextOpen) => {
+                setQuery("");
+                setOpen(nextOpen);
+            }}
+        >
             <PopoverTrigger asChild>
                 <Button
                     data-slot="button"
@@ -313,13 +325,33 @@ function SearchChoice({
                 className="op-live op-live-overlay pp-floating pp-combobox-popup"
                 align="start"
             >
-                <Command>
+                <Command
+                    label={"Search " + label.toLowerCase()}
+                    filter={(_value, search, keywords = []) => {
+                        const normalized = search.trim().toLowerCase();
+                        const tokens = normalized.split(/\s+/);
+                        const text = keywords.join(" ").toLowerCase();
+                        if (!tokens.every((token) => text.includes(token)))
+                            return 0;
+                        return keywords[0]?.toLowerCase().includes(normalized)
+                            ? 1
+                            : 0.5;
+                    }}
+                >
                     <CommandInput
+                        value={query}
+                        onValueChange={setQuery}
                         placeholder={"Search " + label.toLowerCase() + "…"}
                         aria-label={"Search " + label.toLowerCase()}
                     />
-                    <CommandList>
-                        <CommandEmpty>No matches found.</CommandEmpty>
+                    <CommandList ref={list}>
+                        <CommandEmpty>
+                            {options.length === 0
+                                ? label === "Particular"
+                                    ? "No particulars configured. Ask an administrator to add an active particular."
+                                    : "No offices are available. Contact your SSO administrator."
+                                : "No matches found. Try another search."}
+                        </CommandEmpty>
                         <CommandGroup>
                             {options.map((option) => (
                                 <CommandItem
@@ -351,6 +383,7 @@ function SearchChoice({
         </Popover>
     );
 }
+
 function ProcurementForm({
     record,
     unavailable,

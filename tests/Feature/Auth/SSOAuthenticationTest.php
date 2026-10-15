@@ -73,6 +73,37 @@ class SSOAuthenticationTest extends TestCase
         return $this->withSession(['sso_state' => 'state'])->get('/auth/sso/callback?state=state&code=valid-code');
     }
 
+    public function test_public_homepage_offers_access_without_starting_an_sso_exchange(): void
+    {
+        $this->get('/')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Welcome')
+            ->where('auth.user', null));
+        $this->assertGuest();
+        Http::assertNothingSent();
+    }
+
+    public function test_entry_page_preserves_the_callback_error_for_retry(): void
+    {
+        $this->get('/auth/sso/callback?state=wrong&code=invalid')->assertRedirect('/login');
+        $this->get('/login')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Auth/Login')
+            ->where('ssoError', 'Invalid authentication state. Please try again.'));
+        $this->assertGuest();
+        Http::assertNothingSent();
+    }
+
+    public function test_signed_in_homepage_keeps_identity_and_login_redirects_to_workspace(): void
+    {
+        $user = $this->localUser();
+        $this->fakeSso('super_administrator');
+        $this->actingAs($user)->withSession(['sso_token' => 'valid-token']);
+        $this->get('/')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Welcome')
+            ->where('auth.user.id', $user->id));
+        $this->get('/login')->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs($user);
+    }
+
     public function test_login_and_redirect_use_authorization_code_flow(): void
     {
         $this->get('/login')->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->component('Auth/Login'));
