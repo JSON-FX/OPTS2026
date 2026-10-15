@@ -1,0 +1,42 @@
+# Add to the existing office proxy after issuing an exact hostname certificate.
+# Retain every unrelated route. The proxy must join lgu-staging-app.
+server {
+    listen 80;
+    server_name staging.opts.lguquezon.local;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name staging.opts.lguquezon.local;
+    ssl_certificate /etc/nginx/certs/staging.opts.lguquezon.local.fullchain.crt;
+    ssl_certificate_key /etc/nginx/certs/staging.opts.lguquezon.local.key;
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $edts_web mis-staging-edts-app:8080;
+    set $edts_reverb mis-staging-edts-app:6001;
+    client_max_body_size 100m;
+    # Avoid query and Referer leakage in the shared proxy default log format.
+    access_log off;
+    # Callback queries contain authorization codes; do not record them here.
+    location = /auth/sso/callback {
+        access_log off;
+        error_log /dev/null emerg;
+        proxy_pass http://$edts_web;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    location /app/ {
+        proxy_pass http://$edts_reverb;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 120s;
+    }
+    location / {
+        proxy_pass http://$edts_web;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}

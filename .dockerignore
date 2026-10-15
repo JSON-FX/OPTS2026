@@ -14,3 +14,12 @@ storage/framework/views/*
 .dockerignore
 docker-compose.yml
 docker-compose.dev.yml
+.env.*
+!.env.example
+bootstrap/cache/*.php
+public/hot
+deploy/mis-staging/runtime.env
+deploy/mis-staging/mysql.env
+deploy/mis-staging/image.env
+deploy/mis-staging/secrets
+deploy/mis-staging/office-ca.crt

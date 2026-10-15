@@ -14,6 +14,16 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
+        <!-- Public runtime settings only; confidential keys remain server-side. -->
+        <script>
+            window.EDTSRealtime = {{ Illuminate\Support\Js::from([
+                'key' => config('broadcasting.connections.reverb.key'),
+                'host' => parse_url(config('app.url'), PHP_URL_HOST),
+                'scheme' => parse_url(config('app.url'), PHP_URL_SCHEME),
+                'port' => parse_url(config('app.url'), PHP_URL_PORT) ?: (str_starts_with(config('app.url'), 'https://') ? 443 : 80),
+            ]) }};
+        </script>
+
         <!-- Scripts -->
         @routes
         @viteReactRefresh

@@ -19,7 +19,7 @@ class OfficeFactory extends Factory
         return [
             'name' => $this->faker->unique()->company.' Office',
             'type' => $this->faker->randomElement(['Administrative', 'Executive', 'Financial']),
-            'abbreviation' => strtoupper($this->faker->lexify('???')),
+            'abbreviation' => strtoupper($this->faker->unique()->lexify('???')),
             'is_active' => true,
             'sso_id' => $this->faker->unique()->numberBetween(1000, 100000000),
         ];

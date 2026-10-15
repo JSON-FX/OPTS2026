@@ -12,14 +12,18 @@ done
 echo "MySQL is ready."
 
 # Run migrations
-echo "Running migrations..."
-php artisan migrate --force
+if [ "${APP_AUTO_MIGRATE:-true}" = "true" ]; then
+    echo "Running migrations..."
+    php artisan migrate --force
+fi
 
 # Seed reference data on first boot; users are provisioned only through SSO.
-ROLE_COUNT=$(php artisan tinker --execute="echo \Spatie\Permission\Models\Role::count();" 2>/dev/null || echo "0")
-if [ "$ROLE_COUNT" = "0" ]; then
-    echo "Seeding database..."
-    php artisan db:seed --force
+if [ "${APP_AUTO_SEED:-true}" = "true" ]; then
+    ROLE_COUNT=$(php artisan tinker --execute="echo \Spatie\Permission\Models\Role::count();" 2>/dev/null || echo "0")
+    if [ "$ROLE_COUNT" = "0" ]; then
+        echo "Seeding database..."
+        php artisan db:seed --force
+    fi
 fi
 
 # Cache configuration and routes

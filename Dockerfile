@@ -9,16 +9,12 @@ COPY . .
 RUN composer dump-autoload --optimize --no-dev
 
 # Stage 2: Build frontend assets
-FROM node:20-alpine AS node
+FROM node:22-alpine AS node
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
-# Vite bakes VITE_* env vars into the JS bundle at build time
-ARG VITE_REVERB_APP_KEY
-ARG VITE_REVERB_HOST
-ARG VITE_REVERB_PORT
-ARG VITE_REVERB_SCHEME
+# Public Reverb settings are rendered at runtime, so the image is portable.
 RUN npm run build
 
 # Stage 3: Production image
