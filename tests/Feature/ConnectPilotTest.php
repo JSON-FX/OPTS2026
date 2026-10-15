@@ -190,6 +190,51 @@ class ConnectPilotTest extends TestCase
             ->postJson('/connect/pilot/introspect', $binding)->assertForbidden();
     }
 
+    public function test_server_introspection_never_creates_sessions_or_returns_browser_cookies(): void
+    {
+        $this->enablePilot();
+        $this->signIn();
+        $this->fakeUpstream();
+        $this->post('/connect/pilot/launch')->assertOk()->assertCookie(config('session.cookie'));
+        $binding = $this->launchBinding();
+        $sessions = DB::table('sessions')->orderBy('id')->get()->toArray();
+        $this->assertNotEmpty($sessions);
+        // Model a new server request with no browser cookie or in-memory session.
+        Auth::forgetGuards();
+        $this->app['session']->forgetDrivers();
+        $this->app->forgetInstance('session.store');
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $nonce = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+            $headers = $this->signedHeaders($binding, $nonce);
+            $response = $this->withHeaders($headers)->postJson('/connect/pilot/introspect', $binding)
+                ->assertOk()->assertJsonPath('active', true);
+            $this->assertDatabaseCount('sessions', count($sessions));
+            $this->assertCount(0, $response->headers->getCookies());
+            $this->assertEquals($sessions, DB::table('sessions')->orderBy('id')->get()->toArray());
+
+            $replay = $this->postJson('/connect/pilot/introspect', $binding)->assertForbidden();
+            $this->assertCount(0, $replay->headers->getCookies());
+            $this->assertEquals($sessions, DB::table('sessions')->orderBy('id')->get()->toArray());
+        }
+
+        $invalid = $this->withHeader('X-Connect-Signature', str_repeat('0', 64))
+            ->postJson('/connect/pilot/introspect', $binding)->assertForbidden();
+        $this->assertCount(0, $invalid->headers->getCookies());
+        $this->assertEquals($sessions, DB::table('sessions')->orderBy('id')->get()->toArray());
+    }
+
+    public function test_browser_launch_keeps_csrf_protection(): void
+    {
+        $this->enablePilot();
+        $this->signIn();
+        $this->fakeUpstream();
+        // Laravel skips CSRF in the testing environment; exercise the real gate.
+        $this->app['env'] = 'local';
+        $this->postJson('/connect/pilot/launch')->assertStatus(419);
+        Http::assertNothingSent();
+    }
+
     public function test_introspection_denies_revoked_grant_and_logout_survives_connect_outage(): void
     {
         $this->enablePilot();
