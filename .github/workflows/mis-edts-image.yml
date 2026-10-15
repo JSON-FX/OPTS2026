@@ -1,0 +1,58 @@
+name: MIS EDTS image
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: mis-edts-image-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: composer install --prefer-dist --no-interaction --no-progress
+      - run: npm ci
+      - name: Frontend checks
+        run: |
+          node --test tests/frontend/*.test.cjs
+          npm run build
+      - name: PHP and deployment checks
+        env:
+          APP_KEY: base64:YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=
+        run: |
+          php -d memory_limit=512M vendor/bin/phpunit
+          vendor/bin/pint --test database/seeders/StagingReferenceSeeder.php tests/Feature/MisStagingTest.php deploy/mis-staging/readiness.php deploy/mis-staging/verify-bootstrap.php config/reverb.php database/factories/OfficeFactory.php
+          sh -n docker/entrypoint.sh deploy/mis-staging/migrate.sh deploy/mis-staging/smoke.sh deploy/mis-staging/test-image.sh
+      - uses: docker/setup-buildx-action@v3
+      - name: Build tested immutable image
+        run: |
+          docker buildx build --platform linux/amd64 \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+            --tag "mis-edts:$GITHUB_SHA" --output type=docker,dest=image.tar .
+          docker load --input image.tar
+          sh deploy/mis-staging/test-image.sh "mis-edts:$GITHUB_SHA"
+          gzip image.tar
+          sha256sum image.tar.gz > image.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          name: mis-image-${{ github.sha }}
+          path: |
+            image.tar.gz
+            image.tar.gz.sha256
+          retention-days: 14
+          if-no-files-found: error

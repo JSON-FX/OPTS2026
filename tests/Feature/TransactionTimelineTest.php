@@ -173,6 +173,44 @@ class TransactionTimelineTest extends TestCase
         $this->assertArrayHasKey('is_overdue', $currentStep);
     }
 
+    public function test_timeline_names_destination_office_while_receipt_is_pending(): void
+    {
+        $setup = $this->createTimelineScenario();
+        $setup['transaction']->update([
+            'current_office_id' => $setup['offices'][2]->id,
+            'current_user_id' => null,
+            'received_at' => null,
+        ]);
+
+        $timeline = app(TimelineService::class)->getTimeline($setup['transaction']->fresh());
+
+        $this->assertSame('Mayors Office', $timeline['steps'][1]['awaiting_office']->name);
+    }
+
+    public function test_completed_timeline_names_actor_and_time_at_final_step(): void
+    {
+        $setup = $this->createTimelineScenario();
+        $finisher = User::factory()->create(['office_id' => $setup['offices'][2]->id]);
+        $setup['transaction']->update([
+            'status' => 'Completed',
+            'current_step_id' => $setup['steps'][2]->id,
+            'current_office_id' => $setup['offices'][2]->id,
+        ]);
+        TransactionAction::create([
+            'transaction_id' => $setup['transaction']->id,
+            'action_type' => 'complete',
+            'from_office_id' => $setup['offices'][2]->id,
+            'from_user_id' => $finisher->id,
+            'workflow_step_id' => $setup['steps'][2]->id,
+            'ip_address' => '127.0.0.1',
+        ]);
+
+        $timeline = app(TimelineService::class)->getTimeline($setup['transaction']->fresh());
+
+        $this->assertSame($finisher->id, $timeline['steps'][2]['completed_by']->id);
+        $this->assertNotNull($timeline['steps'][2]['completed_at']);
+    }
+
     public function test_timeline_upcoming_step_has_estimated_arrival(): void
     {
         $setup = $this->createTimelineScenario();

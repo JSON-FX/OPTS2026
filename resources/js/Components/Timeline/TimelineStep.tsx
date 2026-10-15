@@ -116,7 +116,7 @@ export default function TimelineStep({ step, isLast, orientation }: Props) {
                 {step.status === 'current' && (
                     <div className={cn('text-xs mt-0.5', !isVertical && 'space-y-0.5')}>
                         <p className="text-blue-600 truncate">
-                            {step.current_holder?.name ?? 'Awaiting receipt'}
+                            {step.current_holder?.name ?? (step.awaiting_office ? `Awaiting receipt at ${step.awaiting_office.name}` : 'Awaiting receipt')}
                         </p>
                         <p className="text-gray-500">
                             {step.days_at_step}d at step

@@ -24,39 +24,11 @@ function getNotificationIcon(type: string) {
     }
 }
 
-// Map Laravel FQCN to custom notification type (broadcast overrides toArray type)
-const NOTIFICATION_TYPE_MAP: Record<string, string> = {
-    'App\\Notifications\\TransactionReceivedNotification': 'received',
-    'App\\Notifications\\TransactionCompletedNotification': 'completed',
-    'App\\Notifications\\TransactionOverdueNotification': 'overdue',
-    'App\\Notifications\\OutOfWorkflowNotification': 'out_of_workflow',
-};
-
-function resolveNotificationType(broadcastType: string): string {
-    return NOTIFICATION_TYPE_MAP[broadcastType] ?? broadcastType;
-}
-
 export function NotificationBell() {
     const { notifications, auth } = usePage<PageProps>().props;
     const [isOpen, setIsOpen] = useState(false);
-    const [realtimeNotifications, setRealtimeNotifications] = useState<AppNotification[]>([]);
-    const [realtimeUnreadDelta, setRealtimeUnreadDelta] = useState(0);
-
-    // Merge Inertia shared props with real-time arrivals
-    const baseUnreadCount = notifications?.unread_count ?? 0;
-    const baseRecent = notifications?.recent ?? [];
-    const unreadCount = baseUnreadCount + realtimeUnreadDelta;
-
-    // Prepend real-time notifications, deduplicating by id
-    const baseIds = new Set(baseRecent.map(n => n.id));
-    const uniqueRealtime = realtimeNotifications.filter(n => !baseIds.has(n.id));
-    const recent = [...uniqueRealtime, ...baseRecent].slice(0, 10);
-
-    // Reset real-time state when Inertia shared props update (page navigation)
-    useEffect(() => {
-        setRealtimeNotifications([]);
-        setRealtimeUnreadDelta(0);
-    }, [notifications]);
+    const unreadCount = notifications?.unread_count ?? 0;
+    const recent = notifications?.recent ?? [];
 
     // Subscribe to private notification channel
     useEffect(() => {
@@ -65,21 +37,16 @@ export function NotificationBell() {
         try {
             const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
 
-            channel.notification((notification: Record<string, unknown>) => {
-                const appNotification: AppNotification = {
-                    id: notification.id as string,
-                    type: resolveNotificationType((notification.type as string) ?? 'unknown'),
-                    message: (notification.message as string) ?? '',
-                    read_at: null,
-                    created_at: new Date().toISOString(),
-                    data: notification,
-                };
-
-                setRealtimeNotifications(prev => [appNotification, ...prev]);
-                setRealtimeUnreadDelta(prev => prev + 1);
+            let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+            channel.notification(() => {
+                clearTimeout(refreshTimer);
+                refreshTimer = setTimeout(() => {
+                    router.reload({ only: ['notifications', 'auth', 'pendingReceiptsCount'] });
+                }, 200);
             });
 
             return () => {
+                clearTimeout(refreshTimer);
                 channel.stopListening('.Illuminate\\Notifications\\Events\\BroadcastNotificationCreated');
             };
         } catch {

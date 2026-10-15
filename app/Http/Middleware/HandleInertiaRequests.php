@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Transaction;
+use App\Services\ConnectPilotHost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
@@ -33,10 +34,27 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+            'connectWidget' => $request->user()?->is_active && app(ConnectPilotHost::class)->configured()
+                ? [
+                    'origin' => config('connect_pilot.connect_origin'),
+                    'launchUrl' => route('connect.pilot.launch', absolute: false),
+                    'identity' => $request->user()->sso_uuid,
+                ] : null,
             'auth' => [
-                'user' => $request->user()?->load(['roles', 'office']),
+                'user' => $request->user() ? [
+                    'id' => $request->user()->id,
+                    'name' => $request->user()->name,
+                    'email' => $request->user()->email,
+                    'office_id' => $request->user()->office_id,
+                    'is_active' => $request->user()->is_active,
+                    'sso_role' => $request->user()->sso_role,
+                    'sso_position' => $request->user()->sso_position,
+                    'can_process_transactions' => $request->user()->canProcessTransactions(),
+                    'roles' => $request->user()->roles->map(fn ($role) => ['id' => $role->id, 'name' => $role->name]),
+                    'office' => $request->user()->office?->only(['id', 'name', 'abbreviation', 'is_active']),
+                ] : null,
             ],
-            'pendingReceiptsCount' => fn () => $request->user()
+            'pendingReceiptsCount' => fn () => $request->user()?->canProcessTransactions()
                 ? Transaction::where('current_office_id', $request->user()->office_id)
                     ->whereNull('received_at')
                     ->where('status', 'In Progress')

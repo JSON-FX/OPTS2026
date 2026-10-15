@@ -5,7 +5,7 @@ import { PageProps } from '@/types';
 import { Office, Particular, ProcurementFormData, ProcurementFormFields } from '@/types/models';
 
 interface Props extends PageProps {
-    offices: Pick<Office, 'id' | 'name'>[];
+    offices: Pick<Office, 'id' | 'name' | 'abbreviation'>[];
     particulars: Pick<Particular, 'id' | 'description'>[];
 }
 
@@ -56,7 +56,7 @@ export default function Create({ auth, offices, particulars }: Props) {
                                         <option value="">Select an office</option>
                                         {offices.map((office) => (
                                             <option key={office.id} value={office.id}>
-                                                {office.name}
+                                                {office.abbreviation}
                                             </option>
                                         ))}
                                     </select>

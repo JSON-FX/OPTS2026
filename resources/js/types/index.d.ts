@@ -3,7 +3,8 @@ import type { Role, Office } from './models';
 export interface User {
     id: number;
     name: string;
-    email: string;
+    email: string | null;
+    can_process_transactions: boolean;
     email_verified_at?: string;
     office_id?: number;
     is_active: boolean;

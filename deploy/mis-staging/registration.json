@@ -1,0 +1,26 @@
+{
+  "app": "edts",
+  "repository": "JSON-FX/OPTS2026",
+  "workflow": "mis-edts-image.yml",
+  "branch": "main",
+  "image_repository": "mis-edts",
+  "schema_compatible": true,
+  "staging": {
+    "project": "mis-staging-edts",
+    "compose": "/srv/mis-deployment/edts/staging/compose.yml",
+    "image_env_file": "/srv/mis-deployment/edts/staging/image.env",
+    "image_variable": "APP_IMAGE",
+    "services": [
+      "app"
+    ],
+    "health_timeout": 240,
+    "migrate_argv": [
+      "/bin/sh",
+      "/srv/mis-deployment/edts/staging/migrate.sh"
+    ],
+    "smoke_argv": [
+      "/bin/sh",
+      "/srv/mis-deployment/edts/staging/smoke.sh"
+    ]
+  }
+}

@@ -31,3 +31,6 @@ Thumbs.db
 # BMAD (local only)
 .bmad-core/
 .bmad-*/
+
+# Local database backups
+/.claude/local-backups/

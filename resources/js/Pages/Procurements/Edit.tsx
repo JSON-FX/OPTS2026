@@ -11,10 +11,10 @@ import {
 
 interface Props extends PageProps {
     procurement: Procurement & {
-        end_user?: Pick<Office, 'id' | 'name'>;
+        end_user?: Pick<Office, 'id' | 'name' | 'abbreviation'>;
         particular?: Pick<Particular, 'id' | 'description'>;
     };
-    offices: Pick<Office, 'id' | 'name'>[];
+    offices: Pick<Office, 'id' | 'name' | 'abbreviation'>[];
     particulars: Pick<Particular, 'id' | 'description'>[];
     locked: boolean;
 }
@@ -22,6 +22,9 @@ interface Props extends PageProps {
 export default function Edit({ auth, procurement, offices, particulars, locked }: Props) {
     const formattedAmount = useMemo(() => Number(procurement.abc_amount).toFixed(2), [procurement.abc_amount]);
     const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+    const historicalOffice = procurement.end_user && !offices.some((office) => office.id === procurement.end_user_id)
+        ? procurement.end_user
+        : null;
 
     const { data, setData, put, processing, errors } = useForm<ProcurementFormData>({
         end_user_id: String(procurement.end_user_id),
@@ -73,12 +76,20 @@ export default function Edit({ auth, procurement, offices, particulars, locked }
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-100"
                                     >
                                         <option value="">Select an office</option>
+                                        {historicalOffice && (
+                                            <option value={historicalOffice.id} disabled>
+                                                {historicalOffice.abbreviation}
+                                            </option>
+                                        )}
                                         {offices.map((office) => (
                                             <option key={office.id} value={office.id}>
-                                                {office.name}
+                                                {office.abbreviation}
                                             </option>
                                         ))}
                                     </select>
+                                    {historicalOffice && (
+                                        <p className="mt-1 text-sm text-gray-500">This office is retained for this procurement’s history.</p>
+                                    )}
                                     {'end_user_id' in errors && errors.end_user_id && (
                                         <p className="mt-1 text-sm text-red-600">{errors.end_user_id}</p>
                                     )}

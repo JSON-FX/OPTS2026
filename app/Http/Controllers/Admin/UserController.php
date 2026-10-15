@@ -2,64 +2,47 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exceptions\SSOUnavailableException;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\UpdateUserRequest;
-use App\Models\Office;
-use App\Models\User;
-use Illuminate\Http\RedirectResponse;
+use App\Services\SSOService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Inertia\Inertia;
-use Inertia\Response;
-use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request, SSOService $sso): Response
     {
-        $users = User::with(['roles', 'office'])
-            ->paginate(50);
-
-        return Inertia::render('Admin/Users/Index', [
-            'users' => $users,
-            'roles' => Role::all(),
-            'offices' => Office::where('is_active', true)->get(),
-        ]);
-    }
-
-    public function edit(User $user): Response
-    {
-        $user->load(['roles', 'office']);
-
-        return Inertia::render('Admin/Users/Edit', [
-            'user' => $user,
-            'roles' => Role::all(),
-            'offices' => Office::where('is_active', true)->get(),
-        ]);
-    }
-
-    public function update(UpdateUserRequest $request, User $user): RedirectResponse
-    {
-        $user->update([
-            'office_id' => $request->office_id,
-            'is_active' => $request->boolean('is_active', $user->is_active),
+        $query = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1', 'max:10000'],
         ]);
 
-        $user->syncRoles([$request->role]);
-
-        return redirect()->route('admin.users.index')
-            ->with('success', 'User updated successfully.');
-    }
-
-    public function destroy(User $user): RedirectResponse
-    {
-        // Prevent self-deletion
-        if ($user->id === auth()->id()) {
-            return redirect()->route('admin.users.index')
-                ->with('error', 'You cannot delete your own account.');
+        try {
+            $directory = $sso->directory([
+                'search' => trim($query['search'] ?? ''),
+                'page' => (int) ($query['page'] ?? 1),
+                'per_page' => 20,
+            ]);
+        } catch (SSOUnavailableException $exception) {
+            abort(503, 'The SSO user directory is unavailable. Please try again.');
         }
 
-        $user->delete();
+        $users = collect($directory['data'])->map(fn (array $user) => [
+            ...Arr::only($user, [
+                'uuid', 'full_name', 'initials', 'role', 'office_id', 'office_name',
+                'office_abbreviation', 'position_id', 'position_title',
+            ]),
+            'opts_role' => $sso->mapSsoRoleToOptsRole($user['role']),
+        ])->all();
 
-        return redirect()->route('admin.users.index')
-            ->with('success', 'User deleted successfully.');
+        $response = Inertia::render('Admin/Users/Index', [
+            'directory' => ['data' => $users, 'meta' => $directory['meta']],
+            'filters' => ['search' => trim($query['search'] ?? '')],
+        ])->toResponse($request);
+        $response->headers->set('Cache-Control', 'private, no-store');
+
+        return $response;
     }
 }

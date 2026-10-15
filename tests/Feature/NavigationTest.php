@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\SSOOfficeService;
+use App\Services\SSOService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -101,8 +104,12 @@ class NavigationTest extends TestCase
         );
     }
 
-    public function test_administrator_can_access_users_management(): void
+    public function test_administrator_can_access_users_directory(): void
     {
+        $this->mock(SSOService::class)->shouldReceive('directory')->once()->andReturn([
+            'data' => [],
+            'meta' => ['page' => 1, 'per_page' => 20, 'has_more' => false],
+        ]);
         $admin = User::factory()->create();
         $admin->assignRole('Administrator');
 
@@ -113,6 +120,7 @@ class NavigationTest extends TestCase
 
     public function test_administrator_can_access_repositories(): void
     {
+        $this->mock(SSOOfficeService::class)->shouldReceive('refreshIfStale')->once();
         $admin = User::factory()->create();
         $admin->assignRole('Administrator');
 
@@ -130,6 +138,32 @@ class NavigationTest extends TestCase
 
         $response = $this->actingAs($admin)->get('/admin/repositories/action-taken');
         $response->assertStatus(200);
+    }
+
+    public function test_sso_directories_have_no_local_management_routes(): void
+    {
+        $this->assertTrue(Route::has('admin.users.index'));
+        $this->assertTrue(Route::has('admin.repositories.offices.index'));
+
+        foreach (['admin.users', 'admin.repositories.offices'] as $directory) {
+            foreach (['create', 'store', 'edit', 'update', 'destroy'] as $action) {
+                $this->assertFalse(Route::has($directory.'.'.$action));
+            }
+        }
+    }
+
+    public function test_legacy_import_endpoints_are_removed(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('Administrator');
+
+        foreach (['/admin/migration', '/admin/migration/1/progress', '/admin/migration/1/results'] as $path) {
+            $this->actingAs($admin)->get($path)->assertNotFound();
+        }
+        foreach (['/admin/migration/upload', '/admin/migration/1/execute', '/admin/migration/1/rollback', '/admin/migration/clear-all'] as $path) {
+            $this->actingAs($admin)->post($path)->assertNotFound();
+        }
+        $this->assertFalse(collect(Route::getRoutes())->contains(fn ($route) => str_starts_with($route->getName() ?? '', 'admin.migration.')));
     }
 
     public function test_notification_bell_icon_visible_in_layout(): void

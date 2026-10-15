@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\SSOUnavailableException;
 use App\Models\Office;
 use App\Models\User;
+use App\Services\SSOOfficeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -16,235 +19,90 @@ class OfficeControllerTest extends TestCase
     {
         parent::setUp();
 
-        // Seed roles
-        Role::create(['name' => 'Viewer', 'guard_name' => 'web']);
-        Role::create(['name' => 'Endorser', 'guard_name' => 'web']);
-        Role::create(['name' => 'Administrator', 'guard_name' => 'web']);
-    }
-
-    public function test_administrator_can_access_office_management(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $response = $this->actingAs($admin)->get('/admin/repositories/offices');
-
-        $response->assertStatus(200);
-    }
-
-    public function test_viewer_cannot_access_office_management(): void
-    {
-        $viewer = User::factory()->create();
-        $viewer->assignRole('Viewer');
-
-        $response = $this->actingAs($viewer)->get('/admin/repositories/offices');
-
-        $response->assertStatus(403);
-    }
-
-    public function test_endorser_cannot_access_office_management(): void
-    {
-        $endorser = User::factory()->create();
-        $endorser->assignRole('Endorser');
-
-        $response = $this->actingAs($endorser)->get('/admin/repositories/offices');
-
-        $response->assertStatus(403);
-    }
-
-    public function test_can_create_office_with_valid_data(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $response = $this->actingAs($admin)->post('/admin/repositories/offices', [
-            'name' => 'Test Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'TO',
-            'is_active' => true,
-        ]);
-
-        $response->assertRedirect('/admin/repositories/offices');
-        $this->assertDatabaseHas('offices', [
-            'name' => 'Test Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'TO',
-        ]);
-    }
-
-    public function test_cannot_create_office_with_duplicate_name(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        Office::create([
-            'name' => 'Existing Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'EO',
-            'is_active' => true,
-        ]);
-
-        $response = $this->actingAs($admin)->post('/admin/repositories/offices', [
-            'name' => 'Existing Office',
-            'type' => 'Financial',
-            'abbreviation' => 'EO2',
-            'is_active' => true,
-        ]);
-
-        $response->assertSessionHasErrors('name');
-    }
-
-    public function test_cannot_create_office_with_duplicate_abbreviation(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        Office::create([
-            'name' => 'Existing Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'EO',
-            'is_active' => true,
-        ]);
-
-        $response = $this->actingAs($admin)->post('/admin/repositories/offices', [
-            'name' => 'Different Office',
-            'type' => 'Financial',
-            'abbreviation' => 'EO',
-            'is_active' => true,
-        ]);
-
-        $response->assertSessionHasErrors('abbreviation');
-    }
-
-    public function test_can_update_office(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $office = Office::create([
-            'name' => 'Original Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'OO',
-            'is_active' => true,
-        ]);
-
-        $response = $this->actingAs($admin)->put("/admin/repositories/offices/{$office->id}", [
-            'name' => 'Updated Office',
-            'type' => 'Financial',
-            'abbreviation' => 'UO',
-            'is_active' => false,
-        ]);
-
-        $response->assertRedirect('/admin/repositories/offices');
-        $this->assertDatabaseHas('offices', [
-            'id' => $office->id,
-            'name' => 'Updated Office',
-            'type' => 'Financial',
-            'abbreviation' => 'UO',
-            'is_active' => false,
-        ]);
-    }
-
-    public function test_can_delete_office(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        $office = Office::create([
-            'name' => 'Test Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'TO',
-            'is_active' => true,
-        ]);
-
-        $response = $this->actingAs($admin)->delete("/admin/repositories/offices/{$office->id}");
-
-        $response->assertRedirect('/admin/repositories/offices');
-        $this->assertSoftDeleted('offices', [
-            'id' => $office->id,
-        ]);
-    }
-
-    public function test_office_list_includes_pagination(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
-
-        // Create 55 offices to test pagination (limit is 50 per page)
-        for ($i = 1; $i <= 55; $i++) {
-            Office::create([
-                'name' => "Office {$i}",
-                'type' => 'Administrative',
-                'abbreviation' => "O{$i}",
-                'is_active' => true,
-            ]);
+        foreach (['Viewer', 'Endorser', 'Administrator'] as $role) {
+            Role::create(['name' => $role, 'guard_name' => 'web']);
         }
-
-        $response = $this->actingAs($admin)->get('/admin/repositories/offices');
-
-        $response->assertStatus(200);
-        $response->assertInertia(fn ($page) => $page
-            ->has('offices.data', 50)
-            ->where('offices.total', 55)
-        );
     }
 
-    public function test_soft_deleted_offices_not_shown_in_list(): void
+    public function test_directory_refreshes_metadata_and_preserves_historical_mappings(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
+        $mapped = Office::factory()->create(['sso_id' => 34, 'is_active' => true]);
+        $historical = Office::factory()->create(['sso_id' => null, 'abbreviation' => 'ZZ-HISTORY', 'is_active' => false]);
+        $this->mock(SSOOfficeService::class)->shouldReceive('refreshIfStale')->once()->andReturnUsing(function () use ($mapped) {
+            $mapped->update(['name' => 'Updated SSO Office', 'abbreviation' => 'AA', 'sso_synced_at' => now()]);
+        });
 
-        $activeOffice = Office::create([
-            'name' => 'Active Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'AO',
-            'is_active' => true,
-        ]);
-
-        $deletedOffice = Office::create([
-            'name' => 'Deleted Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'DO',
-            'is_active' => true,
-        ]);
-        $deletedOffice->delete();
-
-        $response = $this->actingAs($admin)->get('/admin/repositories/offices');
-
-        $response->assertStatus(200);
-        $response->assertInertia(fn ($page) => $page
-            ->has('offices.data', 1)
-            ->where('offices.data.0.name', 'Active Office')
-        );
+        $this->actingAs($this->user('Administrator'))->get('/admin/repositories/offices')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Repositories/Offices/Index')
+                ->has('offices.data', 2)
+                ->where('offices.data.0.id', $mapped->id)
+                ->where('offices.data.0.sso_id', 34)
+                ->where('offices.data.0.name', 'Updated SSO Office')
+                ->where('offices.data.0.is_active', true)
+                ->where('offices.data.1.id', $historical->id)
+                ->where('offices.data.1.sso_id', null)
+                ->where('offices.data.1.is_active', false)
+                ->missing('offices.data.0.users'));
     }
 
-    public function test_deleting_office_with_users_unassigns_users(): void
+    public function test_directory_paginates_and_searches_all_offices(): void
     {
-        $admin = User::factory()->create();
-        $admin->assignRole('Administrator');
+        $this->mock(SSOOfficeService::class)->shouldReceive('refreshIfStale')->twice();
+        Office::factory()->count(55)->sequence(fn ($sequence) => [
+            'name' => 'Pagination Office '.$sequence->index,
+            'abbreviation' => 'PAGE-'.$sequence->index,
+            'sso_id' => 1000 + $sequence->index,
+        ])->create();
+        $wanted = Office::factory()->create(['name' => 'Unique Directory Office', 'abbreviation' => 'UDIR', 'sso_id' => 2000]);
+        $this->actingAs($this->user('Administrator'));
 
-        $office = Office::create([
-            'name' => 'Test Office',
-            'type' => 'Administrative',
-            'abbreviation' => 'TO',
-            'is_active' => true,
-        ]);
+        $this->get('/admin/repositories/offices')->assertInertia(fn (Assert $page) => $page
+            ->has('offices.data', 50)->where('offices.total', 56));
+        $this->get('/admin/repositories/offices?search=UDIR')->assertInertia(fn (Assert $page) => $page
+            ->has('offices.data', 1)->where('offices.data.0.id', $wanted->id));
+    }
 
-        $user1 = User::factory()->create(['office_id' => $office->id]);
-        $user2 = User::factory()->create(['office_id' => $office->id]);
+    public function test_office_directory_failure_returns_503_without_stale_data(): void
+    {
+        Office::factory()->create(['name' => 'Stale Directory Office']);
+        $this->mock(SSOOfficeService::class)->shouldReceive('refreshIfStale')->once()
+            ->andThrow(new SSOUnavailableException('Sensitive upstream failure'));
 
-        $response = $this->actingAs($admin)->delete("/admin/repositories/offices/{$office->id}");
+        $this->actingAs($this->user('Administrator'))->get('/admin/repositories/offices')
+            ->assertStatus(503)->assertDontSee('Stale Directory Office')->assertDontSee('Sensitive upstream failure');
+    }
 
-        $response->assertRedirect('/admin/repositories/offices');
+    public function test_viewers_and_endorsers_cannot_access_office_directory(): void
+    {
+        $this->mock(SSOOfficeService::class)->shouldNotReceive('refreshIfStale');
 
-        // Check that users are unassigned
-        $this->assertDatabaseHas('users', [
-            'id' => $user1->id,
-            'office_id' => null,
-        ]);
-        $this->assertDatabaseHas('users', [
-            'id' => $user2->id,
-            'office_id' => null,
-        ]);
+        foreach (['Viewer', 'Endorser'] as $role) {
+            $this->actingAs($this->user($role))->get('/admin/repositories/offices')->assertForbidden();
+        }
+    }
+
+    public function test_sso_owned_offices_cannot_be_created_edited_or_deleted_locally(): void
+    {
+        $office = Office::factory()->create();
+        $user = User::factory()->create(['office_id' => $office->id]);
+        $this->actingAs($this->user('Administrator'));
+
+        $this->get('/admin/repositories/offices/create')->assertNotFound();
+        $this->post('/admin/repositories/offices', ['name' => 'Unexpected office'])->assertStatus(405);
+        $this->get("/admin/repositories/offices/{$office->id}/edit")->assertNotFound();
+        $this->put("/admin/repositories/offices/{$office->id}", ['name' => 'Unexpected change'])->assertNotFound();
+        $this->delete("/admin/repositories/offices/{$office->id}")->assertNotFound();
+        $this->assertNotNull($office->fresh());
+        $this->assertEquals($office->id, $user->fresh()->office_id);
+    }
+
+    private function user(string $role): User
+    {
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        return $user;
     }
 }

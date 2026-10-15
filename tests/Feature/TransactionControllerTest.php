@@ -25,7 +25,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_displays_all_transaction_types(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -87,7 +87,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_filters_by_reference_number(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -131,7 +131,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_filters_by_category(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -173,7 +173,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_filters_by_status(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -215,7 +215,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_filters_by_date_range(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -259,7 +259,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_filters_by_end_user_office(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office1 = Office::factory()->create(['name' => 'Office A']);
@@ -300,10 +300,10 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_filters_by_created_by_me(): void
     {
-        $user1 = User::factory()->create();
+        $user1 = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user1->assignRole('Endorser');
 
-        $user2 = User::factory()->create();
+        $user2 = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user2->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -343,7 +343,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_sorts_by_reference_number(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -388,7 +388,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_sorts_by_created_date(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -433,7 +433,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_transactions_index_pagination(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Endorser');
 
         $office = Office::factory()->create();
@@ -473,7 +473,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_viewer_sees_only_view_details_action(): void
     {
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $viewer->assignRole('Viewer');
 
         $office = Office::factory()->create();
@@ -501,7 +501,7 @@ class TransactionControllerTest extends TestCase
 
     public function test_endorser_sees_all_actions(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $office = Office::factory()->create();

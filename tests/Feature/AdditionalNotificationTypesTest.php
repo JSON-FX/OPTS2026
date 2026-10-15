@@ -36,6 +36,14 @@ class AdditionalNotificationTypesTest extends TestCase
         parent::setUp();
         $this->seed(\Database\Seeders\RoleSeeder::class);
         $this->service = app(EndorsementService::class);
+        // These tests cover notification routing; current SSO eligibility has its own suite.
+        $this->mock(\App\Services\SSOIdentityService::class, function ($mock) {
+            $mock->shouldReceive('eligibleRecipient')->andReturnTrue();
+            $mock->shouldReceive('eligibleRecipients')->andReturnUsing(function (array $roles = \App\Services\SSOService::DIRECTORY_ROLES, ?int $officeId = null) {
+                return User::query()->when($officeId !== null, fn ($query) => $query->where('office_id', $officeId))
+                    ->when($roles === ['administrator', 'super_administrator'], fn ($query) => $query->role('Administrator'))->get();
+            });
+        });
     }
 
     /**
@@ -179,7 +187,7 @@ class AdditionalNotificationTypesTest extends TestCase
 
         $action->load(['transaction', 'fromOffice', 'toOffice', 'toUser']);
 
-        $listener = new NotifyTransactionReceived;
+        $listener = app(NotifyTransactionReceived::class);
         $listener->handle(new TransactionReceived($action));
 
         // Receiver is in office2, should be notified
@@ -235,7 +243,7 @@ class AdditionalNotificationTypesTest extends TestCase
 
         $setup = $this->createTestSetup();
 
-        $listener = new NotifyTransactionCompleted;
+        $listener = app(NotifyTransactionCompleted::class);
         $listener->handle(new TransactionCompleted($setup['transaction'], $setup['receiver']));
 
         Notification::assertSentTo($setup['creator'], TransactionCompletedNotification::class);

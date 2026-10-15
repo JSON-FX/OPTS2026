@@ -147,7 +147,7 @@ export default function Edit({ user, roles, offices }: Props) {
                                                     key={office.id}
                                                     value={String(office.id)}
                                                 >
-                                                    {office.name}
+                                                    {office.abbreviation}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>

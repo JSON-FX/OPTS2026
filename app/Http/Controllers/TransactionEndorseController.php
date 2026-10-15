@@ -88,12 +88,13 @@ class TransactionEndorseController extends Controller
                 ->orderBy('description')
                 ->get(['id', 'description']),
             'officeOptions' => Office::query()
-                ->where('is_active', true)
+                ->where('is_active', true)->whereNotNull('sso_id')
                 ->orderBy('name')
-                ->get(['id', 'name']),
+                ->get(['id', 'name', 'abbreviation']),
             'expectedNextOffice' => $expectedNextOffice ? [
                 'id' => $expectedNextOffice->id,
                 'name' => $expectedNextOffice->name,
+                'abbreviation' => $expectedNextOffice->abbreviation,
             ] : null,
             'defaultActionTakenId' => $transaction->currentStep?->action_taken_id,
         ]);

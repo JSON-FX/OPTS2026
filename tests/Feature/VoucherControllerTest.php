@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\FundType;
+use App\Models\Office;
 use App\Models\Procurement;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
@@ -38,13 +39,13 @@ class VoucherControllerTest extends TestCase
 
         $this->seed(RoleSeeder::class);
 
-        $this->endorser = User::factory()->create();
+        $this->endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $this->endorser->assignRole('Endorser');
 
-        $this->administrator = User::factory()->create();
+        $this->administrator = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $this->administrator->assignRole('Administrator');
 
-        $this->viewer = User::factory()->create();
+        $this->viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $this->viewer->assignRole('Viewer');
 
         $this->fundType = FundType::factory()->create(['abbreviation' => 'GAA']);

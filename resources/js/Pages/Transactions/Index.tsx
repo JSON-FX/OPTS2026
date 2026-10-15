@@ -64,7 +64,7 @@ interface TransactionsIndexProps {
     can: {
         manage: boolean;
     };
-    offices: { id: number; name: string }[];
+    offices: { id: number; name: string; abbreviation: string }[];
 }
 
 export default function Index({ auth, transactions, filters, can, offices = [] }: TransactionsIndexProps) {
@@ -484,7 +484,7 @@ export default function Index({ auth, transactions, filters, can, offices = [] }
                                                         key={office.id}
                                                         value={office.id.toString()}
                                                     >
-                                                        {office.name}
+                                                        {office.abbreviation}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>

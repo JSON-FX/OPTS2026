@@ -125,7 +125,7 @@ export default function Authenticated({
                                             </Link>
                                         </NavigationMenuItem>
 
-                                        {hasAnyRole('Endorser', 'Administrator') && (
+                                        {user.can_process_transactions && (
                                             <NavigationMenuItem>
                                                 <Link href={route('transactions.pending')}>
                                                     <NavigationMenuLink
@@ -164,11 +164,6 @@ export default function Authenticated({
                                                         <DropdownMenuItem asChild>
                                                             <Link href={route('admin.users.index')}>
                                                                 Users
-                                                            </Link>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem asChild>
-                                                            <Link href={route('admin.migration.index')}>
-                                                                Data Migration
                                                             </Link>
                                                         </DropdownMenuItem>
 
@@ -346,7 +341,7 @@ export default function Authenticated({
                                                 Transactions
                                             </Link>
 
-                                            {hasAnyRole('Endorser', 'Administrator') && (
+                                            {user.can_process_transactions && (
                                                 <Link
                                                     href={route('transactions.pending')}
                                                     onClick={() => setSheetOpen(false)}
@@ -381,13 +376,6 @@ export default function Authenticated({
                                                         className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
                                                     >
                                                         Users
-                                                    </Link>
-                                                    <Link
-                                                        href={route('admin.migration.index')}
-                                                        onClick={() => setSheetOpen(false)}
-                                                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
-                                                    >
-                                                        Data Migration
                                                     </Link>
                                                     <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
                                                         Repositories

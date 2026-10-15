@@ -149,6 +149,7 @@ class DashboardService
         return TransactionAction::query()
             ->with([
                 'fromUser:id,name',
+                'toUser:id,name',
                 'fromOffice:id,name,abbreviation',
                 'toOffice:id,name,abbreviation',
                 'transaction:id,reference_number,category',
@@ -156,7 +157,7 @@ class DashboardService
                 'transaction.purchaseOrder:id,transaction_id',
                 'transaction.voucher:id,transaction_id',
             ])
-            ->select('id', 'transaction_id', 'action_type', 'from_user_id', 'from_office_id', 'to_office_id', 'is_out_of_workflow', 'created_at')
+            ->select('id', 'transaction_id', 'action_type', 'from_user_id', 'to_user_id', 'from_office_id', 'to_office_id', 'is_out_of_workflow', 'created_at')
             ->whereIn('action_type', ['endorse', 'receive', 'complete'])
             ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->orderByDesc('created_at')
@@ -168,7 +169,9 @@ class DashboardService
                 'transaction_reference_number' => $action->transaction->reference_number,
                 'transaction_id' => $action->transaction_id,
                 'transaction_category' => $action->transaction->category,
-                'actor_name' => $action->fromUser->name,
+                'actor_name' => $action->action_type === 'receive'
+                    ? ($action->toUser?->name ?? $action->fromUser?->name ?? 'Unknown')
+                    : ($action->fromUser?->name ?? 'Unknown'),
                 'from_office' => $action->fromOffice?->abbreviation,
                 'to_office' => $action->toOffice?->abbreviation,
                 'is_out_of_workflow' => $action->is_out_of_workflow,

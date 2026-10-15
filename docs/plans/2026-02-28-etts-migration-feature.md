@@ -1,6 +1,6 @@
 # ETTS Data Migration Feature - Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Retired on 2026-10-14.** The owner abandoned legacy imports and old database structures. This plan is historical context only and must not be implemented. Runtime import functionality has been removed. Use the current procurement model and SSO directory.
 
 **Goal:** Build an admin UI wizard in OPTS2026 that imports ETTS SQL dumps, maps legacy data, and migrates procurement records with full audit trail preservation.
 

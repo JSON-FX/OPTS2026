@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Notifications\TransactionOverdueNotification;
 use App\Services\EtaCalculationService;
+use App\Services\SSOIdentityService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Notification;
 
@@ -17,7 +18,7 @@ class CheckOverdueTransactions extends Command
 
     protected $description = 'Check for overdue transactions and send notifications';
 
-    public function handle(EtaCalculationService $etaService): int
+    public function handle(EtaCalculationService $etaService, SSOIdentityService $identities): int
     {
         $transactions = Transaction::where('status', 'In Progress')
             ->whereNotNull('current_step_id')
@@ -41,14 +42,18 @@ class CheckOverdueTransactions extends Command
             $recipients = collect();
             if ($transaction->current_user_id) {
                 $currentUser = User::find($transaction->current_user_id);
-                if ($currentUser) {
+                if ($currentUser && $identities->eligibleRecipient($currentUser, ['standard', 'administrator', 'super_administrator'], $transaction->current_office_id)) {
                     $recipients->push($currentUser);
                 }
             }
 
             // Send to all administrators
-            $admins = User::role('Administrator')->get();
+            $admins = $identities->eligibleRecipients(['administrator', 'super_administrator']);
             $recipients = $recipients->merge($admins)->unique('id');
+
+            if ($recipients->isEmpty()) {
+                continue;
+            }
 
             Notification::send($recipients, new TransactionOverdueNotification($transaction, $delayDays));
 

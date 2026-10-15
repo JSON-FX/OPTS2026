@@ -74,6 +74,35 @@ class TransactionActionsIntegrationTest extends TestCase
         $this->assertEquals($latestAction->id, $lastAction->id);
     }
 
+    public function test_latest_action_uses_timestamp_when_eager_loaded(): void
+    {
+        $transaction = Transaction::factory()->create();
+        $newest = TransactionAction::factory()->forTransaction($transaction)->create([
+            'created_at' => now()->subMinutes(30),
+        ]);
+        TransactionAction::factory()->forTransaction($transaction)->create([
+            'created_at' => now()->subHours(2),
+        ]);
+        $another = Transaction::factory()->create();
+        $anotherNewest = TransactionAction::factory()->forTransaction($another)->create();
+
+        $loaded = Transaction::with('latestAction')->findMany([$transaction->id, $another->id])->keyBy('id');
+
+        $this->assertSame($newest->id, $loaded[$transaction->id]->lastAction->id);
+        $this->assertSame($anotherNewest->id, $loaded[$another->id]->lastAction->id);
+    }
+
+    public function test_latest_action_breaks_timestamp_ties_by_id(): void
+    {
+        $transaction = Transaction::factory()->create();
+        $timestamp = now()->subHour();
+        TransactionAction::factory()->forTransaction($transaction)->create(['created_at' => $timestamp]);
+        $newest = TransactionAction::factory()->forTransaction($transaction)->create(['created_at' => $timestamp]);
+
+        $this->assertSame($newest->id, $transaction->lastAction->id);
+        $this->assertSame($newest->id, $transaction->fresh()->load('latestAction')->lastAction->id);
+    }
+
     public function test_last_action_returns_null_when_no_actions(): void
     {
         $transaction = Transaction::factory()->create();

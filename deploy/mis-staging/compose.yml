@@ -1,0 +1,74 @@
+name: mis-staging-edts
+services:
+  app:
+    image: ${APP_IMAGE:?Use the verified MIS image selection}
+    restart: unless-stopped
+    env_file: runtime.env
+    environment:
+      APP_ENV: staging
+      APP_DEBUG: "false"
+      APP_URL: https://staging.opts.lguquezon.local
+      APP_AUTO_MIGRATE: "false"
+      APP_AUTO_SEED: "false"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      SESSION_DRIVER: database
+      SESSION_ENCRYPT: "true"
+      SESSION_SECURE_COOKIE: "true"
+      SESSION_HTTP_ONLY: "true"
+      SESSION_DOMAIN: ""
+      SESSION_COOKIE: edts_staging_session
+      SESSION_SAME_SITE: lax
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      MAIL_MAILER: log
+      SSO_API_URL: https://staging.api.sso.lguquezon.local
+      SSO_UI_URL: https://staging.sso.lguquezon.local
+      SSO_REDIRECT_URI: https://staging.opts.lguquezon.local/auth/sso/callback
+      REVERB_HOST: 127.0.0.1
+      REVERB_PORT: "6001"
+      REVERB_SCHEME: http
+      REVERB_SERVER_PORT: "6001"
+      REVERB_ALLOWED_ORIGINS: staging.opts.lguquezon.local
+    volumes:
+      - storage:/var/www/html/storage
+      - ./office-ca.crt:/etc/ssl/certs/mis-office-ca.crt:ro
+      - ./office-ca.ini:/usr/local/etc/php/conf.d/zz-mis-office-ca.ini:ro
+    healthcheck:
+      test: [CMD, wget, --spider, --quiet, http://127.0.0.1:8080/up]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks:
+      data: {}
+      ingress:
+        aliases: [mis-staging-edts-app]
+    dns: [192.168.32.6]
+  mysql:
+    image: mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    restart: unless-stopped
+    env_file: mysql.env
+    environment:
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql-root-password
+    secrets: [mysql-root-password]
+    volumes: [mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, 127.0.0.1, --silent]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [data]
+networks:
+  data:
+    internal: true
+  ingress:
+    external: true
+    name: lgu-staging-app
+volumes:
+  storage: {}
+  mysql-data: {}
+secrets:
+  mysql-root-password:
+    file: ./secrets/mysql-root-password

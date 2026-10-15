@@ -9,7 +9,8 @@ declare global {
     interface Window {
         axios: AxiosInstance;
         Pusher: typeof Pusher;
-        Echo: Echo;
+        Echo?: Echo;
+        EDTSRealtime?: { key: string | null; host: string | null; scheme: string | null; port: number };
     }
 
     /* eslint-disable no-var */

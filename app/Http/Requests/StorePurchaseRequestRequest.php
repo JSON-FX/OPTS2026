@@ -10,7 +10,7 @@ class StorePurchaseRequestRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->hasAnyRole(['Endorser', 'Administrator']);
+        return $this->user()->canProcessTransactions();
     }
 
     /**
@@ -29,7 +29,7 @@ class StorePurchaseRequestRequest extends FormRequest
                 new \App\Rules\UniqueReferenceNumber(null, 'PR'),
             ],
             'is_continuation' => 'boolean',
-            'workflow_id' => 'nullable|exists:workflows,id',
+            'workflow_id' => ['nullable', 'integer', new \App\Rules\ActiveSsoWorkflow('PR')],
         ];
     }
 }

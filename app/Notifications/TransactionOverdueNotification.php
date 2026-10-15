@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace App\Notifications;
 
 use App\Models\Transaction;
+use App\Notifications\Concerns\BroadcastsInvalidation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Notification;
 
 class TransactionOverdueNotification extends Notification implements ShouldBroadcast
 {
-    use Queueable;
+    use BroadcastsInvalidation, Queueable;
 
     public function __construct(
         protected Transaction $transaction,

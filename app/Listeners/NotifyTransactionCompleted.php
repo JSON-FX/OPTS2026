@@ -7,10 +7,13 @@ namespace App\Listeners;
 use App\Events\TransactionCompleted;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
+use App\Services\SSOIdentityService;
 use Illuminate\Support\Facades\Notification;
 
 class NotifyTransactionCompleted
 {
+    public function __construct(private SSOIdentityService $identities) {}
+
     public function handle(TransactionCompleted $event): void
     {
         $transaction = $event->transaction;
@@ -18,7 +21,7 @@ class NotifyTransactionCompleted
 
         // Notify the transaction creator
         $creator = User::find($transaction->created_by_user_id);
-        if ($creator) {
+        if ($creator && $this->identities->eligibleRecipient($creator)) {
             Notification::send($creator, new TransactionCompletedNotification($transaction, $completedBy));
         }
     }

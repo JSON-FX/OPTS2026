@@ -4,6 +4,23 @@
 
 A full-stack web application that tracks procurement documents (Purchase Requests, Purchase Orders, and Vouchers) as they move through government offices, enforcing configurable workflows, SLA timelines, and role-based access control.
 
+<!-- lgu-ecosystem:start -->
+## LGU Ecosystem
+
+This project is one of four applications that make up the LGU platform, all running inside the shared Docker container **development**:
+
+| Project     | Role                       | Dev URL                                 | Prod URL                                            |
+|-------------|----------------------------|-----------------------------------------|-----------------------------------------------------|
+| LGU-SSO     | Authentication API         | http://api.sso.local                    | https://api.sso.lguquezon.local                     |
+| lgu-sso-ui  | SSO login portal           | http://sso-portal.local                 | https://sso-portal.lguquezon.local                  |
+| lgu-chat    | Real-time messaging        | http://chat.local                       | https://chat.lguquezon.local                        |
+| opts2026    | Procurement tracking       | http://opts.local                       | https://opts.lguquezon.local                        |
+
+Authentication works in two hops: apps redirect users to the **login portal** (`sso-portal.*`), and then talk to the **SSO API** (`api.sso.*`) server-to-server to validate tokens and fetch the user profile. The legacy names `sso-ui.*`, `lgu-sso.test`, and `lgu-sso.local` are being phased out — always use `sso-portal.*` and `api.sso.*`.
+
+Dev and production configurations must be identical except for DNS hostnames, secrets, and `APP_ENV`/`NODE_ENV`/`APP_DEBUG`. See the workspace-level [`../CLAUDE.md`](../CLAUDE.md) for the full ecosystem overview, authentication model, and the list of known cross-app issues.
+<!-- lgu-ecosystem:end -->
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -23,6 +40,10 @@ A full-stack web application that tracks procurement documents (Purchase Request
 - Create and manage procurements with linked transactions (PR, PO, Voucher)
 - Auto-generated reference numbers (e.g., `PR-GF-2026-02-001`)
 - Business rule validation for transaction dependencies
+
+### Supported Data
+
+Procurements and their PR, PO, and voucher records are created through the current application. Legacy database imports, SQL uploads, ETTS mapping, import rollback, and import clearing are retired. Offices, users, assignments, and access roles come from SSO. Laravel schema migrations remain part of normal installation and upgrades.
 
 ### Workflow Engine
 - Configurable multi-step workflows per transaction category
@@ -58,6 +79,18 @@ A full-stack web application that tracks procurement documents (Purchase Request
 - MySQL 8.0+ (or SQLite for development)
 
 ## Getting Started
+
+### Local Docker Container
+
+With the shared `mysql` and Traefik containers running on `dev-net`, start OPTS separately:
+
+```bash
+docker compose up -d --build
+```
+
+Open <https://opts.lgu.lan>. The container uses the database credentials in your private `.env`, connects to the shared MySQL server, and preserves uploaded files in the `opts_storage` Docker volume. Startup runs pending migrations and seeds reference data only when the roles table is empty. The web server, queue worker, scheduler, and Reverb run inside the `opts2026` container.
+
+Run the same command after changing the app to rebuild its source and frontend assets. Single sign-on also requires active `SSO_CLIENT_ID` and `SSO_CLIENT_SECRET` values in `.env` and the exact callback `https://opts.lgu.lan/auth/sso/callback` registered with SSO.
 
 ### Quick Setup
 
@@ -109,21 +142,9 @@ php artisan reverb:start
 
 Starts the WebSocket server on port 8080. The app works without Reverb — notifications fall back to Inertia shared props on page navigation.
 
-## Demo Accounts
+## Accounts and office directory
 
-After running `php artisan db:seed`:
-
-| Email | Password | Role | Office |
-|-------|----------|------|--------|
-| admin@example.com | password | Administrator | MMO |
-| viewer@example.com | password | Viewer | MMO |
-| mbo@example.com | password | Endorser | MBO |
-| mmo@example.com | password | Endorser | MMO |
-| bac@example.com | password | Endorser | BAC |
-| mmo-po@example.com | password | Endorser | Procurement Office |
-| mmo-psmd@example.com | password | Endorser | Property & Supply |
-| macco@example.com | password | Endorser | MACCO |
-| mto@example.com | password | Endorser | MTO |
+SSO owns accounts, office assignments, and application grants. Seeding does not create users or operational offices. Sign in through the SSO portal with an OPTS grant. See [SSO directory and access mapping](docs/sso-directory-access.md) for role mapping, automatic refresh, and local acceptance testing.
 
 ## Testing
 
@@ -200,18 +221,9 @@ docs/
 
 ## Workflows
 
-The system ships with 3 seeded workflows:
+Administrators configure PR, PO, and voucher workflows using active SSO offices. Existing workflows and transaction history remain stored. Workflows containing inactive or unmapped offices cannot be assigned to new transactions.
 
-**Purchase Request (PR)** — 5 steps:
-MBO → MMO → BAC → Procurement Office → BAC
-
-**Purchase Order (PO)** — 3 steps:
-BAC → Procurement Office → Property & Supply
-
-**Voucher (VCH)** — 6 steps:
-MBO → MACCO → MMO → MTO → MMO → MTO
-
-Each step has configurable expected turnaround days for SLA tracking. Administrators can modify workflows via the Admin panel.
+Each step has configurable expected turnaround days for SLA tracking. Default seeding does not create workflows.
 
 ## Environment Configuration
 

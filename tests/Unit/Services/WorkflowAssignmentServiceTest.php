@@ -202,6 +202,19 @@ class WorkflowAssignmentServiceTest extends TestCase
         $this->assertNotNull($setup['transaction']->received_at);
     }
 
+    public function test_assign_workflow_does_not_show_creator_as_holder_of_another_office(): void
+    {
+        $setup = $this->createTestSetup();
+        $setup['user']->update(['office_id' => $setup['office2']->id]);
+
+        $this->service->assignWorkflow($setup['transaction'], $setup['user']);
+
+        $setup['transaction']->refresh();
+        $this->assertEquals($setup['office1']->id, $setup['transaction']->current_office_id);
+        $this->assertNull($setup['transaction']->current_user_id);
+        $this->assertNotNull($setup['transaction']->received_at);
+    }
+
     public function test_assign_workflow_throws_no_active_workflow_exception(): void
     {
         $procurement = Procurement::factory()->create();
@@ -231,6 +244,58 @@ class WorkflowAssignmentServiceTest extends TestCase
         // Should be step 1 (step_order = 1), not step 2
         $this->assertEquals($setup['step1']->id, $setup['transaction']->current_step_id);
         $this->assertNotEquals($setup['step2']->id, $setup['transaction']->current_step_id);
+    }
+
+    public function test_assign_workflow_honors_explicit_choice_over_newest_active_workflow(): void
+    {
+        $chosen = $this->createTestSetup();
+        $chosen['workflow']->forceFill(['created_at' => now()->subDay()])->save();
+        $newer = $this->createTestSetup();
+        $this->assertSame($newer['workflow']->id, $this->service->getActiveWorkflow('PR')->id);
+
+        $this->service->assignWorkflow($chosen['transaction'], $chosen['user'], $chosen['workflow']->id);
+
+        $chosen['transaction']->refresh();
+        $this->assertSame($chosen['workflow']->id, $chosen['transaction']->workflow_id);
+        $this->assertSame($chosen['step1']->id, $chosen['transaction']->current_step_id);
+        $this->assertSame($chosen['office1']->id, $chosen['transaction']->current_office_id);
+    }
+
+    public function test_workflow_with_inactive_office_is_excluded(): void
+    {
+        $setup = $this->createTestSetup();
+        $setup['office2']->update(['is_active' => false]);
+
+        $this->assertNull($this->service->getActiveWorkflow('PR'));
+        $this->assertFalse($this->service->hasActiveWorkflow('PR'));
+        $this->assertNull($this->service->getWorkflowPreview('PR'));
+        $this->expectException(NoActiveWorkflowException::class);
+        $this->service->assignWorkflow($setup['transaction'], $setup['user'], $setup['workflow']->id);
+    }
+
+    public function test_workflow_with_unmapped_office_is_excluded(): void
+    {
+        $setup = $this->createTestSetup();
+        $setup['office2']->update(['sso_id' => null]);
+
+        $this->assertNull($this->service->getActiveWorkflow('PR'));
+        $this->assertFalse($this->service->hasActiveWorkflow('PR'));
+        $this->expectException(NoActiveWorkflowException::class);
+        $this->service->assignWorkflow($setup['transaction'], $setup['user'], $setup['workflow']->id);
+    }
+
+    public function test_invalid_selected_workflow_does_not_fall_back_to_valid_default(): void
+    {
+        $setup = $this->createTestSetup();
+        $otherCategory = $this->createTestSetup('PO');
+
+        try {
+            $this->service->assignWorkflow($setup['transaction'], $setup['user'], $otherCategory['workflow']->id);
+            $this->fail('A workflow from another category must be rejected.');
+        } catch (NoActiveWorkflowException) {
+            $this->assertNull($setup['transaction']->fresh()->workflow_id);
+            $this->assertNull($setup['transaction']->fresh()->current_step_id);
+        }
     }
 
     // getWorkflowPreview Tests

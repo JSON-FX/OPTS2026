@@ -136,8 +136,8 @@ export default function WorkflowStepBuilder({
                                         </SelectTrigger>
                                         <SelectContent>
                                             {offices.map((office) => (
-                                                <SelectItem key={office.id} value={office.id.toString()} triggerLabel={office.abbreviation}>
-                                                    <span className="ml-2 text-muted-foreground">{office.name}</span>
+                                                <SelectItem key={office.id} value={office.id.toString()}>
+                                                    {office.abbreviation}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>

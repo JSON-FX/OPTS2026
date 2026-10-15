@@ -80,7 +80,7 @@ class WorkflowController extends Controller
      */
     public function create(): Response
     {
-        $offices = Office::where('is_active', true)
+        $offices = Office::where('is_active', true)->whereNotNull('sso_id')
             ->orderBy('name')
             ->get(['id', 'name', 'abbreviation']);
 
@@ -142,7 +142,7 @@ class WorkflowController extends Controller
     {
         $workflow->load('steps.office');
 
-        $offices = Office::where('is_active', true)
+        $offices = Office::where('is_active', true)->whereNotNull('sso_id')
             ->orderBy('name')
             ->get(['id', 'name', 'abbreviation']);
 

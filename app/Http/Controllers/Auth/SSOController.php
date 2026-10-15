@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Exceptions\SSOUnavailableException;
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Services\ConnectPilotHost;
+use App\Services\SSOIdentityService;
 use App\Services\SSOService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +18,7 @@ class SSOController extends Controller
 {
     public function __construct(
         private SSOService $ssoService,
+        private SSOIdentityService $identities,
     ) {}
 
     public function showLogin(Request $request): Response
@@ -42,83 +45,30 @@ class SSOController extends Controller
                 ->with('sso_error', 'Invalid authentication state. Please try again.');
         }
 
-        $token = $request->query('token');
+        $code = $request->query('code');
+        $token = is_string($code) ? $this->ssoService->exchangeCode($code) : null;
         if (! $token) {
             return redirect()->route('login')
-                ->with('sso_error', 'No authentication token received.');
+                ->with('sso_error', 'The authentication code is invalid or expired. Please try again.');
         }
 
-        // Authorize — check app access and get SSO role
-        $authData = $this->ssoService->authorize($token);
-        if (! $authData || ! ($authData['authorized'] ?? false)) {
+        try {
+            $authorization = $this->ssoService->authorize($token);
+            $user = $authorization ? $this->identities->synchronize($authorization) : null;
+        } catch (SSOUnavailableException $exception) {
             return redirect()->route('login')
-                ->with('sso_error', $authData['message'] ?? 'You are not authorized to access this application.');
+                ->with('sso_error', 'SSO is temporarily unavailable. Please try signing in again.');
         }
 
-        // Extract employee data from authorize response
-        $authEmployee = $authData['employee'] ?? [];
-        $ssoUuid = $authEmployee['uuid'] ?? null;
-
-        if (! $ssoUuid) {
+        if (! $user) {
             return redirect()->route('login')
-                ->with('sso_error', 'Failed to verify your identity. Please try again.');
-        }
-
-        // Try to get full employee data from validate endpoint (best-effort)
-        $employee = $authEmployee;
-        $userData = $this->ssoService->validateToken($token);
-        if ($userData && isset($userData['data'])) {
-            $fullEmployee = $userData['data'];
-            $employee = array_merge($employee, [
-                'name' => $fullEmployee['name'] ?? $authEmployee['full_name'] ?? $authEmployee['uuid'],
-                'email' => $fullEmployee['email'] ?? $authEmployee['email'] ?? null,
-                'position' => $fullEmployee['position'] ?? null,
-                'office' => $fullEmployee['office'] ?? null,
-            ]);
-        } else {
-            // Fallback to authorize response data
-            $employee['name'] = $authEmployee['full_name'] ?? $authEmployee['uuid'];
-            $employee['email'] = $authEmployee['email'] ?? null;
-            $employee['position'] = null;
-            $employee['office'] = null;
-        }
-
-        // Find or create user (JIT provisioning)
-        $user = User::where('sso_uuid', $ssoUuid)->first();
-        $isNewUser = ! $user;
-
-        if ($isNewUser) {
-            $user = User::create([
-                'sso_uuid' => $ssoUuid,
-                'name' => $employee['name'],
-                'email' => $employee['email'],
-                'sso_position' => $employee['position'] ?? null,
-                'office_id' => $this->resolveOfficeId($employee),
-                'is_active' => true,
-                'password' => null,
-            ]);
-
-            // Assign initial role from SSO
-            $ssoRole = $authData['role'] ?? 'standard';
-            $optsRole = $this->ssoService->mapSsoRoleToOptsRole($ssoRole);
-            $user->assignRole($optsRole);
-        } else {
-            // Sync user data from SSO
-            $user->update([
-                'name' => $employee['name'],
-                'email' => $employee['email'],
-                'sso_position' => $employee['position'] ?? null,
-            ]);
-        }
-
-        // Check if user is active
-        if (! $user->is_active) {
-            return redirect()->route('login')
-                ->with('sso_error', 'Your account has been deactivated. Please contact an administrator.');
+                ->with('sso_error', 'Your SSO account is not eligible to access this application.');
         }
 
         // Update last SSO login timestamp
         $user->update(['last_sso_login_at' => now()]);
+
+        app(ConnectPilotHost::class)->revoke($request);
 
         // Store JWT in session for logout
         $request->session()->put('sso_token', $token);
@@ -131,6 +81,8 @@ class SSOController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
+        app(ConnectPilotHost::class)->revoke($request);
+
         // Best-effort SSO logout
         $ssoToken = $request->session()->get('sso_token');
         if ($ssoToken) {
@@ -143,18 +95,5 @@ class SSOController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
-    }
-
-    private function resolveOfficeId(array $employee): ?int
-    {
-        if (! isset($employee['office']) || ! isset($employee['office']['name'])) {
-            return null;
-        }
-
-        $office = \App\Models\Office::where('name', $employee['office']['name'])
-            ->orWhere('abbreviation', $employee['office']['abbreviation'] ?? '')
-            ->first();
-
-        return $office?->id;
     }
 }

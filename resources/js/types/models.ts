@@ -133,7 +133,6 @@ export interface Procurement {
     date_of_entry: string;
     status: ProcurementStatus;
     created_by_user_id: number;
-    is_legacy?: boolean;
     created_at: string;
     updated_at: string;
     deleted_at: string | null;
@@ -167,7 +166,6 @@ export interface Transaction {
     received_at: string | null;
     endorsed_at: string | null;
     created_by_user_id: number;
-    is_legacy?: boolean;
     created_at: string;
     updated_at: string;
     deleted_at: string | null;
@@ -430,6 +428,7 @@ export interface TimelineStep {
     actual_days?: number | null;
     // For current step
     current_holder?: { id: number; name: string } | null;
+    awaiting_office?: { id: number; name: string } | null;
     days_at_step?: number;
     eta?: string | null;
     is_overdue?: boolean;
@@ -578,94 +577,20 @@ export interface OfficeWorkload {
     stagnant_count: number;
 }
 
-/**
- * ETTS Migration - Import batch tracking.
- */
-export type MigrationImportStatus =
-    | 'pending' | 'importing' | 'analyzing' | 'dry_run'
-    | 'migrating' | 'completed' | 'failed' | 'rolled_back';
-
-export interface MigrationImport {
-    id: number;
-    filename: string;
-    batch_id: string;
-    temp_database: string | null;
-    status: MigrationImportStatus;
-    total_source_records: number;
-    migrated_count: number;
-    skipped_count: number;
-    failed_count: number;
-    mapping_data: MigrationMappingData | null;
-    dry_run_report: MigrationDryRunReport | null;
-    exclude_orphans: boolean;
-    progress_data: MigrationProgressData | null;
-    validation_report: MigrationValidationReport | null;
-    error_message: string | null;
-    started_at: string | null;
-    completed_at: string | null;
-    imported_by_user_id: number;
-    created_at: string;
-    updated_at: string;
-    imported_by?: User;
+export interface SsoDirectoryUser {
+    uuid: string;
+    full_name: string;
+    initials: string;
+    role: 'guest' | 'standard' | 'administrator' | 'super_administrator';
+    opts_role: 'Viewer' | 'Endorser' | 'Administrator';
+    office_id: number | null;
+    office_name: string | null;
+    office_abbreviation: string | null;
+    position_id: number | null;
+    position_title: string | null;
 }
 
-export interface MigrationMappingData {
-    offices: MigrationMappingEntry[];
-    users: MigrationMappingEntry[];
-    particulars: MigrationMappingEntry[];
-    action_taken: MigrationMappingEntry[];
-    source_counts: {
-        transactions: number;
-        endorsements: number;
-        events: number;
-        users: number;
-        offices: number;
-    };
-}
-
-export interface MigrationMappingEntry {
-    source_id: number;
-    source_name: string;
-    target_id: number | null;
-    target_name: string | null;
-    status: 'matched' | 'unmatched' | 'new';
-}
-
-export interface MigrationDryRunReport {
-    procurements_to_create: number;
-    transactions_to_create: { pr: number; po: number; vch: number };
-    records_to_skip: number;
-    orphaned_pos: number;
-    orphaned_vchs: number;
-    unparseable_dates: number;
-    financial_totals: { pr_amount: number; po_amount: number; vch_amount: number };
-    warnings: string[];
-}
-
-export interface MigrationValidationReport {
-    counts: { source: number; created: number; skipped: number; failed: number };
-    financial_reconciliation: { etts_total: number; opts_total: number; difference: number };
-    orphans: { pos: number; vchs: number };
-    integrity_errors: string[];
-}
-
-export interface MigrationProgressData {
-    percentage: number;
-    current: number;
-    total: number;
-    message: string;
-    migrated_count: number;
-    skipped_count: number;
-    failed_count: number;
-    log: string[];
-}
-
-export interface MigrationProgressUpdate {
-    import_id: number;
-    current: number;
-    total: number;
-    percentage: number;
-    message: string;
-    migrated_count: number;
-    skipped_count: number;
+export interface SsoDirectoryPage {
+    data: SsoDirectoryUser[];
+    meta: { page: number; per_page: number; has_more: boolean };
 }

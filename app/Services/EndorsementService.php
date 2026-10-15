@@ -95,7 +95,7 @@ class EndorsementService
     public function canEndorse(Transaction $transaction, User $user): bool
     {
         // User must have Endorser or Administrator role
-        if (! $user->hasAnyRole(['Endorser', 'Administrator'])) {
+        if (! $user->canProcessTransactions()) {
             return false;
         }
 
@@ -132,7 +132,7 @@ class EndorsementService
      */
     public function getCannotEndorseReason(Transaction $transaction, User $user): ?string
     {
-        if (! $user->hasAnyRole(['Endorser', 'Administrator'])) {
+        if (! $user->canProcessTransactions()) {
             return 'You do not have permission to endorse transactions.';
         }
 
@@ -272,7 +272,7 @@ class EndorsementService
     public function canReceive(Transaction $transaction, User $user): bool
     {
         // User must have Endorser or Administrator role
-        if (! $user->hasAnyRole(['Endorser', 'Administrator'])) {
+        if (! $user->canProcessTransactions()) {
             return false;
         }
 
@@ -305,7 +305,7 @@ class EndorsementService
      */
     public function getCannotReceiveReason(Transaction $transaction, User $user): ?string
     {
-        if (! $user->hasAnyRole(['Endorser', 'Administrator'])) {
+        if (! $user->canProcessTransactions()) {
             return 'You do not have permission to receive transactions.';
         }
 
@@ -417,7 +417,7 @@ class EndorsementService
      */
     public function canComplete(Transaction $transaction, User $user): bool
     {
-        if (! $user->hasAnyRole(['Endorser', 'Administrator'])) {
+        if (! $user->canProcessTransactions()) {
             return false;
         }
 
@@ -452,7 +452,7 @@ class EndorsementService
      */
     public function getCannotCompleteReason(Transaction $transaction, User $user): ?string
     {
-        if (! $user->hasAnyRole(['Endorser', 'Administrator'])) {
+        if (! $user->canProcessTransactions()) {
             return 'You do not have permission to complete transactions.';
         }
 

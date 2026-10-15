@@ -16,12 +16,16 @@ class Office extends Model
         'type',
         'abbreviation',
         'is_active',
+        'sso_id',
+        'sso_synced_at',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'sso_id' => 'integer',
+            'sso_synced_at' => 'datetime',
         ];
     }
 

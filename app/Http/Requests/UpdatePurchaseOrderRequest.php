@@ -13,7 +13,7 @@ class UpdatePurchaseOrderRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false;
+        return $this->user()?->canProcessTransactions() ?? false;
     }
 
     /**

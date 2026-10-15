@@ -1,3 +1,40 @@
+<!-- lgu-ecosystem:start -->
+# LGU Ecosystem Context
+
+This project is one of four interconnected apps in the LGU platform:
+
+| Project     | Role                        | Dev host           | Prod host                      |
+|-------------|-----------------------------|--------------------|--------------------------------|
+| lgu-sso-backend     | Auth server (API)           | `api.sso.local`    | `api.sso.lguquezon.local`      |
+| lgu-sso-portal  | SSO login portal            | `sso-portal.local` | `sso-portal.lguquezon.local`   |
+| lgu-chat    | Real-time messaging         | `chat.local`       | `chat.lguquezon.local`         |
+| opts2026    | Procurement tracking        | `opts.local`       | `opts.lguquezon.local`         |
+
+All four apps run inside the shared Docker container **development**.
+
+## Two SSO hosts, two purposes
+
+- **Login redirect (user-facing)** → `sso-portal.local` / `sso-portal.lguquezon.local`
+- **SSO API (server-to-server)** → `api.sso.local` / `api.sso.lguquezon.local`
+
+Never `sso-ui.*`, never `lgu-sso.test`, never `lgu-sso.local`. If you see any of those in code, env, docs, or registered redirect URIs, record the hit under root `CLAUDE.md` Open Issue #2 — don't fix it during unrelated work.
+
+## Dev ↔ Prod parity rule
+
+Dev and production must differ **only** in DNS hostnames, secrets, and `APP_ENV` / `NODE_ENV` / `APP_DEBUG`. Everything else — cookie names, cookie domains (with the correct parent), SameSite/Secure flags, session drivers, CORS, SSO endpoints, client-ID formats, redirect URI patterns — must match.
+
+If a feature works in dev but fails in prod, the first question is: *what differs beyond DNS and secrets?*
+
+## Open cross-app issues
+
+Known problems in the ecosystem (cross-app SSO cookie sharing, legacy hostname purge, redirect/token loss, dev↔prod drift). These are **not diagnosed** and must not be fixed during unrelated work — each needs its own brainstorm → plan cycle. See `../CLAUDE.md` → Open Issues.
+
+## Further reading
+
+- `../CLAUDE.md` — canonical ecosystem doc (SSO model, full open-issues list, cookie domain subtleties).
+- `../lgu-sso-portal/LGU-SSO-INTEGRATION-GUIDE.md` — step-by-step SSO integration.
+<!-- lgu-ecosystem:end -->
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -41,6 +78,10 @@ php artisan opts:check-overdue
 ```
 
 ## Architecture
+
+### Supported Data and Retired Imports
+
+Legacy ETTS imports were retired on 2026-10-14. Do not add SQL upload, legacy mapping, import jobs, or import rollback back into the application. Use the current procurement/PR/PO/voucher model and SSO directories. Historical import plans are archived context only. Preserve Laravel schema migration history and existing records; retirement does not authorize dropping data.
 
 ### Inertia.js Bridge — No REST API
 

@@ -30,7 +30,7 @@ class StoreWorkflowRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'is_active' => ['boolean'],
             'steps' => ['required', 'array', 'min:2'],
-            'steps.*.office_id' => ['required', 'integer', 'exists:offices,id'],
+            'steps.*.office_id' => ['required', 'integer', new \App\Rules\ActiveSsoOffice],
             'steps.*.expected_days' => ['required', 'integer', 'min:1'],
             'steps.*.action_taken_id' => ['nullable', 'integer', 'exists:action_taken,id'],
         ];

@@ -55,6 +55,8 @@ class PurchaseOrderController extends Controller
 
         $workflows = \App\Models\Workflow::where('is_active', true)
             ->where('category', 'PO')
+            ->whereHas('steps')
+            ->whereDoesntHave('steps', fn ($steps) => $steps->whereDoesntHave('office', fn ($offices) => $offices->where('is_active', true)->whereNotNull('sso_id')))
             ->with('steps.office')
             ->orderBy('name')
             ->get();
@@ -93,18 +95,22 @@ class PurchaseOrderController extends Controller
             $supplier = \App\Models\Supplier::findOrFail($request->input('supplier_id'));
 
             DB::transaction(function () use ($request, $procurement, $referenceNumber, $supplier) {
+                $lockedProcurement = Procurement::whereKey($procurement->id)->lockForUpdate()->firstOrFail();
+                if (! $this->businessRules->canCreatePO($lockedProcurement)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['procurement' => 'The procurement already contains this document or its prerequisite is missing.']);
+                }
+
                 $transaction = Transaction::create([
                     'procurement_id' => $procurement->id,
                     'category' => Transaction::CATEGORY_PURCHASE_ORDER,
                     'reference_number' => $referenceNumber,
                     'is_continuation' => $request->boolean('is_continuation'),
                     'status' => 'Created',
-                    'workflow_id' => $request->input('workflow_id'),
                     'created_by_user_id' => auth()->id(),
                 ]);
 
                 try {
-                    $this->workflowService->assignWorkflow($transaction, auth()->user());
+                    $this->workflowService->assignWorkflow($transaction, auth()->user(), $request->filled('workflow_id') ? $request->integer('workflow_id') : null);
                 } catch (NoActiveWorkflowException $e) {
                     // Workflow is optional - continue without it
                 }
@@ -143,6 +149,7 @@ class PurchaseOrderController extends Controller
             'transaction.procurement.endUser:id,name,abbreviation',
             'transaction.procurement.particular:id,description',
             'transaction.currentStep.office',
+            'transaction.currentOffice:id,name',
             'transaction.createdBy:id,name',
             'supplier:id,name',
         ])->findOrFail($id);
@@ -156,7 +163,7 @@ class PurchaseOrderController extends Controller
         $user = auth()->user();
         $transaction = $purchaseOrder->transaction;
 
-        $canEdit = $user->hasAnyRole(['Endorser', 'Administrator']);
+        $canEdit = $user->canProcessTransactions();
         $canDelete = $canEdit && $this->businessRules->canDeletePO($transaction->procurement);
         $canEndorse = $this->endorsementService->canEndorse($transaction, $user);
         $cannotEndorseReason = $canEndorse ? null : $this->endorsementService->getCannotEndorseReason($transaction, $user);
@@ -223,7 +230,7 @@ class PurchaseOrderController extends Controller
             'supplier:id,name,address',
         ])->findOrFail($id);
 
-        if (! auth()->user()->hasAnyRole(['Endorser', 'Administrator'])) {
+        if (! auth()->user()->canProcessTransactions()) {
             abort(403);
         }
 

@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\FundType;
+use App\Models\Office;
 use App\Models\Procurement;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\Workflow;
+use App\Models\WorkflowStep;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PurchaseRequestControllerTest extends TestCase
@@ -25,7 +29,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_create_route_returns_inertia_page_for_endorser(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create();
@@ -44,7 +48,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_create_route_forbidden_for_viewer(): void
     {
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $viewer->assignRole('Viewer');
 
         $procurement = Procurement::factory()->create();
@@ -57,7 +61,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_store_creates_transaction_and_purchase_request(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create(['status' => 'Created']);
@@ -66,6 +70,10 @@ class PurchaseRequestControllerTest extends TestCase
         $response = $this->actingAs($endorser)
             ->post(route('procurements.purchase-requests.store', $procurement), [
                 'fund_type_id' => $fundType->id,
+                'ref_year' => '2026',
+                'ref_month' => '10',
+                'ref_number' => '001',
+                'is_continuation' => false,
             ]);
 
         $response->assertRedirect(route('procurements.show', $procurement));
@@ -89,7 +97,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_store_transitions_procurement_status_to_in_progress(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create(['status' => 'Created']);
@@ -98,6 +106,10 @@ class PurchaseRequestControllerTest extends TestCase
         $this->actingAs($endorser)
             ->post(route('procurements.purchase-requests.store', $procurement), [
                 'fund_type_id' => $fundType->id,
+                'ref_year' => '2026',
+                'ref_month' => '10',
+                'ref_number' => '001',
+                'is_continuation' => false,
             ]);
 
         $this->assertDatabaseHas('procurements', [
@@ -108,7 +120,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_store_fails_when_pr_already_exists(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create();
@@ -126,15 +138,72 @@ class PurchaseRequestControllerTest extends TestCase
         $response = $this->actingAs($endorser)
             ->post(route('procurements.purchase-requests.store', $procurement), [
                 'fund_type_id' => $fundType->id,
+                'ref_year' => '2026',
+                'ref_month' => '10',
+                'ref_number' => '001',
+                'is_continuation' => false,
             ]);
 
-        // Should fail due to business rule
-        $response->assertStatus(302); // Redirect with error
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('procurement');
+        $this->assertSame(1, $procurement->transactions()->where('category', 'PR')->count());
+    }
+
+    #[DataProvider('unavailableWorkflowStates')]
+    public function test_store_rejects_unavailable_selected_workflow(string $state): void
+    {
+        $office = Office::factory()->create();
+        $endorser = User::factory()->create(['office_id' => $office->id]);
+        $endorser->assignRole('Endorser');
+        $procurement = Procurement::factory()->create();
+        $fundType = FundType::factory()->create();
+        $workflow = Workflow::factory()->create([
+            'category' => $state === 'wrong category' ? 'PO' : 'PR',
+            'is_active' => $state !== 'inactive workflow',
+        ]);
+        if ($state !== 'empty workflow') {
+            $destination = Office::factory()->create([
+                'is_active' => $state !== 'inactive office',
+            ]);
+            if ($state === 'unmapped office') {
+                $destination->update(['sso_id' => null]);
+            }
+            WorkflowStep::factory()->create([
+                'workflow_id' => $workflow->id,
+                'office_id' => $destination->id,
+                'step_order' => 1,
+                'is_final_step' => true,
+            ]);
+        }
+
+        $response = $this->actingAs($endorser)
+            ->post(route('procurements.purchase-requests.store', $procurement), [
+                'fund_type_id' => $fundType->id,
+                'ref_year' => '2026',
+                'ref_month' => '10',
+                'ref_number' => '001',
+                'workflow_id' => $workflow->id,
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('workflow_id');
+        $this->assertDatabaseMissing('transactions', ['procurement_id' => $procurement->id]);
+    }
+
+    public static function unavailableWorkflowStates(): array
+    {
+        return [
+            ['wrong category'],
+            ['inactive workflow'],
+            ['empty workflow'],
+            ['inactive office'],
+            ['unmapped office'],
+        ];
     }
 
     public function test_show_route_returns_pr_details_with_relationships(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $user->assignRole('Viewer');
 
         $procurement = Procurement::factory()->create();
@@ -162,7 +231,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_edit_route_returns_inertia_page_for_administrator(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $admin->assignRole('Administrator');
 
         $transaction = Transaction::factory()->create(['category' => 'PR']);
@@ -181,7 +250,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_update_modifies_fund_type(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $oldFundType = FundType::factory()->create();
@@ -196,6 +265,10 @@ class PurchaseRequestControllerTest extends TestCase
         $response = $this->actingAs($endorser)
             ->put(route('purchase-requests.update', $pr), [
                 'fund_type_id' => $newFundType->id,
+                'ref_year' => '2026',
+                'ref_month' => '10',
+                'ref_number' => '001',
+                'is_continuation' => false,
             ]);
 
         $response->assertRedirect(route('purchase-requests.show', $pr));
@@ -208,7 +281,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_destroy_soft_deletes_pr_and_transaction(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create();
@@ -229,7 +302,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_destroy_fails_when_po_exists(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create();
@@ -256,7 +329,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_viewer_cannot_create_pr(): void
     {
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $viewer->assignRole('Viewer');
 
         $procurement = Procurement::factory()->create();
@@ -265,6 +338,10 @@ class PurchaseRequestControllerTest extends TestCase
         $response = $this->actingAs($viewer)
             ->post(route('procurements.purchase-requests.store', $procurement), [
                 'fund_type_id' => $fundType->id,
+                'ref_year' => '2026',
+                'ref_month' => '10',
+                'ref_number' => '001',
+                'is_continuation' => false,
             ]);
 
         $response->assertForbidden();
@@ -272,7 +349,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_viewer_can_view_pr(): void
     {
-        $viewer = User::factory()->create();
+        $viewer = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $viewer->assignRole('Viewer');
 
         $transaction = Transaction::factory()->create(['category' => 'PR']);
@@ -286,7 +363,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_administrator_can_create_pr(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $admin->assignRole('Administrator');
 
         $procurement = Procurement::factory()->create(['status' => 'Created']);
@@ -295,6 +372,10 @@ class PurchaseRequestControllerTest extends TestCase
         $response = $this->actingAs($admin)
             ->post(route('procurements.purchase-requests.store', $procurement), [
                 'fund_type_id' => $fundType->id,
+                'ref_year' => '2026',
+                'ref_month' => '10',
+                'ref_number' => '001',
+                'is_continuation' => false,
             ]);
 
         $response->assertRedirect();
@@ -305,7 +386,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_store_with_manual_reference_number_creates_correct_format(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create(['status' => 'Created']);
@@ -332,7 +413,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_store_with_continuation_flag_adds_cont_prefix(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create(['status' => 'Created']);
@@ -356,7 +437,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_store_rejects_duplicate_reference_number(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement1 = Procurement::factory()->create();
@@ -388,7 +469,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_store_validates_year_must_be_4_digits(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create();
@@ -408,7 +489,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_store_validates_month_must_be_01_to_12(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $procurement = Procurement::factory()->create();
@@ -428,7 +509,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_update_changes_reference_number_with_new_components(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $fundType1 = FundType::factory()->create(['abbreviation' => 'GAA']);
@@ -463,7 +544,7 @@ class PurchaseRequestControllerTest extends TestCase
 
     public function test_update_rejects_duplicate_reference_number(): void
     {
-        $endorser = User::factory()->create();
+        $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
 
         $fundType = FundType::factory()->create(['abbreviation' => 'GAA']);

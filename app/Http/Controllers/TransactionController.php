@@ -104,10 +104,10 @@ class TransactionController extends Controller
         $offices = \App\Models\Office::query()
             ->where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'abbreviation']);
 
         // Calculate RBAC permissions
-        $canManage = $request->user()?->hasAnyRole(['Endorser', 'Administrator']) ?? false;
+        $canManage = $request->user()?->canProcessTransactions() ?? false;
 
         return Inertia::render('Transactions/Index', [
             'transactions' => $transactions,

@@ -45,7 +45,6 @@ class Procurement extends Model
         'date_of_entry',
         'status',
         'created_by_user_id',
-        'is_legacy',
     ];
 
     /**
@@ -56,7 +55,6 @@ class Procurement extends Model
         return [
             'date_of_entry' => 'date',
             'abc_amount' => 'decimal:2',
-            'is_legacy' => 'boolean',
         ];
     }
 

@@ -18,16 +18,12 @@ class DatabaseSeeder extends Seeder
         $this->call([
             FundTypeSeeder::class,
             RoleSeeder::class,
-            OfficeSeeder::class,
             SupplierSeeder::class,
             ParticularSeeder::class,
             ActionTakenSeeder::class,
-            WorkflowSeeder::class,
         ]);
 
-        // Seed users with different roles (depends on offices and roles)
-        $this->call([
-            UserSeeder::class,
-        ]);
+        // Offices, users, and assignments are supplied by SSO.
+        // Configure workflows against synchronized offices in the application.
     }
 }
