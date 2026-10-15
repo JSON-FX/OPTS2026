@@ -15,4 +15,8 @@ return [
 
     'idle_threshold_days' => (int) env('OPTS_IDLE_THRESHOLD_DAYS', 2),
 
+    // Published deployment notices. Each requires id, kind, title and message.
+    // Optional starts_at/ends_at schedule visibility; detail, audience and publisher are plain text.
+    'announcements' => [],
+
 ];

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { router, usePage } from '@inertiajs/react';
-import { Bell, AlertTriangle, CheckCircle, Clock, ExternalLink, Inbox } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { Bell, CheckCheck, ExternalLink } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import {
     Popover,
@@ -9,24 +9,12 @@ import {
 } from '@/Components/ui/popover';
 import type { AppNotification, PageProps } from '@/types';
 
-function getNotificationIcon(type: string) {
-    switch (type) {
-        case 'out_of_workflow':
-            return <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />;
-        case 'received':
-            return <Inbox className="h-4 w-4 text-blue-500 shrink-0" />;
-        case 'overdue':
-            return <Clock className="h-4 w-4 text-red-500 shrink-0" />;
-        case 'completed':
-            return <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />;
-        default:
-            return <Bell className="h-4 w-4 text-gray-400 shrink-0" />;
-    }
-}
-
-export function NotificationBell() {
+export function NotificationBell({ onViewDocument }: { onViewDocument?: (transactionId: number) => void } = {}) {
     const { notifications, auth } = usePage<PageProps>().props;
     const [isOpen, setIsOpen] = useState(false);
+    const [pendingRead, setPendingRead] = useState<string | null>(null);
+    const actionAfterClose = useRef<(() => void) | null>(null);
+    const popoverContent = useRef<HTMLDivElement | null>(null);
     const unreadCount = notifications?.unread_count ?? 0;
     const recent = notifications?.recent ?? [];
 
@@ -41,7 +29,7 @@ export function NotificationBell() {
             channel.notification(() => {
                 clearTimeout(refreshTimer);
                 refreshTimer = setTimeout(() => {
-                    router.reload({ only: ['notifications', 'auth', 'pendingReceiptsCount'] });
+                    router.reload({ only: ['notifications', 'auth', 'pendingReceiptsCount', 'pendingDocuments'] });
                 }, 200);
             });
 
@@ -54,97 +42,111 @@ export function NotificationBell() {
         }
     }, [auth.user?.id]);
 
-    const handleMarkAsRead = (id: string) => {
-        router.post(route('notifications.markAsRead', id), {}, {
-            preserveScroll: true,
-        });
-    };
-
     const handleMarkAllAsRead = () => {
+        setPendingRead('all');
         router.post(route('notifications.markAllAsRead'), {}, {
             preserveScroll: true,
+            onFinish: () => setPendingRead(null),
         });
     };
 
     const handleNotificationClick = (notification: AppNotification) => {
-        if (!notification.read_at) {
-            handleMarkAsRead(notification.id);
+        // Only follow the server's known document paths on this application's origin.
+        let destination = route('transactions.index', {
+            reference_number: typeof notification.data.reference_number === 'string' ? notification.data.reference_number : undefined,
+            category: ['PR', 'PO', 'VCH'].includes(String(notification.data.category)) ? String(notification.data.category) : undefined,
+        });
+        let documentAvailable = false;
+        if (typeof notification.data.document_url === 'string') {
+            try {
+                const url = new URL(notification.data.document_url, window.location.origin);
+                if (url.origin === window.location.origin && /^\/(purchase-requests|purchase-orders|vouchers)\/\d+\/?$/.test(url.pathname)) {
+                    destination = url.pathname;
+                    documentAvailable = true;
+                }
+            } catch {
+                // Missing records still have a searchable transaction reference.
+            }
         }
-        setIsOpen(false);
+        const navigate = () => {
+            const transactionId = notification.data.transaction_id;
+            if (onViewDocument && documentAvailable && typeof transactionId === 'number' && Number.isSafeInteger(transactionId) && transactionId > 0) {
+                if (popoverContent.current) {
+                    actionAfterClose.current = () => onViewDocument(transactionId);
+                    setIsOpen(false);
+                } else {
+                    // Escape or an outside click may have closed the menu during the read request.
+                    onViewDocument(transactionId);
+                }
+            } else {
+                setIsOpen(false);
+                router.visit(destination);
+            }
+        };
+        if (notification.read_at) {
+            navigate();
+            return;
+        }
+        setPendingRead(notification.id);
+        router.post(route('notifications.markAsRead', notification.id), {}, {
+            preserveScroll: true,
+            onSuccess: navigate,
+            onFinish: () => setPendingRead(null),
+        });
     };
 
     return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <Popover open={isOpen} onOpenChange={setIsOpen} modal={false}>
             <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="h-5 w-5" />
+                <Button data-slot="button" data-notification-trigger variant="ghost" size="icon" className="op-notification-trigger relative" aria-label={`Notifications, ${unreadCount} unread`}>
+                    <Bell className="h-5 w-5" aria-hidden="true" />
                     {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                        <span aria-hidden="true" className="op-notification-count absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                             {unreadCount > 99 ? '99+' : unreadCount}
                         </span>
                     )}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="end">
-                <div className="flex items-center justify-between border-b px-4 py-3">
-                    <h3 className="font-semibold text-sm">Notifications</h3>
-                    {unreadCount > 0 && (
-                        <button
-                            onClick={handleMarkAllAsRead}
-                            className="text-xs text-blue-600 hover:text-blue-800"
-                        >
-                            Mark all as read
-                        </button>
-                    )}
+            <PopoverContent ref={popoverContent} className="op-live op-live-overlay op-notification-dropdown w-[390px] max-w-[calc(100vw-24px)] p-0" align="end" sideOffset={12} aria-label="Notifications" onCloseAutoFocus={(event) => {
+                const action = actionAfterClose.current;
+                if (action) {
+                    event.preventDefault();
+                    actionAfterClose.current = null;
+                    action();
+                }
+            }}>
+                <div className="op-notification-heading flex items-center justify-between border-b px-4 py-3">
+                    <div><h2 className="font-semibold text-sm">Notifications</h2><p className="text-xs text-muted-foreground">{unreadCount === 0 ? "You're up to date" : `${unreadCount} unread`}</p></div>
+                    <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead} disabled={unreadCount === 0 || pendingRead !== null}>
+                        <CheckCheck aria-hidden="true" />Mark all read
+                    </Button>
                 </div>
-
-                <div className="max-h-80 overflow-y-auto">
-                    {recent.length === 0 ? (
-                        <div className="py-8 text-center text-sm text-gray-500">
-                            No notifications
-                        </div>
-                    ) : (
-                        recent.map((notification) => (
-                            <button
-                                key={notification.id}
+                {recent.length === 0 ? (
+                    <div className="op-empty px-6 py-8 text-center"><Bell className="mx-auto mb-3 h-7 w-7 text-muted-foreground" aria-hidden="true" /><h3 className="font-semibold">No notifications yet</h3><p className="mt-2 text-sm text-muted-foreground">Document updates will appear here.</p></div>
+                ) : (
+                    <ul className="op-notification-list m-0 max-h-80 list-none overflow-y-auto p-0" aria-busy={pendingRead !== null}>
+                        {recent.map((notification) => {
+                            const actor = [notification.data.received_by_name, notification.data.completed_by_name, notification.data.endorsed_by_name].find((name): name is string => typeof name === 'string' && name.length > 0);
+                            return <li key={notification.id}><button
                                 onClick={() => handleNotificationClick(notification)}
-                                className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-                                    !notification.read_at ? 'bg-blue-50/50' : ''
-                                }`}
+                                disabled={pendingRead !== null}
+                                className={`flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-accent disabled:opacity-50 ${notification.read_at ? 'is-read' : 'is-unread bg-accent'}`}
                             >
-                                <div className="mt-0.5">
-                                    {getNotificationIcon(notification.type)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className={`text-sm leading-snug ${!notification.read_at ? 'font-medium' : 'text-gray-600'}`}>
-                                        {notification.message}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        {notification.created_at}
-                                    </p>
-                                </div>
-                                {!notification.read_at && (
-                                    <span className="mt-1.5 h-2 w-2 rounded-full bg-blue-500 shrink-0" />
-                                )}
-                            </button>
-                        ))
-                    )}
-                </div>
-
-                <div className="border-t px-4 py-2">
-                    <a
-                        href={route('notifications.index')}
-                        onClick={(e) => {
-                            e.preventDefault();
-                            setIsOpen(false);
-                            router.get(route('notifications.index'));
-                        }}
-                        className="flex items-center justify-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-                    >
-                        View all notifications
-                        <ExternalLink className="h-3 w-3" />
-                    </a>
-                </div>
+                                <span className="min-w-0 flex-1">
+                                    <strong className="block text-sm font-semibold leading-snug">{notification.message}</strong>
+                                    {typeof notification.data.reference_number === 'string' && <small className="mt-1 block text-xs text-muted-foreground">{notification.data.reference_number}</small>}
+                                    <small className="mt-1 block text-xs text-muted-foreground">{actor ? `${actor} · ` : ''}{notification.created_at}</small>
+                                </span>
+                                <span className="op-notification-read-state shrink-0 text-xs text-muted-foreground">{notification.read_at ? 'Read' : 'New'}</span>
+                            </button></li>;
+                        })}
+                    </ul>
+                )}
+                {!onViewDocument && <div className="border-t px-4 py-2">
+                    <Link href={route('notifications.index')} onClick={() => setIsOpen(false)} className="flex min-h-11 items-center justify-center gap-1 text-xs text-primary hover:underline">
+                        View all notifications<ExternalLink className="h-3 w-3" aria-hidden="true" />
+                    </Link>
+                </div>}
             </PopoverContent>
         </Popover>
     );

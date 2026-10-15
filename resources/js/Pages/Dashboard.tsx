@@ -1,384 +1,1014 @@
-import { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router, usePage, usePoll } from '@inertiajs/react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
-import { Badge } from '@/Components/ui/badge';
-import { DataTable } from '@/Components/DataTable';
-import { ColumnDef } from '@tanstack/react-table';
-import { ArrowUpDown, FileText, ShoppingCart, Receipt, FolderOpen, AlertTriangle } from 'lucide-react';
-import { Button } from '@/Components/ui/button';
-import ActivityFeed from '@/Components/ActivityFeed';
-import StagnantPanel from '@/Components/StagnantPanel';
-import OfficePerformanceTable from '@/Components/OfficePerformanceTable';
-import IncidentSummaryCard from '@/Components/IncidentSummaryCard';
-import VolumeSummaryCard from '@/Components/VolumeSummaryCard';
-import OfficeWorkloadModal from '@/Components/OfficeWorkloadModal';
-import DashboardSettings, { loadDashboardSettings, type DashboardCardVisibility } from '@/Components/DashboardSettings';
-import type { DashboardSummary, OfficeWorkload, StatusCounts, ActivityFeedEntry, StagnantTransaction, SlaPerformanceData } from '@/types/models';
-import type { PageProps } from '@/types';
+import { useRef, useState, type ReactNode } from "react";
+import { Head, Link, router, usePage, usePoll } from "@inertiajs/react";
+import {
+    ArrowRight,
+    CheckCheck,
+    ChevronRight,
+    FileText,
+    FolderOpen,
+    Receipt,
+    ShieldCheck,
+    ShoppingBag,
+} from "lucide-react";
+import DashboardLayout from "@/Layouts/DashboardLayout";
+import { Badge } from "@/Components/ui/badge";
+import { Button } from "@/Components/ui/button";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/Components/ui/select";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/Components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/Components/ui/tabs";
+import DashboardSettings, {
+    loadDashboardSettings,
+} from "@/Components/DashboardSettings";
+import DocumentDetail from "@/Components/Dashboard/DocumentDetail";
+import AttentionPanel from "@/Components/Dashboard/AttentionPanel";
+import Announcements from "@/Components/Dashboard/Announcements";
+import type { ActivityFeedEntry, StatusCounts } from "@/types/models";
+import type {
+    DashboardDocument,
+    DashboardFilters,
+    DashboardProps,
+} from "@/types/dashboard";
+import DocumentRegister from "@/Components/Dashboard/DocumentRegister";
+import DashboardDialogs, {
+    type DashboardModal,
+} from "@/Components/Dashboard/DashboardDialogs";
 
-interface Props extends PageProps {
-    summary: DashboardSummary;
-    officeWorkload: OfficeWorkload[];
-    activityFeed: ActivityFeedEntry[];
-    stagnantTransactions: StagnantTransaction[];
-    slaPerformance: SlaPerformanceData;
-    userOfficeId: number | null;
-}
-
-const statusColors: Record<string, string> = {
-    created: 'bg-gray-100 text-gray-700 border-gray-200',
-    in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
-    completed: 'bg-green-100 text-green-700 border-green-200',
-    on_hold: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    cancelled: 'bg-red-100 text-red-700 border-red-200',
-};
-
-const statusLabels: Record<string, string> = {
-    created: 'Created',
-    in_progress: 'In Progress',
-    completed: 'Completed',
-    on_hold: 'On Hold',
-    cancelled: 'Cancelled',
-};
-
-function SummaryCard({
+function PanelTitle({
     title,
-    icon: Icon,
-    counts,
+    detail,
+    children,
 }: {
     title: string;
-    icon: React.ComponentType<{ className?: string }>;
-    counts: StatusCounts;
+    detail?: string;
+    children?: ReactNode;
 }) {
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">{counts.total}</div>
-                {counts.total > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                        {(Object.keys(statusLabels) as Array<keyof typeof statusLabels>).map(
-                            (key) => {
-                                const value = counts[key as keyof StatusCounts];
-                                if (typeof value !== 'number' || value === 0) return null;
-                                return (
-                                    <Badge
-                                        key={key}
-                                        variant="outline"
-                                        className={statusColors[key]}
-                                    >
-                                        {statusLabels[key]} {value}
-                                    </Badge>
+        <div className="op-panel-title">
+            <div>
+                <h2>{title}</h2>
+                {detail && <p>{detail}</p>}
+            </div>
+            {children}
+        </div>
+    );
+}
+
+function summaryHint(counts: StatusCounts) {
+    if (!counts.total) return "No records yet";
+    return (
+        ["completed", "in_progress", "created", "on_hold", "cancelled"] as const
+    )
+        .filter((key) => counts[key] > 0)
+        .map(
+            (key) =>
+                `${counts[key]} ${{ completed: "completed", in_progress: "in progress", created: "created", on_hold: "on hold", cancelled: "cancelled" }[key]}`,
+        )
+        .join(" · ");
+}
+
+function activityUrl(entry: ActivityFeedEntry) {
+    if (entry.purchase_request_id)
+        return route("purchase-requests.show", entry.purchase_request_id);
+    if (entry.purchase_order_id)
+        return route("purchase-orders.show", entry.purchase_order_id);
+    if (entry.voucher_id) return route("vouchers.show", entry.voucher_id);
+    return route("transactions.index", {
+        reference_number: entry.transaction_reference_number,
+    });
+}
+
+export default function Dashboard({
+    summary,
+    officeWorkload,
+    activityFeed,
+    stagnantTransactions,
+    slaPerformance,
+    annualIncidentCount,
+    userOfficeId,
+    offices,
+    filters,
+    documents,
+    attentionMeta,
+    announcements,
+    selectedDocument,
+    pendingDocuments,
+    queueDocuments,
+    queueFilters,
+}: DashboardProps) {
+    // Queue requests own their payload; a background poll must not replace it.
+    usePoll(30_000, {
+        except: ["queueDocuments", "queueFilters"],
+        preserveUrl: true,
+    });
+    const {
+        auth,
+        selectedYear,
+        pendingReceiptsCount = 0,
+    } = usePage<DashboardProps>().props;
+    const viewer =
+        auth.user.roles?.some((role) => role.name === "Viewer") ?? true;
+    const [visibility, setVisibility] = useState(() =>
+        loadDashboardSettings(auth.user.id),
+    );
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [modal, setModal] = useState<DashboardModal>(null);
+    const [previousModal, setPreviousModal] = useState<DashboardModal>(null);
+    const returnFocus = useRef<HTMLElement | null>(null);
+    const [metricsTab, setMetricsTab] = useState("workload");
+    const [loading, setLoading] = useState(false);
+    const [queueLoading, setQueueLoading] = useState(false);
+    const [queueError, setQueueError] = useState<string | null>(null);
+    const [queueContext, setQueueContext] = useState<DashboardFilters | null>(
+        queueFilters,
+    );
+    const rows = documents.data;
+    const selected =
+        rows.find((document) => document.id === selectedId) ?? rows[0];
+    const modalSelected =
+        selectedDocument?.id === selectedId
+            ? selectedDocument
+            : (pendingDocuments.find(
+                  (document) => document.id === selectedId,
+              ) ??
+              queueDocuments?.data.find(
+                  (document) => document.id === selectedId,
+              ) ??
+              rows.find((document) => document.id === selectedId));
+    const office = offices.find((item) => item.id === filters.office_id);
+    const scopeLabel =
+        filters.office_id == null
+            ? "all offices"
+            : (office?.abbreviation ?? "selected office");
+    const scopeValue =
+        filters.office_id == null
+            ? "all"
+            : filters.office_id === userOfficeId
+              ? "mine"
+              : "selected";
+    const activeMetricsTab =
+        metricsTab === "workload" && !visibility.officeWorkload
+            ? "performance"
+            : metricsTab === "performance" && !visibility.performanceMetrics
+              ? "workload"
+              : metricsTab;
+
+    const visitFilters = (
+        changes: Partial<DashboardFilters>,
+        onSuccess?: () => void,
+    ) => {
+        const next = { ...filters, ...changes };
+        router.get(
+            route("dashboard"),
+            {
+                ...(next.office_id != null
+                    ? { office_id: next.office_id }
+                    : {}),
+                ...(next.category !== "all" ? { category: next.category } : {}),
+                ...(next.search ? { search: next.search } : {}),
+                ...(next.active_only ? { active_only: 1 } : {}),
+                ...(next.sort !== "newest" ? { sort: next.sort } : {}),
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                onStart: () => setLoading(true),
+                onSuccess,
+                onFinish: () => setLoading(false),
+            },
+        );
+    };
+    const rememberFocus = () => {
+        if (modal) return;
+        const active = document.activeElement;
+        returnFocus.current =
+            active instanceof HTMLElement && active !== document.body
+                ? active
+                : document.querySelector<HTMLButtonElement>(
+                      window.matchMedia("(max-width:800px)").matches
+                          ? ".op-mobile-navigation button"
+                          : ".op-desktop-collapse button",
+                  );
+    };
+    const showModal = (next: DashboardModal) => {
+        rememberFocus();
+        setPreviousModal(null);
+        setModal(next);
+    };
+    const selectDocument = (
+        document: DashboardDocument,
+        forceModal = false,
+    ) => {
+        setSelectedId(document.id);
+        if (forceModal || window.matchMedia("(max-width: 1100px)").matches) {
+            rememberFocus();
+            if (modal === "queue" || modal === "pending")
+                setPreviousModal(modal);
+            setModal("detail");
+        }
+    };
+    const queueQuery = (context: DashboardFilters, page = 1) => ({
+        queue_office_id: context.office_id,
+        queue_category: context.category,
+        queue_search: context.search,
+        queue_sort: context.sort,
+        queue_active_only: context.active_only ? 1 : 0,
+        queue_page: page,
+    });
+    const requestQueue = (next: DashboardFilters, page = 1) => {
+        setQueueContext(next);
+        setQueueError(null);
+        router.get(
+            route("dashboard"),
+            {
+                ...filters,
+                active_only: filters.active_only ? 1 : 0,
+                page: documents.current_page,
+                ...queueQuery(next, page),
+            },
+            {
+                only: [
+                    "queueDocuments",
+                    "queueFilters",
+                    "auth",
+                    "pendingReceiptsCount",
+                    "pendingDocuments",
+                ],
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onStart: () => setQueueLoading(true),
+                onSuccess: (page) =>
+                    setQueueContext(
+                        page.props.queueFilters as DashboardFilters,
+                    ),
+                onError: () => {
+                    setQueueContext(queueFilters);
+                    setQueueError(
+                        "Unable to load office documents. Close this queue and try again.",
+                    );
+                },
+                onFinish: () => setQueueLoading(false),
+            },
+        );
+    };
+    const openWorkload = (
+        officeId: number,
+        category: DashboardFilters["category"],
+    ) => {
+        showModal("queue");
+        requestQueue({
+            office_id: officeId,
+            category,
+            search: "",
+            sort: "newest",
+            active_only: true,
+        });
+    };
+    const openDocument = (id: number) => {
+        rememberFocus();
+        const row = [
+            ...documents.data,
+            ...pendingDocuments,
+            ...(queueDocuments?.data ?? []),
+        ].find((document) => document.id === id);
+        if (row) {
+            selectDocument(row, true);
+            return;
+        }
+        router.get(
+            route("dashboard"),
+            {
+                ...filters,
+                active_only: filters.active_only ? 1 : 0,
+                page: documents.current_page,
+                document_id: id,
+                ...(queueContext
+                    ? queueQuery(
+                          queueContext,
+                          queueDocuments?.current_page ?? 1,
+                      )
+                    : {}),
+            },
+            {
+                only: ["selectedDocument", "auth", "pendingReceiptsCount"],
+                preserveState: true,
+                preserveScroll: true,
+                onStart: () => setLoading(true),
+                onFinish: () => setLoading(false),
+                onSuccess: (page) => {
+                    if (page.props.selectedDocument) {
+                        setSelectedId(id);
+                        if (modal === "queue" || modal === "pending")
+                            setPreviousModal(modal);
+                        setModal("detail");
+                    }
+                },
+            },
+        );
+    };
+    const closeModal = () => {
+        if (modal === "detail" && previousModal) {
+            setModal(previousModal);
+            setPreviousModal(null);
+        } else {
+            setModal(null);
+            setPreviousModal(null);
+        }
+    };
+    const chooseOffice = (id: number | null) =>
+        visitFilters({ office_id: id, active_only: false });
+    const categoryCounts = [
+        summary.purchase_requests.total,
+        summary.purchase_orders.total,
+        summary.vouchers.total,
+    ];
+    const volumeTotal = categoryCounts.reduce((sum, value) => sum + value, 0);
+
+    return (
+        <DashboardLayout
+            onHelp={() => showModal("help")}
+            onPendingReceipts={() => showModal("pending")}
+            onViewDocument={(id) => {
+                openDocument(id);
+                returnFocus.current = document.querySelector(
+                    "[data-notification-trigger]",
+                );
+            }}
+        >
+            <Head title="Dashboard" />
+            <main id="dashboard-main" className="op-main" aria-busy={loading}>
+                <Announcements notices={announcements} />
+                <div className="op-page-head">
+                    <div>
+                        <h1>Dashboard</h1>
+                        <p>
+                            {viewer
+                                ? "A clear view of procurement across your offices."
+                                : "Your documents, office workload, and the next step."}
+                        </p>
+                    </div>
+                    <div className="op-page-filters">
+                        <DashboardSettings
+                            userId={auth.user.id}
+                            visibility={visibility}
+                            onChange={(next) => {
+                                if (
+                                    next.officeWorkload &&
+                                    !visibility.officeWorkload
+                                )
+                                    setMetricsTab("workload");
+                                else if (
+                                    next.performanceMetrics &&
+                                    !visibility.performanceMetrics
+                                )
+                                    setMetricsTab("performance");
+                                setVisibility(next);
+                            }}
+                        />
+                    </div>
+                </div>
+                <div className="op-scope-bar">
+                    <Tabs
+                        value={scopeValue}
+                        onValueChange={(value) => {
+                            if (value !== "selected")
+                                chooseOffice(
+                                    value === "all" ? null : userOfficeId,
                                 );
-                            }
+                        }}
+                    >
+                        <TabsList>
+                            <TabsTrigger value="all" disabled={loading}>
+                                All offices
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="mine"
+                                disabled={loading || userOfficeId == null}
+                            >
+                                My office{" "}
+                                {auth.user.office && (
+                                    <span>{auth.user.office.abbreviation}</span>
+                                )}
+                            </TabsTrigger>
+                            {scopeValue === "selected" && (
+                                <TabsTrigger
+                                    value="selected"
+                                    disabled={loading}
+                                >
+                                    Selected office <span>{scopeLabel}</span>
+                                </TabsTrigger>
+                            )}
+                        </TabsList>
+                    </Tabs>
+                    <div>
+                        <ShieldCheck />
+                        <span>
+                            {viewer
+                                ? "View-only access"
+                                : "Office permissions apply"}
+                        </span>
+                    </div>
+                </div>
+                <section
+                    className="op-count-register"
+                    aria-label={`Document summary · ${scopeLabel}`}
+                >
+                    {[
+                        {
+                            label: "Procurements",
+                            icon: FolderOpen,
+                            counts: summary.procurements,
+                        },
+                        {
+                            label: "Purchase requests",
+                            icon: FileText,
+                            counts: summary.purchase_requests,
+                        },
+                        {
+                            label: "Purchase orders",
+                            icon: ShoppingBag,
+                            counts: summary.purchase_orders,
+                        },
+                        {
+                            label: "Vouchers",
+                            icon: Receipt,
+                            counts: summary.vouchers,
+                        },
+                    ].map(({ label, icon: Icon, counts }) => (
+                        <div key={label}>
+                            <div>
+                                <span>{label}</span>
+                                <Icon />
+                            </div>
+                            <strong>{counts.total}</strong>
+                            <small>{summaryHint(counts)}</small>
+                        </div>
+                    ))}
+                </section>
+                {
+                    <AttentionPanel
+                        entries={stagnantTransactions}
+                        meta={attentionMeta}
+                        onView={openDocument}
+                    />
+                }
+                {(visibility.officeWorkload ||
+                    visibility.performanceMetrics ||
+                    visibility.recentActivity) && (
+                    <div
+                        className={`op-overview-grid ${!visibility.recentActivity ? "op-overview-metrics-only" : ""} ${!(visibility.officeWorkload || visibility.performanceMetrics) ? "op-overview-activity-only" : ""}`}
+                    >
+                        {(visibility.officeWorkload ||
+                            visibility.performanceMetrics) && (
+                            <section className="op-metrics-panel">
+                                <Tabs
+                                    value={activeMetricsTab}
+                                    onValueChange={setMetricsTab}
+                                >
+                                    <div className="op-metrics-head">
+                                        <TabsList>
+                                            {visibility.officeWorkload && (
+                                                <TabsTrigger value="workload">
+                                                    Office workload
+                                                </TabsTrigger>
+                                            )}
+                                            {visibility.performanceMetrics && (
+                                                <TabsTrigger value="performance">
+                                                    Turnaround
+                                                </TabsTrigger>
+                                            )}
+                                        </TabsList>
+                                        <Select
+                                            disabled={loading}
+                                            value={
+                                                filters.office_id == null
+                                                    ? "all"
+                                                    : String(filters.office_id)
+                                            }
+                                            onValueChange={(value) =>
+                                                chooseOffice(
+                                                    value === "all"
+                                                        ? null
+                                                        : Number(value),
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger aria-label="Filter office workload">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="op-live-overlay">
+                                                <SelectItem value="all">
+                                                    All offices
+                                                </SelectItem>
+                                                {offices.map((item) => (
+                                                    <SelectItem
+                                                        key={item.id}
+                                                        value={String(item.id)}
+                                                    >
+                                                        {item.abbreviation}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <TabsContent value="workload">
+                                        <p className="op-workload-note">
+                                            Active documents awaiting
+                                            processing. Completed records remain
+                                            in the document register.
+                                        </p>
+                                        <div className="op-workload">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>
+                                                            Office
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            PR
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            PO
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            VCH
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            Needs attention
+                                                        </TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {officeWorkload.map(
+                                                        (item) => (
+                                                            <TableRow
+                                                                key={
+                                                                    item.office_id
+                                                                }
+                                                                data-my-office={
+                                                                    item.office_id ===
+                                                                    userOfficeId
+                                                                }
+                                                            >
+                                                                <TableCell>
+                                                                    <strong>
+                                                                        {
+                                                                            item.office_abbreviation
+                                                                        }
+                                                                    </strong>
+                                                                    <small>
+                                                                        {
+                                                                            item.office_name
+                                                                        }
+                                                                    </small>
+                                                                </TableCell>
+                                                                {(
+                                                                    [
+                                                                        "pr_count",
+                                                                        "po_count",
+                                                                        "vch_count",
+                                                                    ] as const
+                                                                ).map(
+                                                                    (
+                                                                        key,
+                                                                        index,
+                                                                    ) => (
+                                                                        <TableCell
+                                                                            key={
+                                                                                key
+                                                                            }
+                                                                        >
+                                                                            {item[
+                                                                                key
+                                                                            ] >
+                                                                            0 ? (
+                                                                                <Button
+                                                                                    variant="link"
+                                                                                    className="op-workload-number"
+                                                                                    disabled={
+                                                                                        loading
+                                                                                    }
+                                                                                    aria-label={`View ${item.office_abbreviation} ${["PR", "PO", "VCH"][index]} workload`}
+                                                                                    onClick={() =>
+                                                                                        openWorkload(
+                                                                                            item.office_id,
+                                                                                            [
+                                                                                                "PR",
+                                                                                                "PO",
+                                                                                                "VCH",
+                                                                                            ][
+                                                                                                index
+                                                                                            ] as DashboardFilters["category"],
+                                                                                        )
+                                                                                    }
+                                                                                >
+                                                                                    {
+                                                                                        item[
+                                                                                            key
+                                                                                        ]
+                                                                                    }
+                                                                                </Button>
+                                                                            ) : (
+                                                                                <span className="op-zero op-workload-number">
+                                                                                    0
+                                                                                </span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                    ),
+                                                                )}
+                                                                <TableCell>
+                                                                    {item.stagnant_count >
+                                                                    0 ? (
+                                                                        <span className="op-warning-count">
+                                                                            {
+                                                                                item.stagnant_count
+                                                                            }
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="op-zero op-workload-number">
+                                                                            0
+                                                                        </span>
+                                                                    )}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ),
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                            {officeWorkload.length === 0 && (
+                                                <p className="op-inline-empty">
+                                                    No workflow offices or
+                                                    active documents in this
+                                                    view.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent value="performance">
+                                        <p className="op-workload-note">
+                                            Average business days from receipt
+                                            to endorsement or completion in{" "}
+                                            {selectedYear}.
+                                        </p>
+                                        <div className="op-workload">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>
+                                                            Office
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            Average days
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            Target days
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            Actions
+                                                        </TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {slaPerformance.office_performance.map(
+                                                        (item) => (
+                                                            <TableRow
+                                                                key={
+                                                                    item.office_id
+                                                                }
+                                                            >
+                                                                <TableCell>
+                                                                    <strong>
+                                                                        {
+                                                                            item.office_abbreviation
+                                                                        }
+                                                                    </strong>
+                                                                    <small>
+                                                                        {
+                                                                            item.office_name
+                                                                        }
+                                                                    </small>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {
+                                                                        item.avg_turnaround_days
+                                                                    }
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {
+                                                                        item.expected_days
+                                                                    }
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {
+                                                                        item.actions_count
+                                                                    }
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ),
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                            {slaPerformance.office_performance
+                                                .length === 0 && (
+                                                <p className="op-inline-empty">
+                                                    No completed turnaround
+                                                    measurements in this view
+                                                    yet.
+                                                </p>
+                                            )}
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            className="op-back-workload"
+                                            disabled={
+                                                !visibility.officeWorkload
+                                            }
+                                            onClick={() =>
+                                                setMetricsTab("workload")
+                                            }
+                                        >
+                                            Back to workload
+                                        </Button>
+                                    </TabsContent>
+                                </Tabs>
+                            </section>
+                        )}
+                        {visibility.recentActivity && (
+                            <section className="op-activity-panel">
+                                <PanelTitle
+                                    title="Recent activity"
+                                    detail={`${selectedYear} · ${scopeLabel}`}
+                                />
+                                <div className="op-activity-list">
+                                    {activityFeed.slice(0, 4).map((entry) => (
+                                        <Link
+                                            className="op-activity-item"
+                                            key={entry.id}
+                                            href={activityUrl(entry)}
+                                            onClick={(event) => {
+                                                if (
+                                                    !event.metaKey &&
+                                                    !event.ctrlKey &&
+                                                    !event.shiftKey &&
+                                                    !event.altKey
+                                                ) {
+                                                    event.preventDefault();
+                                                    openDocument(
+                                                        entry.transaction_id,
+                                                    );
+                                                }
+                                            }}
+                                        >
+                                            <span
+                                                className={`op-activity-icon ${entry.action_type === "complete" ? "is-done" : ""}`}
+                                            >
+                                                {entry.action_type ===
+                                                "complete" ? (
+                                                    <CheckCheck />
+                                                ) : entry.action_type ===
+                                                  "receive" ? (
+                                                    <Receipt />
+                                                ) : (
+                                                    <ArrowRight />
+                                                )}
+                                            </span>
+                                            <span>
+                                                <strong>
+                                                    {entry.action_type ===
+                                                    "endorse"
+                                                        ? `${entry.from_office ?? "Office"} to ${entry.to_office ?? "office"}`
+                                                        : entry.action_type ===
+                                                            "complete"
+                                                          ? "Document workflow complete"
+                                                          : `${entry.to_office ?? "Office"} received document`}
+                                                </strong>
+                                                <small>
+                                                    {
+                                                        entry.transaction_reference_number
+                                                    }
+                                                </small>
+                                                <small>
+                                                    {entry.actor_name} ·{" "}
+                                                    {entry.created_at}
+                                                </small>
+                                            </span>
+                                        </Link>
+                                    ))}
+                                    {activityFeed.length === 0 && (
+                                        <p className="op-inline-empty">
+                                            No activity in this view. Updates
+                                            appear as documents are processed.
+                                        </p>
+                                    )}
+                                </div>
+                                {activityFeed.length > 4 && (
+                                    <details className="op-more-activity">
+                                        <summary>
+                                            View {activityFeed.length - 4} more
+                                            recent actions
+                                        </summary>
+                                        {activityFeed.slice(4).map((entry) => (
+                                            <Link
+                                                key={entry.id}
+                                                href={activityUrl(entry)}
+                                                onClick={(event) => {
+                                                    if (
+                                                        !event.metaKey &&
+                                                        !event.ctrlKey &&
+                                                        !event.shiftKey &&
+                                                        !event.altKey
+                                                    ) {
+                                                        event.preventDefault();
+                                                        openDocument(
+                                                            entry.transaction_id,
+                                                        );
+                                                    }
+                                                }}
+                                                className="op-activity-item"
+                                            >
+                                                <span>
+                                                    <strong>
+                                                        {entry.action_type} ·{" "}
+                                                        {
+                                                            entry.transaction_reference_number
+                                                        }
+                                                    </strong>
+                                                    <small>
+                                                        {entry.actor_name} ·{" "}
+                                                        {entry.created_at}
+                                                    </small>
+                                                </span>
+                                            </Link>
+                                        ))}
+                                    </details>
+                                )}
+                            </section>
                         )}
                     </div>
                 )}
-                {counts.total === 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground">No records yet</p>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-function SortableHeader({
-    column,
-    children,
-}: {
-    column: { toggleSorting: (desc: boolean) => void; getIsSorted: () => false | 'asc' | 'desc' };
-    children: React.ReactNode;
-}) {
-    return (
-        <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 h-8"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        >
-            {children}
-            <ArrowUpDown className="ml-2 h-3 w-3" />
-        </Button>
-    );
-}
-
-export default function Dashboard({ summary, officeWorkload, activityFeed, stagnantTransactions, slaPerformance, userOfficeId }: Props) {
-    // Auto-refresh dashboard data every 30 seconds (pauses when tab is hidden)
-    usePoll(30_000);
-
-    const { auth } = usePage<PageProps>().props;
-    const [visibility, setVisibility] = useState<DashboardCardVisibility>(() =>
-        loadDashboardSettings(auth.user.id)
-    );
-
-    const [modalOpen, setModalOpen] = useState(false);
-    const [modalParams, setModalParams] = useState<{
-        officeId: number;
-        officeName: string;
-        category: string;
-        count: number;
-    } | null>(null);
-
-    const openWorkloadModal = (officeId: number, officeName: string, category: string, count: number) => {
-        setModalParams({ officeId, officeName, category, count });
-        setModalOpen(true);
-    };
-
-    const columns: ColumnDef<OfficeWorkload>[] = [
-        {
-            accessorKey: 'office_name',
-            header: ({ column }) => (
-                <SortableHeader column={column}>Office</SortableHeader>
-            ),
-            cell: ({ row }) => (
-                <div>
-                    <span className="font-medium">{row.original.office_name}</span>
-                    <span className="ml-1 text-xs text-muted-foreground">
-                        ({row.original.office_abbreviation})
-                    </span>
-                </div>
-            ),
-        },
-        {
-            accessorKey: 'pr_count',
-            header: ({ column }) => (
-                <SortableHeader column={column}>PR</SortableHeader>
-            ),
-            cell: ({ row }) => {
-                const count = row.original.pr_count;
-                if (count === 0) return <span className="text-muted-foreground">0</span>;
-                return (
-                    <button
-                        className="text-blue-600 hover:underline font-medium"
-                        onClick={() =>
-                            openWorkloadModal(
-                                row.original.office_id,
-                                `${row.original.office_name} (${row.original.office_abbreviation})`,
-                                'PR',
-                                count,
-                            )
-                        }
-                    >
-                        {count}
-                    </button>
-                );
-            },
-        },
-        {
-            accessorKey: 'po_count',
-            header: ({ column }) => (
-                <SortableHeader column={column}>PO</SortableHeader>
-            ),
-            cell: ({ row }) => {
-                const count = row.original.po_count;
-                if (count === 0) return <span className="text-muted-foreground">0</span>;
-                return (
-                    <button
-                        className="text-blue-600 hover:underline font-medium"
-                        onClick={() =>
-                            openWorkloadModal(
-                                row.original.office_id,
-                                `${row.original.office_name} (${row.original.office_abbreviation})`,
-                                'PO',
-                                count,
-                            )
-                        }
-                    >
-                        {count}
-                    </button>
-                );
-            },
-        },
-        {
-            accessorKey: 'vch_count',
-            header: ({ column }) => (
-                <SortableHeader column={column}>VCH</SortableHeader>
-            ),
-            cell: ({ row }) => {
-                const count = row.original.vch_count;
-                if (count === 0) return <span className="text-muted-foreground">0</span>;
-                return (
-                    <button
-                        className="text-blue-600 hover:underline font-medium"
-                        onClick={() =>
-                            openWorkloadModal(
-                                row.original.office_id,
-                                `${row.original.office_name} (${row.original.office_abbreviation})`,
-                                'VCH',
-                                count,
-                            )
-                        }
-                    >
-                        {count}
-                    </button>
-                );
-            },
-        },
-        {
-            accessorKey: 'total',
-            header: ({ column }) => (
-                <SortableHeader column={column}>Total</SortableHeader>
-            ),
-            cell: ({ row }) => (
-                <span className="font-semibold">{row.original.total}</span>
-            ),
-        },
-        {
-            accessorKey: 'stagnant_count',
-            header: ({ column }) => (
-                <SortableHeader column={column}>Stagnant</SortableHeader>
-            ),
-            cell: ({ row }) => {
-                const count = row.original.stagnant_count;
-                if (count === 0) {
-                    return <span className="text-muted-foreground">0</span>;
-                }
-                return (
-                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200">
-                        <AlertTriangle className="mr-1 h-3 w-3" />
-                        {count}
-                    </Badge>
-                );
-            },
-        },
-    ];
-
-    const hasData =
-        summary.procurements.total > 0 ||
-        summary.purchase_requests.total > 0 ||
-        summary.purchase_orders.total > 0 ||
-        summary.vouchers.total > 0;
-
-    return (
-        <AuthenticatedLayout
-            header={
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                        Dashboard
-                    </h2>
-                    <DashboardSettings
-                        userId={auth.user.id}
-                        visibility={visibility}
-                        onChange={setVisibility}
-                    />
-                </div>
-            }
-        >
-            <Head title="Dashboard" />
-
-            <div className="py-6">
-                <div className="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
-                    {/* Summary Cards */}
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        <SummaryCard
-                            title="Procurements"
-                            icon={FolderOpen}
-                            counts={summary.procurements}
-                        />
-                        <SummaryCard
-                            title="Purchase Requests"
-                            icon={FileText}
-                            counts={summary.purchase_requests}
-                        />
-                        <SummaryCard
-                            title="Purchase Orders"
-                            icon={ShoppingCart}
-                            counts={summary.purchase_orders}
-                        />
-                        <SummaryCard
-                            title="Vouchers"
-                            icon={Receipt}
-                            counts={summary.vouchers}
+                <section
+                    className="op-main-panel op-case-panel"
+                    aria-label="Document register"
+                >
+                    <div className="op-case-list">
+                        <PanelTitle
+                            title={
+                                filters.office_id == null
+                                    ? "Document register"
+                                    : filters.office_id === userOfficeId
+                                      ? "My office documents"
+                                      : `${scopeLabel} documents`
+                            }
+                            detail="Select a document to see its route and current office."
+                        >
+                            <Badge variant="secondary" className="op-badge">
+                                {documents.total}
+                            </Badge>
+                        </PanelTitle>
+                        <DocumentRegister
+                            documents={documents}
+                            filters={filters}
+                            selectedYear={selectedYear}
+                            loading={loading}
+                            selectedId={selectedId}
+                            onFilters={visitFilters}
+                            onSelect={selectDocument}
                         />
                     </div>
-
-                    {/* Office Workload Table */}
-                    {visibility.officeWorkload && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-lg">Office Workload</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {officeWorkload.length === 0 ? (
-                                    <div className="py-8 text-center text-muted-foreground">
-                                        <FolderOpen className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-                                        <p>No active workflows configured</p>
-                                    </div>
-                                ) : (
-                                    <DataTable
-                                        columns={columns}
-                                        data={officeWorkload}
-                                        getRowClassName={(row) =>
-                                            row.office_id === userOfficeId
-                                                ? 'bg-blue-50/50'
-                                                : undefined
-                                        }
-                                    />
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Recent Activity */}
-                    {visibility.recentActivity && (
-                        <ActivityFeed entries={activityFeed} />
-                    )}
-
-                    {/* Needs Attention */}
-                    {visibility.needsAttention && (
-                        <StagnantPanel
-                            entries={stagnantTransactions}
-                            userOfficeId={userOfficeId}
-                        />
-                    )}
-
-                    {/* Performance Metrics */}
-                    {visibility.performanceMetrics && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-lg">Office Turnaround (Last 30 Days)</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {slaPerformance.office_performance.length === 0 ? (
-                                    <p className="py-4 text-center text-muted-foreground">
-                                        No completed actions in the last 30 days
-                                    </p>
-                                ) : (
-                                    <OfficePerformanceTable
-                                        data={slaPerformance.office_performance}
-                                        userOfficeId={userOfficeId}
-                                    />
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Incidents + Volume */}
-                    {(visibility.outOfWorkflow || visibility.transactionVolume) && (
-                        <div className="grid gap-4 md:grid-cols-2">
-                            {visibility.outOfWorkflow && (
-                                <IncidentSummaryCard data={slaPerformance.incidents} />
-                            )}
+                    <aside
+                        className="op-case-detail"
+                        aria-label="Selected document details"
+                    >
+                        {selected ? (
+                            <DocumentDetail
+                                document={selected}
+                                attention={
+                                    selected.attention ??
+                                    stagnantTransactions.find(
+                                        (entry) => entry.id === selected.id,
+                                    )
+                                }
+                                viewer={viewer}
+                                canProcess={auth.user.can_process_transactions}
+                            />
+                        ) : (
+                            <div className="op-empty">
+                                <FolderOpen />
+                                <h3>Select a document</h3>
+                                <p>
+                                    Its current office and route will appear
+                                    here.
+                                </p>
+                            </div>
+                        )}
+                    </aside>
+                </section>
+                {visibility.transactionVolume && (
+                    <div className="op-bottom-reports">
+                        <section className="op-volume-panel">
+                            <PanelTitle
+                                title={
+                                    visibility.transactionVolume
+                                        ? "Document volume"
+                                        : "Workflow incidents"
+                                }
+                                detail={`${volumeTotal} documents in ${selectedYear} · ${scopeLabel}`}
+                            />
                             {visibility.transactionVolume && (
-                                <VolumeSummaryCard data={slaPerformance.volume} />
+                                <div>
+                                    {[
+                                        "Purchase requests",
+                                        "Purchase orders",
+                                        "Vouchers",
+                                    ].map((label, index) => (
+                                        <div
+                                            className="op-volume-row"
+                                            key={label}
+                                        >
+                                            <span>{label}</span>
+                                            <div aria-hidden="true">
+                                                <i
+                                                    style={{
+                                                        width: `${volumeTotal ? (categoryCounts[index] / Math.max(...categoryCounts)) * 100 : 0}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                            <strong>
+                                                {categoryCounts[index]}
+                                            </strong>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <OfficeWorkloadModal
-                open={modalOpen}
-                onOpenChange={setModalOpen}
-                officeId={modalParams?.officeId ?? null}
-                officeName={modalParams?.officeName ?? ''}
-                category={modalParams?.category ?? ''}
-                count={modalParams?.count ?? 0}
+                            {
+                                <div className="op-incident-line">
+                                    <ShieldCheck />
+                                    <span>
+                                        Out-of-workflow incidents ·{" "}
+                                        {selectedYear}
+                                    </span>
+                                    <strong>{annualIncidentCount}</strong>
+                                </div>
+                            }
+                        </section>
+                    </div>
+                )}
+                <footer className="op-page-footer">
+                    <span>Local Government of Quezon, Bukidnon</span>
+                    <span>Updates every 30 seconds · {selectedYear}</span>
+                </footer>
+            </main>
+            <DashboardDialogs
+                modal={modal}
+                onClose={closeModal}
+                selected={modalSelected}
+                viewer={viewer}
+                canProcess={auth.user.can_process_transactions}
+                attention={stagnantTransactions}
+                attentionMeta={attentionMeta}
+                pendingDocuments={pendingDocuments}
+                pendingCount={pendingReceiptsCount}
+                queueDocuments={queueDocuments}
+                queueFilters={queueFilters}
+                queueLoading={queueLoading}
+                queueChangingOffice={
+                    queueContext?.office_id !== queueFilters?.office_id
+                }
+                queueError={queueError}
+                onQueueFilters={(changes) => {
+                    const current = queueContext ?? queueFilters;
+                    if (current) requestQueue({ ...current, ...changes });
+                }}
+                onQueuePage={(page) => {
+                    const current = queueContext ?? queueFilters;
+                    if (current) requestQueue(current, page);
+                }}
+                queueOfficeLabel={
+                    offices.find(
+                        (office) =>
+                            office.id ===
+                            (queueContext ?? queueFilters)?.office_id,
+                    )?.abbreviation ?? "selected office"
+                }
+                selectedYear={selectedYear}
+                selectedId={selectedId}
+                onSelect={(document) => selectDocument(document, true)}
+                onView={openDocument}
+                returnFocus={returnFocus}
             />
-        </AuthenticatedLayout>
+        </DashboardLayout>
     );
 }

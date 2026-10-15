@@ -1,0 +1,20 @@
+[
+  {
+    "path": "index.html",
+    "source": "69d333fd55abdff17c7c8fa8d9f1d03062832de87b6efd6d5cf4b21e7ed002a3",
+    "runtime": "69d333fd55abdff17c7c8fa8d9f1d03062832de87b6efd6d5cf4b21e7ed002a3",
+    "matches": true
+  },
+  {
+    "path": "index.json",
+    "source": "806bcf9d3b87ebc34219eb2c79a3c61cda65c10af3218af6a358384b625d0089",
+    "runtime": "806bcf9d3b87ebc34219eb2c79a3c61cda65c10af3218af6a358384b625d0089",
+    "matches": true
+  },
+  {
+    "path": "assets/document-qr-label.stories-BxjYyvtY.js",
+    "source": "cc448ddfd2f769a9d09592738d856dd717a79ae1a36f5bef69b2e9b2f92cb2dd",
+    "runtime": "cc448ddfd2f769a9d09592738d856dd717a79ae1a36f5bef69b2e9b2f92cb2dd",
+    "matches": true
+  }
+]

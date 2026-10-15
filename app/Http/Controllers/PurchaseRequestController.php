@@ -17,8 +17,10 @@ use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
 use App\Services\TimelineService;
 use App\Services\WorkflowAssignmentService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -38,7 +40,13 @@ class PurchaseRequestController extends Controller
             abort(403, 'Cannot create Purchase Request for this procurement');
         }
 
-        $procurement->load(['endUser', 'particular', 'purchaseRequest']);
+        $procurement->load([
+            'endUser:id,name,abbreviation',
+            'particular:id,description',
+            'purchaseRequest.transaction',
+            'purchaseOrder.transaction',
+            'voucher.transaction',
+        ]);
 
         $fundTypes = FundType::whereNull('deleted_at')
             ->orderBy('name')
@@ -57,6 +65,7 @@ class PurchaseRequestController extends Controller
             'fundTypes' => $fundTypes,
             'workflows' => $workflows,
             'workflowPreview' => $this->workflowService->getWorkflowPreview('PR'),
+            'referenceNumbering' => $this->refNumberService->nextNumberingDefaults('PR'),
         ]);
     }
 
@@ -69,18 +78,20 @@ class PurchaseRequestController extends Controller
         try {
             $fundType = FundType::findOrFail($request->input('fund_type_id'));
 
-            $referenceNumber = $this->refNumberService->buildPRReferenceNumber(
-                $fundType->abbreviation,
-                $request->input('ref_year'),
-                $request->input('ref_month'),
-                $request->input('ref_number'),
-                $request->boolean('is_continuation')
-            );
-
-            DB::transaction(function () use ($request, $procurement, $referenceNumber) {
+            $referenceNumber = DB::transaction(function () use ($request, $procurement, $fundType) {
                 $lockedProcurement = Procurement::whereKey($procurement->id)->lockForUpdate()->firstOrFail();
                 if (! $this->businessRules->canCreatePR($lockedProcurement)) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['procurement' => 'The procurement already contains this document or its prerequisite is missing.']);
+                }
+
+                if ($request->boolean('manual_reference')) {
+                    $referenceNumber = $request->string('reference_number')->toString();
+                    $this->refNumberService->trackManualReference('PR', $referenceNumber);
+                } else {
+                    $referenceNumber = $this->refNumberService->allocateDocumentReference(
+                        'PR', $request->string('ref_year')->toString(), $request->string('ref_month')->toString(),
+                        $fundType->abbreviation, $request->boolean('is_continuation')
+                    );
                 }
 
                 $transaction = Transaction::create([
@@ -106,11 +117,21 @@ class PurchaseRequestController extends Controller
                 if ($procurement->status === 'Created') {
                     $procurement->update(['status' => 'In Progress']);
                 }
-            });
+
+                return $referenceNumber;
+            }, 5);
 
             return redirect()
                 ->route('procurements.show', $procurement)
                 ->with('success', "Purchase Request {$referenceNumber} created successfully");
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (QueryException $e) {
+            if ($this->refNumberService->isDuplicateReferenceException($e)) {
+                throw ValidationException::withMessages(['reference_number' => 'This reference number is already in use. Enter a different reference number.']);
+            }
+
+            throw $e;
         } catch (\Exception $e) {
             return redirect()
                 ->back()
@@ -124,9 +145,11 @@ class PurchaseRequestController extends Controller
         $purchaseRequest = PurchaseRequest::with([
             'transaction.procurement.endUser',
             'transaction.procurement.particular',
-            'transaction.procurement', // Ensure procurement is fully loaded
+            'transaction.procurement.purchaseRequest.transaction',
+            'transaction.procurement.purchaseOrder.transaction',
+            'transaction.procurement.voucher.transaction',
             'transaction.currentStep.office',
-            'transaction.currentOffice:id,name',
+            'transaction.currentOffice:id,name,abbreviation',
             'fundType',
             'transaction.createdBy:id,name',
         ])->findOrFail($id);
@@ -192,7 +215,14 @@ class PurchaseRequestController extends Controller
     public function edit(int $id): Response
     {
         $purchaseRequest = PurchaseRequest::with([
-            'transaction.procurement',
+            'transaction.procurement.endUser:id,name,abbreviation',
+            'transaction.procurement.particular:id,description',
+            'transaction.procurement.purchaseRequest.transaction',
+            'transaction.procurement.purchaseOrder.transaction',
+            'transaction.procurement.voucher.transaction',
+            'transaction.currentOffice:id,name,abbreviation',
+            'transaction.createdBy:id,name',
+            'transaction.workflow.steps.office:id,name,abbreviation',
             'fundType',
         ])->findOrFail($id);
 
@@ -214,25 +244,11 @@ class PurchaseRequestController extends Controller
     {
         $purchaseRequest = PurchaseRequest::with('transaction')->findOrFail($id);
 
-        $fundType = FundType::findOrFail($request->input('fund_type_id'));
-
-        $newReferenceNumber = $this->refNumberService->buildPRReferenceNumber(
-            $fundType->abbreviation,
-            $request->input('ref_year'),
-            $request->input('ref_month'),
-            $request->input('ref_number'),
-            $request->boolean('is_continuation')
-        );
-
-        DB::transaction(function () use ($request, $purchaseRequest, $newReferenceNumber) {
+        DB::transaction(function () use ($request, $purchaseRequest) {
             $purchaseRequest->update([
                 'fund_type_id' => $request->input('fund_type_id'),
             ]);
 
-            $purchaseRequest->transaction->update([
-                'reference_number' => $newReferenceNumber,
-                'is_continuation' => $request->boolean('is_continuation'),
-            ]);
         });
 
         return redirect()

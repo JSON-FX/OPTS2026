@@ -431,4 +431,14 @@ class TransactionTimelineTest extends TestCase
         $this->assertEquals(4, $timeline['total_steps']);
         $this->assertEquals(50, $timeline['progress_percentage']);
     }
+
+    public function test_action_history_timestamps_keep_utc_offset_for_browser_sorting(): void
+    {
+        $created = \Carbon\Carbon::create(2026, 10, 14, 13, 22, 0, 'UTC');
+        $action = TransactionAction::factory()->create(['created_at' => $created]);
+
+        $history = app(TimelineService::class)->getActionHistory($action->transaction);
+
+        $this->assertSame('2026-10-14T13:22:00.000000Z', $history[0]['created_at']);
+    }
 }

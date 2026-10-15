@@ -62,7 +62,8 @@ class ProcurementBusinessRulesFeatureTest extends TestCase
 
         $response = $this->actingAs(User::role('Endorser')->first())
             ->post(route('procurements.vouchers.store', $procurement), [
-                'reference_number' => 'VCH-TEST-001',
+                'ref_year' => '2026',
+                'ref_month' => '10',
                 'payee' => 'Demo Payee',
             ]);
 
@@ -79,7 +80,8 @@ class ProcurementBusinessRulesFeatureTest extends TestCase
 
         $response = $this->actingAs(User::role('Endorser')->first())
             ->post(route('procurements.vouchers.store', $procurement), [
-                'reference_number' => 'VCH-TEST-001',
+                'ref_year' => '2026',
+                'ref_month' => '10',
                 'payee' => 'Demo Payee',
             ]);
 

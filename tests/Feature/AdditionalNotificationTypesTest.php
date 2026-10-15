@@ -154,7 +154,8 @@ class AdditionalNotificationTypesTest extends TestCase
             $setup['transaction'],
             $setup['endorser'],
             $setup['actionTaken']->id,
-            $setup['office2']->id
+            $setup['office2']->id,
+            $setup['transaction']->reference_number
         );
 
         // Update transaction state for receive
@@ -163,7 +164,8 @@ class AdditionalNotificationTypesTest extends TestCase
         // Receive at office2
         $this->service->receive(
             $setup['transaction'],
-            $setup['receiver']
+            $setup['receiver'],
+            $setup['transaction']->reference_number
         );
 
         Event::assertDispatched(TransactionReceived::class);

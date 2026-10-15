@@ -10,6 +10,7 @@ use App\Models\Office;
 use App\Models\Particular;
 use App\Models\Procurement;
 use App\Services\ProcurementBusinessRules;
+use App\Services\ProcurementPresentationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,7 +18,7 @@ use Inertia\Response;
 
 class ProcurementController extends Controller
 {
-    public function __construct(private readonly ProcurementBusinessRules $businessRules)
+    public function __construct(private readonly ProcurementBusinessRules $businessRules, private readonly ProcurementPresentationService $presentation)
     {
         $this->middleware(['auth']);
         $this->middleware('role:Endorser|Administrator')->except(['index', 'show']);
@@ -34,20 +35,30 @@ class ProcurementController extends Controller
         $dateFrom = $request->string('date_from')->trim()->value();
         $dateTo = $request->string('date_to')->trim()->value();
         $myProcurements = $request->boolean('my_procurements');
+        $sort = in_array($request->input('sort'), ['newest', 'oldest', 'amount', 'amount_desc', 'amount_asc'], true) ? $request->input('sort') : 'newest';
+        $perPage = in_array($request->integer('per_page'), [6, 12, 24, 50], true) ? $request->integer('per_page') : 6;
+        $year = $user->selected_year ?? (int) now()->year;
+        $statusCounts = array_fill_keys(Procurement::STATUSES, 0);
+        foreach (Procurement::query()->whereYear('created_at', $year)->selectRaw('status, COUNT(*) as aggregate')->groupBy('status')->get() as $count) {
+            $statusCounts[$count->status] = (int) $count->aggregate;
+        }
+        $statusCounts['total'] = array_sum($statusCounts);
 
         $query = Procurement::query()
             ->with([
-                'endUser:id,name,abbreviation',
+                'endUser' => fn ($query) => $query->withTrashed()->select('id', 'name', 'abbreviation'),
                 'particular:id,description',
                 'creator:id,name',
+                ...$this->presentation->documentRelations(),
             ])
             ->withCount('transactions');
 
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('purpose', 'like', "%{$search}%")
-                    ->orWhere('id', $search)
-                    ->orWhereHas('endUser', fn ($sub) => $sub->where('name', 'like', "%{$search}%"))
+                    ->when(ctype_digit(ltrim($search, '#')), fn ($idQuery) => $idQuery->orWhere('id', (int) ltrim($search, '#')))
+                    ->orWhereHas('endUser', fn ($sub) => $sub->withTrashed()->where(fn ($office) => $office->where('name', 'like', "%{$search}%")->orWhere('abbreviation', 'like', "%{$search}%")))
+                    ->orWhereHas('transactions', fn ($sub) => $sub->where('reference_number', 'like', "%{$search}%"))
                     ->orWhereHas('particular', fn ($sub) => $sub->where('description', 'like', "%{$search}%"));
             });
         }
@@ -77,13 +88,17 @@ class ProcurementController extends Controller
         }
 
         // Apply system-wide year filter
-        $year = $user->selected_year ?? (int) now()->year;
         $query->whereYear('created_at', $year);
 
-        $procurements = $query
-            ->orderByDesc('created_at')
-            ->paginate(50)
-            ->withQueryString();
+        match ($sort) {
+            'oldest' => $query->orderBy('created_at'),
+            'amount', 'amount_desc' => $query->orderByDesc('abc_amount'),
+            'amount_asc' => $query->orderBy('abc_amount'),
+            default => $query->orderByDesc('created_at'),
+        };
+
+        $procurements = $query->orderByDesc('id')->paginate($perPage)->withQueryString()
+            ->through(fn (Procurement $procurement) => $this->presentation->procurement($procurement, $user));
 
         return Inertia::render('Procurements/Index', [
             'procurements' => $procurements,
@@ -95,24 +110,26 @@ class ProcurementController extends Controller
                 'date_from' => $dateFrom,
                 'date_to' => $dateTo,
                 'my_procurements' => $myProcurements,
+                'sort' => $sort,
+                'per_page' => $perPage,
             ],
             'options' => [
                 'statuses' => Procurement::STATUSES,
                 'offices' => Office::query()->orderBy('name')->get(['id', 'name', 'abbreviation']),
                 'particulars' => Particular::query()->orderBy('description')->get(['id', 'description']),
             ],
+            'formOptions' => $this->presentation->formOptions(),
+            'statusCounts' => $statusCounts,
+            'initialModal' => $request->routeIs('procurements.create') ? 'create' : null,
             'can' => [
                 'manage' => $user->canProcessTransactions(),
             ],
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('Procurements/Create', [
-            'offices' => Office::query()->where('is_active', true)->whereNotNull('sso_id')->orderBy('name')->get(['id', 'name', 'abbreviation']),
-            'particulars' => Particular::query()->where('is_active', true)->orderBy('description')->get(['id', 'description']),
-        ]);
+        return $this->index($request);
     }
 
     public function store(StoreProcurementRequest $request): RedirectResponse
@@ -121,17 +138,17 @@ class ProcurementController extends Controller
         $data['status'] = Procurement::STATUS_CREATED;
         $data['created_by_user_id'] = $request->user()->id;
 
-        Procurement::create($data);
+        $procurement = Procurement::create($data);
 
         return redirect()
-            ->route('procurements.index')
+            ->route('procurements.show', $procurement)
             ->with('success', 'Procurement created successfully.');
     }
 
     public function show(Procurement $procurement): Response
     {
         $procurement->load([
-            'endUser:id,name,abbreviation',
+            'endUser' => fn ($query) => $query->withTrashed()->select('id', 'name', 'abbreviation'),
             'particular:id,description',
             'creator:id,name',
             'purchaseRequest.transaction:id,reference_number,status,created_by_user_id,created_at',
@@ -142,14 +159,14 @@ class ProcurementController extends Controller
             'purchaseOrder.supplier:id,name',
             'voucher.transaction:id,reference_number,status,created_by_user_id,created_at',
             'voucher.transaction.createdBy:id,name',
-            'statusHistory' => fn ($query) => $query->with('changedBy:id,name')->orderByDesc('created_at')->limit(5),
-            'transactions:id,procurement_id,category,reference_number',
+            'statusHistory' => fn ($query) => $query->with('changedBy:id,name')->orderByDesc('created_at')->orderByDesc('id'),
+            ...$this->presentation->documentRelations(),
             'transactions.actions' => fn ($query) => $query
                 ->with([
                     'fromUser:id,name',
                     'toUser:id,name',
-                    'fromOffice:id,name,abbreviation',
-                    'toOffice:id,name,abbreviation',
+                    'fromOffice' => fn ($query) => $query->withTrashed()->select('id', 'name', 'abbreviation'),
+                    'toOffice' => fn ($query) => $query->withTrashed()->select('id', 'name', 'abbreviation'),
                     'actionTaken:id,description',
                 ])
                 ->orderByDesc('created_at'),
@@ -158,6 +175,8 @@ class ProcurementController extends Controller
         $activityTimeline = $procurement->transactions
             ->flatMap(fn ($transaction) => $transaction->actions->map(fn ($action) => [
                 'id' => $action->id,
+                'transaction_id' => $transaction->id,
+                'url' => $this->presentation->documentUrl($transaction),
                 'action_type' => $action->action_type,
                 'transaction_category' => $transaction->category,
                 'transaction_reference_number' => $transaction->reference_number,
@@ -176,7 +195,9 @@ class ProcurementController extends Controller
             ->all();
 
         return Inertia::render('Procurements/Show', [
-            'procurement' => $procurement->makeVisible(['abc_amount']),
+            'procurement' => $this->presentation->procurement($procurement, request()->user(), true),
+            'formOptions' => $this->presentation->formOptions(),
+            'initialModal' => request()->routeIs('procurements.edit') ? 'edit' : null,
             'activityTimeline' => $activityTimeline,
             'can' => [
                 'manage' => request()->user()?->canProcessTransactions() ?? false,
@@ -189,14 +210,7 @@ class ProcurementController extends Controller
 
     public function edit(Procurement $procurement): Response
     {
-        $procurement->load(['endUser:id,name,abbreviation', 'particular:id,description'])->loadCount('transactions');
-
-        return Inertia::render('Procurements/Edit', [
-            'procurement' => $procurement,
-            'offices' => Office::query()->where('is_active', true)->whereNotNull('sso_id')->orderBy('name')->get(['id', 'name', 'abbreviation']),
-            'particulars' => Particular::query()->where('is_active', true)->orderBy('description')->get(['id', 'description']),
-            'locked' => $procurement->transactions_count > 0,
-        ]);
+        return $this->show($procurement);
     }
 
     public function update(UpdateProcurementRequest $request, Procurement $procurement): RedirectResponse
@@ -219,7 +233,7 @@ class ProcurementController extends Controller
         $procurement->save();
 
         return redirect()
-            ->route('procurements.index')
+            ->route('procurements.show', $procurement)
             ->with('success', 'Procurement updated successfully.');
     }
 

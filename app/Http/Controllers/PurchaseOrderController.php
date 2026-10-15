@@ -16,8 +16,10 @@ use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
 use App\Services\TimelineService;
 use App\Services\WorkflowAssignmentService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -47,6 +49,8 @@ class PurchaseOrderController extends Controller
             'particular:id,description',
             'purchaseRequest.fundType',
             'purchaseRequest.transaction',
+            'purchaseOrder.transaction',
+            'voucher.transaction',
         ])->makeVisible(['abc_amount']);
 
         $suppliers = \App\Models\Supplier::where('is_active', true)
@@ -67,6 +71,7 @@ class PurchaseOrderController extends Controller
             'suppliers' => $suppliers,
             'workflows' => $workflows,
             'workflowPreview' => $this->workflowService->getWorkflowPreview('PO'),
+            'referenceNumbering' => $this->refNumberService->nextNumberingDefaults('PO'),
         ]);
     }
 
@@ -83,21 +88,23 @@ class PurchaseOrderController extends Controller
         }
 
         try {
-            // AC#8 - Build reference number from manual inputs
-            $referenceNumber = $this->refNumberService->buildPOReferenceNumber(
-                $request->input('ref_year'),
-                $request->input('ref_month'),
-                $request->input('ref_number'),
-                $request->boolean('is_continuation')
-            );
-
             // AC#9-10 - Get supplier for address snapshot (immutable)
             $supplier = \App\Models\Supplier::findOrFail($request->input('supplier_id'));
 
-            DB::transaction(function () use ($request, $procurement, $referenceNumber, $supplier) {
+            $referenceNumber = DB::transaction(function () use ($request, $procurement, $supplier) {
                 $lockedProcurement = Procurement::whereKey($procurement->id)->lockForUpdate()->firstOrFail();
                 if (! $this->businessRules->canCreatePO($lockedProcurement)) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['procurement' => 'The procurement already contains this document or its prerequisite is missing.']);
+                }
+
+                if ($request->boolean('manual_reference')) {
+                    $referenceNumber = $request->string('reference_number')->toString();
+                    $this->refNumberService->trackManualReference('PO', $referenceNumber);
+                } else {
+                    $referenceNumber = $this->refNumberService->allocateDocumentReference(
+                        'PO', $request->string('ref_year')->toString(), $request->string('ref_month')->toString(),
+                        null, $request->boolean('is_continuation')
+                    );
                 }
 
                 $transaction = Transaction::create([
@@ -126,12 +133,22 @@ class PurchaseOrderController extends Controller
                 if ($procurement->status === 'Created') {
                     $procurement->update(['status' => 'In Progress']);
                 }
-            });
+
+                return $referenceNumber;
+            }, 5);
 
             // AC#12 - Redirect to procurement detail page
             return redirect()
                 ->route('procurements.show', $procurement)
                 ->with('success', "Purchase Order {$referenceNumber} created successfully");
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (QueryException $e) {
+            if ($this->refNumberService->isDuplicateReferenceException($e)) {
+                throw ValidationException::withMessages(['reference_number' => 'This reference number is already in use. Enter a different reference number.']);
+            }
+
+            throw $e;
         } catch (\Exception $e) {
             return redirect()
                 ->back()
@@ -148,8 +165,11 @@ class PurchaseOrderController extends Controller
         $purchaseOrder = PurchaseOrder::with([
             'transaction.procurement.endUser:id,name,abbreviation',
             'transaction.procurement.particular:id,description',
+            'transaction.procurement.purchaseRequest.transaction',
+            'transaction.procurement.purchaseOrder.transaction',
+            'transaction.procurement.voucher.transaction',
             'transaction.currentStep.office',
-            'transaction.currentOffice:id,name',
+            'transaction.currentOffice:id,name,abbreviation',
             'transaction.createdBy:id,name',
             'supplier:id,name',
         ])->findOrFail($id);
@@ -157,7 +177,7 @@ class PurchaseOrderController extends Controller
         // Load related PR
         $purchaseRequest = $purchaseOrder->transaction->procurement->purchaseRequest;
         if ($purchaseRequest) {
-            $purchaseRequest->load('transaction:id,reference_number');
+            $purchaseRequest->loadMissing('transaction');
         }
 
         $user = auth()->user();
@@ -225,8 +245,14 @@ class PurchaseOrderController extends Controller
     public function edit(int $id): Response
     {
         $purchaseOrder = PurchaseOrder::with([
-            'transaction.procurement.endUser:id,name',
+            'transaction.procurement.endUser:id,name,abbreviation',
             'transaction.procurement.particular:id,description',
+            'transaction.procurement.purchaseRequest.transaction',
+            'transaction.procurement.purchaseOrder.transaction',
+            'transaction.procurement.voucher.transaction',
+            'transaction.currentOffice:id,name,abbreviation',
+            'transaction.createdBy:id,name',
+            'transaction.workflow.steps.office:id,name,abbreviation',
             'supplier:id,name,address',
         ])->findOrFail($id);
 
@@ -251,33 +277,42 @@ class PurchaseOrderController extends Controller
     {
         $purchaseOrder = PurchaseOrder::with('transaction')->findOrFail($id);
 
-        $newReferenceNumber = $this->refNumberService->buildPOReferenceNumber(
-            $request->input('ref_year'),
-            $request->input('ref_month'),
-            $request->input('ref_number'),
-            $request->boolean('is_continuation')
-        );
+        $newReferenceNumber = $request->filled('reference_number')
+            ? $request->string('reference_number')->toString()
+            : $this->refNumberService->buildPOReferenceNumber(
+                $request->string('ref_year')->toString(), $request->string('ref_month')->toString(),
+                $request->input('ref_number'), $request->boolean('is_continuation')
+            );
 
         // AC#14 - If supplier changed, get new supplier's current address for snapshot update
         $supplierAddress = $purchaseOrder->supplier_address; // Keep existing by default
-        if ($request->input('supplier_id') !== $purchaseOrder->supplier_id) {
+        if ($request->integer('supplier_id') !== $purchaseOrder->supplier_id) {
             $newSupplier = \App\Models\Supplier::findOrFail($request->input('supplier_id'));
             $supplierAddress = $newSupplier->address; // Update to new supplier's address
         }
 
-        DB::transaction(function () use ($request, $purchaseOrder, $newReferenceNumber, $supplierAddress) {
-            $purchaseOrder->update([
-                'supplier_id' => $request->input('supplier_id'),
-                'supplier_address' => $supplierAddress,
-                'contract_price' => $request->input('contract_price'),
-            ]);
+        try {
+            DB::transaction(function () use ($request, $purchaseOrder, $newReferenceNumber, $supplierAddress) {
+                $this->refNumberService->trackManualReference('PO', $newReferenceNumber);
+                $purchaseOrder->update([
+                    'supplier_id' => $request->input('supplier_id'),
+                    'supplier_address' => $supplierAddress,
+                    'contract_price' => $request->input('contract_price'),
+                ]);
 
-            $purchaseOrder->transaction->update([
-                'reference_number' => $newReferenceNumber,
-                'is_continuation' => $request->boolean('is_continuation'),
-                'workflow_id' => $request->input('workflow_id'),
-            ]);
-        });
+                $purchaseOrder->transaction->update([
+                    'reference_number' => $newReferenceNumber,
+                    'is_continuation' => $request->has('is_continuation') ? $request->boolean('is_continuation') : $purchaseOrder->transaction->is_continuation,
+                    'workflow_id' => $request->has('workflow_id') ? $request->input('workflow_id') : $purchaseOrder->transaction->workflow_id,
+                ]);
+            }, 5);
+        } catch (QueryException $e) {
+            if ($this->refNumberService->isDuplicateReferenceException($e)) {
+                throw ValidationException::withMessages(['reference_number' => 'This reference number is already in use. Enter a different reference number.']);
+            }
+
+            throw $e;
+        }
 
         return redirect()
             ->route('purchase-orders.show', $id)

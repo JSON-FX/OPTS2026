@@ -1,0 +1,56 @@
+[
+  {
+    "path": "app/Http/Controllers/DocumentQrLabelController.php",
+    "source": "d24f484f0ce2c4ff5cb06d01912b94c92b3b41b62ada11a43b88f1e7dd2541fb",
+    "runtime": "d24f484f0ce2c4ff5cb06d01912b94c92b3b41b62ada11a43b88f1e7dd2541fb",
+    "matches": true
+  },
+  {
+    "path": "routes/web.php",
+    "source": "4a335915c7ddc670d0af88896d4ebad5e507a958b5f60087269ea013d2d1f475",
+    "runtime": "4a335915c7ddc670d0af88896d4ebad5e507a958b5f60087269ea013d2d1f475",
+    "matches": true
+  },
+  {
+    "path": "resources/js/Components/Documents/DocumentQrLabel.tsx",
+    "source": "648262c9fbbc29a0af107929a328fc10ad7813900eff06a3cec7d1a91e1d8022",
+    "runtime": "648262c9fbbc29a0af107929a328fc10ad7813900eff06a3cec7d1a91e1d8022",
+    "matches": true
+  },
+  {
+    "path": "resources/js/Components/Documents/DocumentQrDialog.tsx",
+    "source": "609c9d539b17171db2d47c6989b1a30d89540e70596becac40dd8a26b060004d",
+    "runtime": "609c9d539b17171db2d47c6989b1a30d89540e70596becac40dd8a26b060004d",
+    "matches": true
+  },
+  {
+    "path": "resources/js/Components/Documents/DocumentDetail.tsx",
+    "source": "cf9d065c0aa68d0fc58eb03841f6839cb5cf8421a3566940e45ca4d6eb83a2a9",
+    "runtime": "cf9d065c0aa68d0fc58eb03841f6839cb5cf8421a3566940e45ca4d6eb83a2a9",
+    "matches": true
+  },
+  {
+    "path": "resources/js/Pages/Transactions/QrLabel.tsx",
+    "source": "eedf8ef0bd9f51720b31ac8a41f7344b17b32192b5f81aedcc7f45acf2a465f8",
+    "runtime": "eedf8ef0bd9f51720b31ac8a41f7344b17b32192b5f81aedcc7f45acf2a465f8",
+    "matches": true
+  },
+  {
+    "path": "resources/css/document-qr-label.css",
+    "source": "07a2a93cc807b660b1dc426e0548ec2552ac93d8a183322a771ce65b7587c8e4",
+    "runtime": "07a2a93cc807b660b1dc426e0548ec2552ac93d8a183322a771ce65b7587c8e4",
+    "matches": true
+  },
+  {
+    "path": "package.json",
+    "source": "78ce867e0c1cea4e1b1db6bb3e8e96a5759802559c9c9012fee8311ac58d8785",
+    "runtime": "78ce867e0c1cea4e1b1db6bb3e8e96a5759802559c9c9012fee8311ac58d8785",
+    "matches": true
+  },
+  {
+    "path": "package-lock.json",
+    "source": "496a457e11e5ca20ce2c3e0ec7e6e61a86b7b1cf8a8edb39b318d7d24c8d3279",
+    "runtime": "496a457e11e5ca20ce2c3e0ec7e6e61a86b7b1cf8a8edb39b318d7d24c8d3279",
+    "matches": true
+  }
+]

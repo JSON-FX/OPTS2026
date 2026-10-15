@@ -55,7 +55,7 @@ export default {
     		},
     		fontFamily: {
     			sans: [
-    				'Figtree',
+                    'Source Sans 3',
                     ...defaultTheme.fontFamily.sans
                 ]
     		},

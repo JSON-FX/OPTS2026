@@ -8,6 +8,7 @@ use App\Http\Requests\ReceiveBulkRequest;
 use App\Http\Requests\ReceiveTransactionRequest;
 use App\Models\Transaction;
 use App\Services\EndorsementService;
+use App\Services\TransactionHandoffPresenter;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,7 +21,8 @@ use Inertia\Response;
 class TransactionReceiveController extends Controller
 {
     public function __construct(
-        private readonly EndorsementService $endorsementService
+        private readonly EndorsementService $endorsementService,
+        private readonly TransactionHandoffPresenter $presenter
     ) {}
 
     /**
@@ -72,6 +74,13 @@ class TransactionReceiveController extends Controller
         ]);
     }
 
+    public function create(Transaction $transaction): Response
+    {
+        $this->authorize('receive', $transaction);
+
+        return Inertia::render('Transactions/Receive', $this->presenter->present($transaction, 'receive'));
+    }
+
     /**
      * Process a single transaction receive.
      */
@@ -82,6 +91,7 @@ class TransactionReceiveController extends Controller
         $this->endorsementService->receive(
             $transaction,
             $request->user(),
+            $request->validated('scanned_reference'),
             $request->validated('notes')
         );
 
@@ -98,6 +108,7 @@ class TransactionReceiveController extends Controller
         $results = $this->endorsementService->receiveBulk(
             $request->validated('transaction_ids'),
             $request->user(),
+            $request->validated('scanned_references'),
             $request->validated('notes')
         );
 

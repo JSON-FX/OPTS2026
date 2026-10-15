@@ -1,0 +1,128 @@
+/* Occasional overlays use short spatial feedback. Data refreshes remain still. */
+:is(.op-dashboard-dialog, .op-announcement-dialog) {
+    transform-origin: center;
+    animation-duration: 180ms;
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-fill-mode: both;
+}
+:is(.op-dashboard-dialog, .op-announcement-dialog)[data-state="open"] {
+    animation-name: op-dialog-enter;
+}
+:is(.op-dashboard-dialog, .op-announcement-dialog)[data-state="closed"] {
+    animation-name: op-dialog-exit;
+}
+.op-modal-overlay {
+    animation-duration: 160ms;
+    animation-timing-function: ease-out;
+    animation-fill-mode: both;
+}
+.op-modal-overlay[data-state="open"] {
+    animation-name: op-overlay-enter;
+}
+.op-modal-overlay[data-state="closed"] {
+    animation-name: op-overlay-exit;
+}
+.op-mobile-sheet {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    animation-fill-mode: both;
+}
+.op-mobile-sheet[data-state="open"] {
+    animation-name: op-sheet-enter;
+}
+.op-mobile-sheet[data-state="closed"] {
+    animation-name: op-sheet-exit;
+}
+.op-live-overlay:is(
+    [role="menu"],
+    [role="listbox"],
+    .op-notification-dropdown
+) {
+    animation-duration: 150ms;
+    animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+    animation-fill-mode: both;
+}
+.op-live-overlay:is(
+        [role="menu"],
+        [role="listbox"],
+        .op-notification-dropdown
+    )[data-state="open"] {
+    animation-name: op-overlay-enter;
+}
+.op-live-overlay:is(
+        [role="menu"],
+        [role="listbox"],
+        .op-notification-dropdown
+    )[data-state="closed"] {
+    animation-name: op-overlay-exit;
+}
+@media (min-width: 801px) {
+    .op-live.op-casebook > .op-shell {
+        transition: grid-template-columns 160ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+}
+@keyframes op-dialog-enter {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+@keyframes op-dialog-exit {
+    from {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.97);
+    }
+}
+@keyframes op-overlay-enter {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+@keyframes op-overlay-exit {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+@keyframes op-sheet-enter {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+@keyframes op-sheet-exit {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-100%);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    :is(
+        .op-dashboard-dialog,
+        .op-announcement-dialog,
+        .op-mobile-sheet,
+        .op-modal-overlay,
+        .op-live-overlay[data-state]
+    ),
+    .op-live.op-casebook > .op-shell {
+        animation: none !important;
+        transition: none !important;
+    }
+}

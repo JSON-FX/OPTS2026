@@ -77,22 +77,48 @@ class HandleInertiaRequests extends Middleware
                     return $years->values()->all();
                 })()
                 : [(int) now()->year],
-            'notifications' => fn () => $request->user()
-                ? [
-                    'unread_count' => $request->user()->unreadNotifications()->count(),
-                    'recent' => $request->user()->notifications()
-                        ->take(10)
-                        ->get()
-                        ->map(fn ($n) => [
-                            'id' => $n->id,
-                            'type' => $n->data['type'] ?? 'general',
-                            'message' => $n->data['message'] ?? '',
-                            'read_at' => $n->read_at?->toISOString(),
-                            'created_at' => $n->created_at->diffForHumans(),
-                            'data' => $n->data,
-                        ]),
-                ]
-                : ['unread_count' => 0, 'recent' => []],
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
+            ],
+            'notifications' => fn () => $this->notifications($request),
+        ];
+    }
+
+    private function notifications(Request $request): array
+    {
+        $user = $request->user();
+        if (! $user) {
+            return ['unread_count' => 0, 'recent' => []];
+        }
+
+        $recent = $user->notifications()->take(10)->get();
+        $transactions = Transaction::query()
+            ->whereIn('id', $recent->map(fn ($notice) => $notice->data['transaction_id'] ?? null)->filter())
+            ->whereHas('procurement')
+            ->with(['purchaseRequest:id,transaction_id', 'purchaseOrder:id,transaction_id', 'voucher:id,transaction_id'])
+            ->get()->keyBy('id');
+
+        return [
+            'unread_count' => $user->unreadNotifications()->count(),
+            'recent' => $recent->map(function ($notice) use ($transactions) {
+                $transaction = $transactions->get($notice->data['transaction_id'] ?? null);
+                [$routeName, $entityId] = match ($transaction?->category) {
+                    'PR' => ['purchase-requests.show', $transaction->purchaseRequest?->id],
+                    'PO' => ['purchase-orders.show', $transaction->purchaseOrder?->id],
+                    'VCH' => ['vouchers.show', $transaction->voucher?->id],
+                    default => [null, null],
+                };
+
+                return [
+                    'id' => $notice->id,
+                    'type' => $notice->data['type'] ?? 'general',
+                    'message' => $notice->data['message'] ?? '',
+                    'read_at' => $notice->read_at?->toISOString(),
+                    'created_at' => $notice->created_at->diffForHumans(),
+                    'data' => [...$notice->data, 'document_url' => $entityId ? route($routeName, $entityId) : null],
+                ];
+            }),
         ];
     }
 }

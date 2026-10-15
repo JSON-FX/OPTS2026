@@ -24,6 +24,7 @@ class PurchaseRequestControllerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->travelTo(now()->setDate(2026, 10, 15));
         $this->seed(\Database\Seeders\RoleSeeder::class);
     }
 
@@ -382,9 +383,9 @@ class PurchaseRequestControllerTest extends TestCase
         $this->assertDatabaseHas('transactions', ['procurement_id' => $procurement->id, 'category' => 'PR']);
     }
 
-    // Story 2.6: Manual Reference Number Tests
+    // Automatic reference numbering and compatibility coverage.
 
-    public function test_store_with_manual_reference_number_creates_correct_format(): void
+    public function test_store_with_automatic_reference_number_creates_correct_format(): void
     {
         $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
@@ -395,7 +396,7 @@ class PurchaseRequestControllerTest extends TestCase
         $response = $this->actingAs($endorser)
             ->post(route('procurements.purchase-requests.store', $procurement), [
                 'fund_type_id' => $fundType->id,
-                'ref_year' => '2025',
+                'ref_year' => '2026',
                 'ref_month' => '10',
                 'ref_number' => '001',
                 'is_continuation' => false,
@@ -406,7 +407,7 @@ class PurchaseRequestControllerTest extends TestCase
         $this->assertDatabaseHas('transactions', [
             'procurement_id' => $procurement->id,
             'category' => 'PR',
-            'reference_number' => 'PR-GAA-2025-10-001',
+            'reference_number' => 'PR-GAA-2026-10-001',
             'is_continuation' => false,
         ]);
     }
@@ -422,7 +423,7 @@ class PurchaseRequestControllerTest extends TestCase
         $response = $this->actingAs($endorser)
             ->post(route('procurements.purchase-requests.store', $procurement), [
                 'fund_type_id' => $fundType->id,
-                'ref_year' => '2024',
+                'ref_year' => '2026',
                 'ref_month' => '12',
                 'ref_number' => '9999',
                 'is_continuation' => true,
@@ -430,12 +431,12 @@ class PurchaseRequestControllerTest extends TestCase
 
         $response->assertRedirect(route('procurements.show', $procurement));
 
-        $transaction = Transaction::where('reference_number', 'CONT-PR-SEF-2024-12-9999')->first();
+        $transaction = Transaction::where('reference_number', 'CONT-PR-SEF-2026-12-001')->first();
         $this->assertNotNull($transaction);
         $this->assertTrue((bool) $transaction->is_continuation);
     }
 
-    public function test_store_rejects_duplicate_reference_number(): void
+    public function test_store_assigns_unique_numbers_for_repeated_client_suggestions(): void
     {
         $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
@@ -448,23 +449,24 @@ class PurchaseRequestControllerTest extends TestCase
         $this->actingAs($endorser)
             ->post(route('procurements.purchase-requests.store', $procurement1), [
                 'fund_type_id' => $fundType->id,
-                'ref_year' => '2025',
+                'ref_year' => '2026',
                 'ref_month' => '10',
                 'ref_number' => '001',
                 'is_continuation' => false,
             ]);
 
-        // Attempt duplicate
+        // Reuse a stale client suggestion. The server still allocates the next number.
         $response = $this->actingAs($endorser)
             ->post(route('procurements.purchase-requests.store', $procurement2), [
                 'fund_type_id' => $fundType->id,
-                'ref_year' => '2025',
+                'ref_year' => '2026',
                 'ref_month' => '10',
                 'ref_number' => '001',
                 'is_continuation' => false,
             ]);
 
-        $response->assertSessionHasErrors('ref_number');
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('transactions', ['procurement_id' => $procurement2->id, 'reference_number' => 'PR-GAA-2026-10-002']);
     }
 
     public function test_store_validates_year_must_be_4_digits(): void
@@ -507,7 +509,7 @@ class PurchaseRequestControllerTest extends TestCase
         $response->assertSessionHasErrors('ref_month');
     }
 
-    public function test_update_changes_reference_number_with_new_components(): void
+    public function test_update_preserves_reference_number_with_new_components(): void
     {
         $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
@@ -538,11 +540,11 @@ class PurchaseRequestControllerTest extends TestCase
 
         $this->assertDatabaseHas('transactions', [
             'id' => $transaction->id,
-            'reference_number' => 'PR-SEF-2025-11-002',
+            'reference_number' => 'PR-GAA-2025-10-001',
         ]);
     }
 
-    public function test_update_rejects_duplicate_reference_number(): void
+    public function test_update_ignores_attempt_to_use_another_pr_reference(): void
     {
         $endorser = User::factory()->create(['office_id' => Office::factory()->create()->id]);
         $endorser->assignRole('Endorser');
@@ -569,7 +571,7 @@ class PurchaseRequestControllerTest extends TestCase
             'fund_type_id' => $fundType->id,
         ]);
 
-        // Attempt to update PR2 to use PR1's reference number
+        // Attempt to update PR2 to use PR1's reference number. The immutable reference stays unchanged.
         $response = $this->actingAs($endorser)
             ->put(route('purchase-requests.update', $pr2), [
                 'fund_type_id' => $fundType->id,
@@ -579,6 +581,7 @@ class PurchaseRequestControllerTest extends TestCase
                 'is_continuation' => false,
             ]);
 
-        $response->assertSessionHasErrors('ref_number');
+        $response->assertSessionHasNoErrors();
+        $this->assertSame('PR-GAA-2025-10-002', $transaction2->fresh()->reference_number);
     }
 }

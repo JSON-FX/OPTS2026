@@ -160,7 +160,7 @@ class TimelineService
                 'reason' => $action->reason,
                 'is_out_of_workflow' => $action->is_out_of_workflow,
                 'workflow_step_order' => $action->workflowStep?->step_order,
-                'created_at' => $action->created_at->toDateTimeString(),
+                'created_at' => $action->created_at->toISOString(),
             ])
             ->all();
     }

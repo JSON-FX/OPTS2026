@@ -407,6 +407,7 @@ class TransactionStateTest extends TestCase
 
         $response = $this->actingAs($endorser)
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $targetOffice->id,
             ]);
@@ -426,6 +427,7 @@ class TransactionStateTest extends TestCase
 
         $response = $this->actingAs($endorser)
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $targetOffice->id,
             ]);
@@ -442,7 +444,8 @@ class TransactionStateTest extends TestCase
         $endorser->assignRole('Endorser');
 
         $response = $this->actingAs($endorser)
-            ->post(route('transactions.receive.store', $setup['transaction']), []);
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number, ]);
 
         // canReceive checks status === 'In Progress', returns 403 via policy
         $response->assertForbidden();
@@ -505,6 +508,7 @@ class TransactionStateTest extends TestCase
 
         $this->actingAs($endorser)
             ->post(route('transactions.endorse.store', $transaction), [
+                'scanned_reference' => $transaction->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $office2->id,
             ]);

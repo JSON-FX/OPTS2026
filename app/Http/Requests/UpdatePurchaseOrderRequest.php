@@ -30,13 +30,14 @@ class UpdatePurchaseOrderRequest extends FormRequest
         return [
             'supplier_id' => ['required', 'integer', 'exists:suppliers,id,deleted_at,NULL'],
             'contract_price' => ['required', 'numeric', 'min:0.01', 'max:999999999999.99', 'decimal:0,2'],
-            'ref_year' => 'required|digits:4|integer|min:2000|max:9999',
-            'ref_month' => 'required|digits:2|numeric|min:1|max:12',
+            'reference_number' => ['sometimes', 'required', 'string', 'max:50', \Illuminate\Validation\Rule::unique('transactions', 'reference_number')->ignore($transactionId)],
+            'ref_year' => 'required_without:reference_number|digits:4|integer|min:2000|max:9999',
+            'ref_month' => 'required_without:reference_number|digits:2|numeric|min:1|max:12',
             'ref_number' => [
-                'required',
+                'required_without:reference_number',
                 'string',
                 'max:50',
-                new \App\Rules\UniqueReferenceNumber($transactionId, 'PO'),
+                \Illuminate\Validation\Rule::when(! $this->filled('reference_number'), [new \App\Rules\UniqueReferenceNumber($transactionId, 'PO')]),
             ],
             'is_continuation' => 'boolean',
             'workflow_id' => ['nullable', 'integer', 'exists:workflows,id'],

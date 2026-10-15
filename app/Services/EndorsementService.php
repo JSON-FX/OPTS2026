@@ -13,7 +13,11 @@ use App\Models\ProcurementStatusHistory;
 use App\Models\Transaction;
 use App\Models\TransactionAction;
 use App\Models\User;
+use App\Rules\ActiveSsoOffice;
+use App\Rules\ScannedDocumentReference;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * Service for handling transaction endorsement operations.
@@ -37,9 +41,18 @@ class EndorsementService
         User $user,
         int $actionTakenId,
         int $toOfficeId,
+        string $scannedReference,
         ?string $notes = null
     ): TransactionAction {
-        return DB::transaction(function () use ($transaction, $user, $actionTakenId, $toOfficeId, $notes) {
+        return DB::transaction(function () use ($transaction, $user, $actionTakenId, $toOfficeId, $scannedReference, $notes) {
+            $this->lockAndRefresh($transaction);
+            $user->load('office');
+            Gate::forUser($user)->authorize('endorse', $transaction);
+            $this->validateScan($transaction, $scannedReference);
+            Validator::make(['to_office_id' => $toOfficeId], [
+                'to_office_id' => ['required', 'integer', new ActiveSsoOffice],
+            ])->validate();
+
             // Auto-transition Created → In Progress on first endorsement (Story 3.7)
             if ($transaction->status === 'Created') {
                 $stateMachine = new TransactionStateMachine($transaction);
@@ -83,6 +96,21 @@ class EndorsementService
 
             return $action;
         });
+    }
+
+    /** Keep the caller's model current while serializing handoffs on its database row. */
+    private function lockAndRefresh(Transaction $transaction): void
+    {
+        $locked = Transaction::query()->lockForUpdate()->findOrFail($transaction->getKey());
+        $transaction->setRawAttributes($locked->getAttributes(), true);
+        $transaction->unsetRelations();
+    }
+
+    private function validateScan(Transaction $transaction, string $scannedReference): void
+    {
+        Validator::make(['scanned_reference' => $scannedReference], [
+            'scanned_reference' => ['required', 'string', 'max:255', new ScannedDocumentReference($transaction->reference_number)],
+        ], ['scanned_reference.required' => 'Scan the document QR code before confirming.'])->validate();
     }
 
     /**
@@ -187,10 +215,14 @@ class EndorsementService
     public function receive(
         Transaction $transaction,
         User $user,
+        string $scannedReference,
         ?string $notes = null
     ): TransactionAction {
-        $action = DB::transaction(function () use ($transaction, $user, $notes) {
-            $this->verifyCanReceive($transaction, $user);
+        $action = DB::transaction(function () use ($transaction, $user, $scannedReference, $notes) {
+            $this->lockAndRefresh($transaction);
+            $user->load('office');
+            Gate::forUser($user)->authorize('receive', $transaction);
+            $this->validateScan($transaction, $scannedReference);
 
             // Get the last endorsement to this office
             $lastEndorsement = $transaction->actions()
@@ -243,14 +275,14 @@ class EndorsementService
      * @param  string|null  $notes  Optional notes for the receipts
      * @return array{success: array<int>, failed: array<int, string>}
      */
-    public function receiveBulk(array $transactionIds, User $user, ?string $notes = null): array
+    public function receiveBulk(array $transactionIds, User $user, array $scannedReferences, ?string $notes = null): array
     {
         $results = ['success' => [], 'failed' => []];
 
-        foreach ($transactionIds as $id) {
+        foreach (array_unique($transactionIds) as $id) {
             try {
                 $transaction = Transaction::findOrFail($id);
-                $this->receive($transaction, $user, $notes);
+                $this->receive($transaction, $user, $scannedReferences[$id] ?? '', $notes);
                 $results['success'][] = $id;
             } catch (\Exception $e) {
                 $results['failed'][$id] = $e->getMessage();

@@ -1,4 +1,6 @@
 import '../css/app.css';
+import '../css/dashboard.css';
+import '../css/dashboard-motion.css';
 import './bootstrap';
 
 import { createInertiaApp } from '@inertiajs/react';
@@ -20,6 +22,6 @@ createInertiaApp({
         root.render(<App {...props} />);
     },
     progress: {
-        color: '#6366f1', // Indigo-500 to match theme
+        color: '#235a7c',
     },
 });

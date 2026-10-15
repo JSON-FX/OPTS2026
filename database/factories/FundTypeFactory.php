@@ -21,7 +21,7 @@ class FundTypeFactory extends Factory
     {
         return [
             'name' => fake()->words(2, true),
-            'abbreviation' => strtoupper(fake()->lexify('???')),
+            'abbreviation' => strtoupper(fake()->unique()->lexify('???')),
             'is_active' => true,
         ];
     }

@@ -83,6 +83,8 @@ class PurchaseOrderControllerTest extends TestCase
                 'contract_price' => 125000.50,
                 'ref_year' => '2025',
                 'ref_month' => '10',
+                'manual_reference' => true,
+                'reference_number' => 'PO-2025-10-042',
                 'ref_number' => '042',
                 'is_continuation' => false,
             ]);
@@ -129,11 +131,13 @@ class PurchaseOrderControllerTest extends TestCase
                 'contract_price' => 125000.50,
                 'ref_year' => '2025',
                 'ref_month' => '10',
+                'manual_reference' => true,
+                'reference_number' => 'PO-2025-10-042',
                 'ref_number' => '042',
                 'is_continuation' => false,
             ]);
 
-        $response->assertSessionHasErrors('ref_number');
+        $response->assertSessionHasErrors('reference_number');
         $this->assertEquals(1, Transaction::where('reference_number', 'PO-2025-10-042')->count());
     }
 
@@ -157,6 +161,8 @@ class PurchaseOrderControllerTest extends TestCase
                 'contract_price' => 1000,
                 'ref_year' => '2025',
                 'ref_month' => '10',
+                'manual_reference' => true,
+                'reference_number' => 'PO-2025-10-042',
                 'ref_number' => '042',
                 'is_continuation' => false,
             ]);
@@ -176,6 +182,8 @@ class PurchaseOrderControllerTest extends TestCase
                 'contract_price' => 125000.50,
                 'ref_year' => '2025',
                 'ref_month' => '10',
+                'manual_reference' => true,
+                'reference_number' => 'PO-2025-10-042',
                 'ref_number' => '042',
                 'is_continuation' => false,
             ]);
@@ -208,6 +216,8 @@ class PurchaseOrderControllerTest extends TestCase
                 'contract_price' => 50000.00,
                 'ref_year' => '2024',
                 'ref_month' => '12',
+                'manual_reference' => true,
+                'reference_number' => 'CONT-PO-2024-12-9999',
                 'ref_number' => '9999',
                 'is_continuation' => true,
             ]);
@@ -243,6 +253,8 @@ class PurchaseOrderControllerTest extends TestCase
                 'contract_price' => 100000.00,
                 'ref_year' => '2025',
                 'ref_month' => '10',
+                'manual_reference' => true,
+                'reference_number' => 'PO-2025-10-050',
                 'ref_number' => '050',
                 'is_continuation' => false,
             ]);
@@ -422,6 +434,8 @@ class PurchaseOrderControllerTest extends TestCase
                 'contract_price' => 125000.50,
                 'ref_year' => '2025',
                 'ref_month' => '10',
+                'manual_reference' => true,
+                'reference_number' => 'PO-2025-10-042',
                 'ref_number' => '042',
                 'is_continuation' => false,
             ]);
@@ -450,6 +464,8 @@ class PurchaseOrderControllerTest extends TestCase
                 'contract_price' => 0.00, // Below min 0.01
                 'ref_year' => '2025',
                 'ref_month' => '10',
+                'manual_reference' => true,
+                'reference_number' => 'PO-2025-10-042',
                 'ref_number' => '042',
                 'is_continuation' => false,
             ]);
@@ -464,6 +480,8 @@ class PurchaseOrderControllerTest extends TestCase
                 // contract_price missing
                 'ref_year' => '2025',
                 'ref_month' => '10',
+                'manual_reference' => true,
+                'reference_number' => 'PO-2025-10-043',
                 'ref_number' => '043',
                 'is_continuation' => false,
             ]);

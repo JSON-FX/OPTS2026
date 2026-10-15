@@ -37,6 +37,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/transactions', [\App\Http\Controllers\TransactionController::class, 'index'])
         ->name('transactions.index');
 
+    Route::get('/transactions/{transaction}/qr-label', \App\Http\Controllers\DocumentQrLabelController::class)
+        ->name('transactions.qr-label');
+
     // Purchase Request - view (all authenticated users)
     Route::get('/purchase-requests/{id}', [\App\Http\Controllers\PurchaseRequestController::class, 'show'])
         ->name('purchase-requests.show');
@@ -54,6 +57,8 @@ Route::middleware(['auth', 'role:Endorser|Administrator'])->group(function () {
     // Transaction receive routes (Story 3.5)
     Route::get('/transactions/pending', [\App\Http\Controllers\TransactionReceiveController::class, 'pending'])
         ->name('transactions.pending');
+    Route::get('/transactions/{transaction}/receive', [\App\Http\Controllers\TransactionReceiveController::class, 'create'])
+        ->name('transactions.receive.create');
     Route::post('/transactions/{transaction}/receive', [\App\Http\Controllers\TransactionReceiveController::class, 'store'])
         ->name('transactions.receive.store');
     Route::post('/transactions/receive-bulk', [\App\Http\Controllers\TransactionReceiveController::class, 'storeBulk'])

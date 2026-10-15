@@ -91,6 +91,7 @@ class VoucherControllerTest extends TestCase
 
         $response = $this->actingAs($this->endorser)
             ->post(route('procurements.vouchers.store', $this->procurement), [
+                'manual_reference' => true,
                 'reference_number' => 'VCH-2025-001',
                 'payee' => 'John Doe Payment Services',
             ]);
@@ -136,6 +137,7 @@ class VoucherControllerTest extends TestCase
 
         $response = $this->actingAs($this->endorser)
             ->post(route('procurements.vouchers.store', $this->procurement), [
+                'manual_reference' => true,
                 'reference_number' => 'VCH-2025-002',
                 'payee' => 'John Doe',
             ]);
@@ -174,6 +176,7 @@ class VoucherControllerTest extends TestCase
 
         $response = $this->actingAs($this->endorser)
             ->post(route('procurements.vouchers.store', $this->procurement), [
+                'manual_reference' => true,
                 'reference_number' => 'VCH-GAA-2025-10-042',
                 'payee' => 'Test Payee',
             ]);
@@ -213,6 +216,7 @@ class VoucherControllerTest extends TestCase
         // Create first VCH with reference number
         $this->actingAs($this->endorser)
             ->post(route('procurements.vouchers.store', $this->procurement), [
+                'manual_reference' => true,
                 'reference_number' => 'VCH-2025-DUPLICATE',
                 'payee' => 'First Payee',
             ]);
@@ -242,6 +246,7 @@ class VoucherControllerTest extends TestCase
 
         $response = $this->actingAs($this->endorser)
             ->post(route('procurements.vouchers.store', $procurement2), [
+                'manual_reference' => true,
                 'reference_number' => 'VCH-2025-DUPLICATE',
                 'payee' => 'Second Payee',
             ]);
@@ -279,6 +284,7 @@ class VoucherControllerTest extends TestCase
 
         $response = $this->actingAs($this->viewer)
             ->post(route('procurements.vouchers.store', $this->procurement), [
+                'manual_reference' => true,
                 'reference_number' => 'VCH-2025-003',
                 'payee' => 'John Doe',
             ]);

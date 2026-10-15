@@ -164,6 +164,7 @@ class TransactionReceiveTest extends TestCase
 
         $response = $this->actingAs($setup['receiver'])
             ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'notes' => 'Received and acknowledged',
             ]);
 
@@ -186,7 +187,9 @@ class TransactionReceiveTest extends TestCase
         $setup = $this->createReceivableTransaction();
 
         $this->actingAs($setup['receiver'])
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $setup['transaction']->refresh();
 
@@ -199,7 +202,9 @@ class TransactionReceiveTest extends TestCase
         $setup = $this->createReceivableTransaction();
 
         $this->actingAs($setup['receiver'])
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $setup['transaction']->refresh();
 
@@ -218,7 +223,9 @@ class TransactionReceiveTest extends TestCase
         ]);
 
         $response = $this->actingAs($setup['receiver'])
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $response->assertForbidden();
     }
@@ -232,7 +239,9 @@ class TransactionReceiveTest extends TestCase
         $wrongOfficeUser->assignRole('Endorser');
 
         $response = $this->actingAs($wrongOfficeUser)
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $response->assertForbidden();
     }
@@ -269,6 +278,7 @@ class TransactionReceiveTest extends TestCase
         $response = $this->actingAs($setup['receiver'])
             ->post(route('transactions.receive.bulk'), [
                 'transaction_ids' => [$setup['transaction']->id, $transaction2->id],
+                'scanned_references' => [$setup['transaction']->id => $setup['transaction']->reference_number, $transaction2->id => $transaction2->reference_number],
             ]);
 
         $response->assertRedirect(route('transactions.pending'));
@@ -305,6 +315,7 @@ class TransactionReceiveTest extends TestCase
         $response = $this->actingAs($setup['receiver'])
             ->post(route('transactions.receive.bulk'), [
                 'transaction_ids' => [$setup['transaction']->id, $transaction2->id],
+                'scanned_references' => [$setup['transaction']->id => $setup['transaction']->reference_number, $transaction2->id => $transaction2->reference_number],
             ]);
 
         $response->assertRedirect(route('transactions.pending'));
@@ -329,7 +340,9 @@ class TransactionReceiveTest extends TestCase
         $admin->assignRole('Administrator');
 
         $response = $this->actingAs($admin)
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $response->assertRedirect(route('transactions.pending'));
 
@@ -345,7 +358,9 @@ class TransactionReceiveTest extends TestCase
         $setup = $this->createReceivableTransaction();
 
         $response = $this->actingAs($setup['receiver'])
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $response->assertRedirect();
 
@@ -361,7 +376,9 @@ class TransactionReceiveTest extends TestCase
         $setup = $this->createReceivableTransaction();
 
         $this->actingAs($setup['receiver'])
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $action = TransactionAction::where('transaction_id', $setup['transaction']->id)
             ->where('action_type', 'receive')
@@ -377,7 +394,9 @@ class TransactionReceiveTest extends TestCase
         $setup['transaction']->update(['status' => 'On Hold']);
 
         $response = $this->actingAs($setup['receiver'])
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $response->assertForbidden();
     }
@@ -432,7 +451,9 @@ class TransactionReceiveTest extends TestCase
             ->update(['is_out_of_workflow' => true]);
 
         $this->actingAs($setup['receiver'])
-            ->post(route('transactions.receive.store', $setup['transaction']));
+            ->post(route('transactions.receive.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
+            ]);
 
         $setup['transaction']->refresh();
 

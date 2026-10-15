@@ -24,7 +24,10 @@ class StoreVoucherRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'reference_number' => ['required', 'string', 'max:50', 'unique:transactions,reference_number'],
+            'manual_reference' => ['sometimes', 'boolean'],
+            'reference_number' => ['exclude_unless:manual_reference,true', 'required', 'string', 'max:50', 'unique:transactions,reference_number'],
+            'ref_year' => ['exclude_if:manual_reference,true', 'required', 'digits:4', 'integer', 'in:'.now()->year],
+            'ref_month' => ['exclude_if:manual_reference,true', 'required', 'digits:2', 'numeric', 'min:1', 'max:12'],
             'payee' => ['required', 'string', 'max:255'],
             'workflow_id' => ['nullable', 'integer', new \App\Rules\ActiveSsoWorkflow('VCH')],
         ];

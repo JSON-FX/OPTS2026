@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Transaction;
+use App\Rules\ScannedDocumentReference;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -18,8 +20,9 @@ class ReceiveTransactionRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by the controller via policy
-        return true;
+        $transaction = $this->route('transaction');
+
+        return $transaction instanceof Transaction && $this->user()->can('receive', $transaction);
     }
 
     /**
@@ -30,6 +33,7 @@ class ReceiveTransactionRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'scanned_reference' => ['required', 'string', 'max:255', new ScannedDocumentReference($this->route('transaction')->reference_number)],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -42,6 +46,7 @@ class ReceiveTransactionRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'scanned_reference.required' => 'Scan the document QR code before confirming.',
             'notes.max' => 'Notes cannot exceed 1000 characters.',
         ];
     }

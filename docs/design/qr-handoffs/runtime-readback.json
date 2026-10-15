@@ -1,0 +1,100 @@
+{
+  "image_health": "sha256:8253d046a7a549e74f9565949eca186e4f6e37d3eaf5ccfb42bb135206ec646a healthy",
+  "checks": [
+    {
+      "path": "app/Http/Middleware/TrimStrings.php",
+      "sha256": "3d3b0f66222dbd0a3dce603adeb6dd5060d515e91ee80a37257b8e759dce0ee3",
+      "matches": true
+    },
+    {
+      "path": "app/Rules/ScannedDocumentReference.php",
+      "sha256": "3a0a06ef7a5fad3f1838a7570ea22910fd39a17f225ed5a6fdaf775c5e3516df",
+      "matches": true
+    },
+    {
+      "path": "app/Http/Requests/EndorseTransactionRequest.php",
+      "sha256": "3fe50acdd1a9348df2c8ef767ac2d80a2620918dbc441638de212f0a166ccd49",
+      "matches": true
+    },
+    {
+      "path": "app/Http/Requests/ReceiveTransactionRequest.php",
+      "sha256": "bb996eae0b85243678a90e6bee936e02959c238ceb0f6e9623b8d99595cbf1e9",
+      "matches": true
+    },
+    {
+      "path": "app/Http/Requests/ReceiveBulkRequest.php",
+      "sha256": "dcb1eee9f8db90854e548bc2125a639a2ffa57409fbc45bb3256db4924dde342",
+      "matches": true
+    },
+    {
+      "path": "app/Http/Controllers/TransactionEndorseController.php",
+      "sha256": "b3e6c5df53ab5da80e421270704e19e850cb5a2127984b987669e922566e55b2",
+      "matches": true
+    },
+    {
+      "path": "app/Http/Controllers/TransactionReceiveController.php",
+      "sha256": "77b0344b58a953f54f7fc7b1b04a8ef89e5ccb55b234db458e819f0426a2f7ed",
+      "matches": true
+    },
+    {
+      "path": "app/Services/EndorsementService.php",
+      "sha256": "1cbd398dcc7f279661328e0f861f7cb9ddd41edfdbe9a182c9c6deef700f11ba",
+      "matches": true
+    },
+    {
+      "path": "app/Services/TransactionHandoffPresenter.php",
+      "sha256": "c78153a07448f509741f71d3e84e0798fa864701705325fa887b093786078976",
+      "matches": true
+    },
+    {
+      "path": "bootstrap/app.php",
+      "sha256": "a57ef8e0bd4ac72b5698c2e75f6f825f8e5b13bc3e082ada28672f2478ffe7e4",
+      "matches": true
+    },
+    {
+      "path": "routes/web.php",
+      "sha256": "fb18a51bf2c8f3382429c5f369cfe66c79902fde7b489c89bcd4e3747a15c299",
+      "matches": true
+    },
+    {
+      "path": "resources/js/Components/Documents/HandoffWorkspace.tsx",
+      "sha256": "e6806536b1671b6fe4edbde2132b6f22567345bf5cb4d4f63ba919befc71cb57",
+      "matches": true
+    },
+    {
+      "path": "resources/js/Components/Documents/handoff-types.ts",
+      "sha256": "487720768808472e50d24e96845d08f507b496d382c594bbfae4d92c2c3b9b7b",
+      "matches": true
+    },
+    {
+      "path": "resources/js/Components/Documents/DocumentDetail.tsx",
+      "sha256": "04f62bae4b377ae4a390660c57cf7c20afbcd187726c122aba0afcfc009f251a",
+      "matches": true
+    },
+    {
+      "path": "resources/js/Components/Documents/DocumentFrame.tsx",
+      "sha256": "3507521a260fea7ac53d7e7a6440177e679666b6065dabe621d6298ad3d03f9c",
+      "matches": true
+    },
+    {
+      "path": "resources/js/Pages/Transactions/Endorse.tsx",
+      "sha256": "52cf8d5787c15300fd273943c8ec21827eff798cb1e170bf7f61746c4229933b",
+      "matches": true
+    },
+    {
+      "path": "resources/js/Pages/Transactions/Receive.tsx",
+      "sha256": "6fbd0b99b77c5ec042b9539d94751572ff91e42ec7fb15d6fedb00c5756172e6",
+      "matches": true
+    },
+    {
+      "path": "resources/js/Pages/Transactions/Pending.tsx",
+      "sha256": "8aab4c1049a2e4a1ac1f514f25cd937004dd57ae21bf02f2d28eafbc698e561f",
+      "matches": true
+    },
+    {
+      "path": "resources/css/qr-handoff.css",
+      "sha256": "7a74089ba6304f1c97de9378aad873c5c32f75b10add06a113520f3c740da542",
+      "matches": true
+    }
+  ]
+}

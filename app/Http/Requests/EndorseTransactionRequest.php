@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Transaction;
+use App\Rules\ScannedDocumentReference;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -18,8 +20,9 @@ class EndorseTransactionRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by the controller via policy
-        return true;
+        $transaction = $this->route('transaction');
+
+        return $transaction instanceof Transaction && $this->user()->can('endorse', $transaction);
     }
 
     /**
@@ -30,6 +33,7 @@ class EndorseTransactionRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'scanned_reference' => ['required', 'string', 'max:255', new ScannedDocumentReference($this->route('transaction')->reference_number)],
             'action_taken_id' => ['required', 'integer', 'exists:action_taken,id'],
             'to_office_id' => ['required', 'integer', new \App\Rules\ActiveSsoOffice],
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -48,6 +52,7 @@ class EndorseTransactionRequest extends FormRequest
             'action_taken_id.exists' => 'The selected action is invalid.',
             'to_office_id.required' => 'Please select a target office.',
             'to_office_id.exists' => 'The selected office is invalid.',
+            'scanned_reference.required' => 'Scan the document QR code before confirming.',
             'notes.max' => 'Notes cannot exceed 1000 characters.',
         ];
     }

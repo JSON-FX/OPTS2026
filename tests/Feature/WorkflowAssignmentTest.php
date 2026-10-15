@@ -200,7 +200,8 @@ class WorkflowAssignmentTest extends TestCase
 
         $response = $this->actingAs($this->endorser)
             ->post(route('procurements.vouchers.store', $this->procurement), [
-                'reference_number' => 'VCH-2026-000001',
+                'ref_year' => '2026',
+                'ref_month' => '02',
                 'payee' => 'Test Payee',
             ]);
 

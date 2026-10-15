@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Transaction;
+use App\Rules\ScannedDocumentReference;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -29,11 +31,21 @@ class ReceiveBulkRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $rules = [
             'transaction_ids' => ['required', 'array', 'min:1'],
-            'transaction_ids.*' => ['required', 'integer', 'exists:transactions,id'],
+            'transaction_ids.*' => ['required', 'integer', 'distinct', 'exists:transactions,id'],
+            'scanned_references' => ['required', 'array'],
+            'scanned_references.*' => ['required', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
+
+        foreach ((array) $this->input('transaction_ids', []) as $id) {
+            if (is_numeric($id) && ($transaction = Transaction::find((int) $id))) {
+                $rules['scanned_references.'.(int) $id] = ['required', 'string', 'max:255', new ScannedDocumentReference($transaction->reference_number)];
+            }
+        }
+
+        return $rules;
     }
 
     /**

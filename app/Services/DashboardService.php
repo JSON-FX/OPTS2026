@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Office;
 use App\Models\Transaction;
 use App\Models\TransactionAction;
+use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +18,7 @@ class DashboardService
 {
     public function __construct(
         private readonly EtaCalculationService $etaService,
+        private readonly EndorsementService $endorsementService,
     ) {}
 
     /**
@@ -22,11 +27,13 @@ class DashboardService
      *
      * @return EloquentCollection<int, Transaction>
      */
-    public function loadActiveTransactions(?int $year = null): EloquentCollection
+    public function loadActiveTransactions(?int $year = null, ?int $officeId = null): EloquentCollection
     {
         return Transaction::query()
+            ->whereHas('procurement')
             ->whereIn('status', ['Created', 'In Progress'])
             ->whereNotNull('current_office_id')
+            ->when($officeId, fn ($q) => $q->where('current_office_id', $officeId))
             ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->with([
                 'currentStep',
@@ -44,9 +51,15 @@ class DashboardService
      *
      * @return array{procurements: array, purchase_requests: array, purchase_orders: array, vouchers: array}
      */
-    public function getSummaryCards(?int $year = null): array
+    public function getSummaryCards(?int $year = null, ?int $officeId = null): array
     {
         $procurementCounts = DB::table('procurements')
+            ->when($officeId, fn ($q) => $q->whereExists(fn ($tx) => $tx
+                ->selectRaw('1')->from('transactions')
+                ->whereColumn('transactions.procurement_id', 'procurements.id')
+                ->whereNull('transactions.deleted_at')
+                ->where('transactions.current_office_id', $officeId)
+                ->when($year, fn ($tx) => $tx->whereYear('transactions.created_at', $year))))
             ->select('status', DB::raw('COUNT(*) as count'))
             ->whereNull('deleted_at')
             ->when($year, fn ($q) => $q->whereYear('created_at', $year))
@@ -54,6 +67,9 @@ class DashboardService
             ->pluck('count', 'status');
 
         $transactionCounts = DB::table('transactions')
+            ->whereExists(fn ($q) => $q->selectRaw('1')->from('procurements')
+                ->whereColumn('procurements.id', 'transactions.procurement_id')->whereNull('procurements.deleted_at'))
+            ->when($officeId, fn ($q) => $q->where('current_office_id', $officeId))
             ->select('category', 'status', DB::raw('COUNT(*) as count'))
             ->whereNull('deleted_at')
             ->when($year, fn ($q) => $q->whereYear('created_at', $year))
@@ -80,63 +96,37 @@ class DashboardService
      * @param  EloquentCollection<int, Transaction>|null  $activeTransactions  Pre-loaded transactions to avoid duplicate queries.
      * @return Collection<int, object>
      */
-    public function getOfficeWorkload(?EloquentCollection $activeTransactions = null): Collection
+    public function getOfficeWorkload(?EloquentCollection $activeTransactions = null, ?int $officeId = null): Collection
     {
-        // Get all distinct offices from active workflow steps
-        $workflowOffices = DB::table('workflow_steps')
+        $activeTransactions ??= $this->loadActiveTransactions();
+        $workflowOfficeIds = DB::table('workflow_steps')
             ->join('workflows', 'workflow_steps.workflow_id', '=', 'workflows.id')
-            ->join('offices', 'workflow_steps.office_id', '=', 'offices.id')
             ->where('workflows.is_active', true)
-            ->select(
-                'offices.id as office_id',
-                'offices.name as office_name',
-                'offices.abbreviation as office_abbreviation'
-            )
-            ->distinct()
-            ->get();
+            ->pluck('workflow_steps.office_id');
 
-        if ($workflowOffices->isEmpty()) {
-            return collect();
-        }
-
-        // Get transaction counts per office for active transactions (scoped to loaded set)
-        $loadedTxIds = $activeTransactions?->pluck('id');
-        $transactionCounts = DB::table('transactions')
-            ->select(
-                'current_office_id as office_id',
-                DB::raw("SUM(CASE WHEN category = 'PR' THEN 1 ELSE 0 END) as pr_count"),
-                DB::raw("SUM(CASE WHEN category = 'PO' THEN 1 ELSE 0 END) as po_count"),
-                DB::raw("SUM(CASE WHEN category = 'VCH' THEN 1 ELSE 0 END) as vch_count"),
-                DB::raw('COUNT(*) as total')
-            )
-            ->whereNull('deleted_at')
-            ->whereIn('status', ['Created', 'In Progress'])
-            ->when($loadedTxIds?->isNotEmpty(), fn ($q) => $q->whereIn('id', $loadedTxIds))
-            ->groupBy('current_office_id')
-            ->get()
-            ->keyBy('office_id');
-
-        // Compute stagnant counts per office using pre-loaded transactions
+        // Retain offices holding real documents even when their workflow is retired.
+        $officeIds = $workflowOfficeIds->merge($activeTransactions->pluck('current_office_id'))->unique()->filter();
+        $byOffice = $activeTransactions->groupBy('current_office_id');
         $stagnantCounts = $this->getStagnantCountsByOffice($activeTransactions);
 
-        // Merge: all workflow offices with their transaction counts (defaulting to 0)
-        return $workflowOffices->map(function ($office) use ($transactionCounts, $stagnantCounts) {
-            $counts = $transactionCounts[(int) $office->office_id] ?? null;
+        return Office::withTrashed()->whereIn('id', $officeIds)
+            ->when($officeId, fn ($q) => $q->where('id', $officeId))
+            ->get(['id', 'name', 'abbreviation'])
+            ->map(function (Office $office) use ($byOffice, $stagnantCounts) {
+                $transactions = $byOffice->get($office->id, collect());
 
-            return (object) [
-                'office_id' => (int) $office->office_id,
-                'office_name' => $office->office_name,
-                'office_abbreviation' => $office->office_abbreviation,
-                'pr_count' => (int) ($counts->pr_count ?? 0),
-                'po_count' => (int) ($counts->po_count ?? 0),
-                'vch_count' => (int) ($counts->vch_count ?? 0),
-                'total' => (int) ($counts->total ?? 0),
-                'stagnant_count' => $stagnantCounts[(int) $office->office_id] ?? 0,
-            ];
-        })
-            ->sortBy('office_name')
-            ->sortByDesc('total')
-            ->values();
+                return (object) [
+                    'office_id' => $office->id,
+                    'office_name' => $office->name,
+                    'office_abbreviation' => $office->abbreviation,
+                    'pr_count' => $transactions->where('category', 'PR')->count(),
+                    'po_count' => $transactions->where('category', 'PO')->count(),
+                    'vch_count' => $transactions->where('category', 'VCH')->count(),
+                    'total' => $transactions->count(),
+                    'stagnant_count' => $stagnantCounts[$office->id] ?? 0,
+                ];
+            })
+            ->sortBy('office_name')->sortByDesc('total')->values();
     }
 
     /**
@@ -144,14 +134,17 @@ class DashboardService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getRecentActivity(int $limit = 20, ?int $year = null): array
+    public function getRecentActivity(int $limit = 20, ?int $year = null, ?int $officeId = null): array
     {
         return TransactionAction::query()
+            ->whereHas('transaction.procurement')
+            ->when($officeId, fn ($q) => $q->where(fn ($q) => $q
+                ->where('from_office_id', $officeId)->orWhere('to_office_id', $officeId)))
             ->with([
                 'fromUser:id,name',
                 'toUser:id,name',
-                'fromOffice:id,name,abbreviation',
-                'toOffice:id,name,abbreviation',
+                'fromOffice' => fn ($q) => $q->withTrashed()->select('id', 'name', 'abbreviation'),
+                'toOffice' => fn ($q) => $q->withTrashed()->select('id', 'name', 'abbreviation'),
                 'transaction:id,reference_number,category',
                 'transaction.purchaseRequest:id,transaction_id',
                 'transaction.purchaseOrder:id,transaction_id',
@@ -173,12 +166,18 @@ class DashboardService
                     ? ($action->toUser?->name ?? $action->fromUser?->name ?? 'Unknown')
                     : ($action->fromUser?->name ?? 'Unknown'),
                 'from_office' => $action->fromOffice?->abbreviation,
+                'from_office_name' => $action->fromOffice?->name,
+                'from_office_id' => $action->from_office_id,
                 'to_office' => $action->toOffice?->abbreviation,
+                'to_office_name' => $action->toOffice?->name,
+                'to_office_id' => $action->to_office_id,
                 'is_out_of_workflow' => $action->is_out_of_workflow,
                 'purchase_request_id' => $action->transaction->purchaseRequest?->id,
                 'purchase_order_id' => $action->transaction->purchaseOrder?->id,
                 'voucher_id' => $action->transaction->voucher?->id,
                 'created_at' => $action->created_at->diffForHumans(),
+                'occurred_at' => $action->created_at->toISOString(),
+                'url' => $this->documentUrl($action->transaction),
             ])
             ->all();
     }
@@ -189,33 +188,175 @@ class DashboardService
      * @param  EloquentCollection<int, Transaction>|null  $activeTransactions  Pre-loaded transactions to avoid duplicate queries.
      * @return array<int, array<string, mixed>>
      */
-    public function getStagnantTransactions(?EloquentCollection $activeTransactions = null, int $limit = 10): array
+    public function getStagnantTransactions(?EloquentCollection $activeTransactions = null, ?int $limit = 10): array
     {
         $activeTransactions ??= $this->loadActiveTransactions();
 
-        $officeIds = $activeTransactions->pluck('current_office_id')->unique()->filter()->all();
-        $officeNames = DB::table('offices')
-            ->whereIn('id', $officeIds)
-            ->pluck('name', 'id');
+        $activeTransactions->loadMissing(['currentOffice' => fn ($q) => $q->withTrashed()->select('id', 'name', 'abbreviation')]);
 
-        return $activeTransactions
+        $transactions = $activeTransactions
             ->filter(fn (Transaction $tx) => $this->etaService->isStagnant($tx))
-            ->map(fn (Transaction $tx) => [
-                'id' => $tx->id,
-                'reference_number' => $tx->reference_number,
-                'category' => $tx->category,
-                'current_office_name' => $officeNames[$tx->current_office_id] ?? 'Unknown',
-                'delay_days' => $this->etaService->getDelayDays($tx),
-                'delay_severity' => $this->etaService->getDelaySeverity($tx),
-                'days_at_current_step' => $this->etaService->getDaysAtCurrentStep($tx),
-                'purchase_request_id' => $tx->purchaseRequest?->id,
-                'purchase_order_id' => $tx->purchaseOrder?->id,
-                'voucher_id' => $tx->voucher?->id,
-            ])
-            ->sortByDesc('delay_days')
-            ->take($limit)
-            ->values()
-            ->all();
+            ->map(fn (Transaction $tx) => $this->mapAttention($tx))
+            ->sortByDesc('delay_days');
+
+        return ($limit === null ? $transactions : $transactions->take($limit))->values()->all();
+    }
+
+    private function mapAttention(Transaction $tx): array
+    {
+        return [
+            'id' => $tx->id,
+            'reference_number' => $tx->reference_number,
+            'category' => $tx->category,
+            'status' => $tx->status,
+            'current_step_order' => $tx->currentStep?->step_order,
+            'total_steps' => $tx->workflow?->steps->count() ?? 0,
+            'current_office_id' => $tx->current_office_id,
+            'current_office_name' => $tx->currentOffice?->name ?? 'Unknown',
+            'current_office_abbreviation' => $tx->currentOffice?->abbreviation,
+            'delay_days' => $this->etaService->getDelayDays($tx),
+            'delay_severity' => $this->etaService->getDelaySeverity($tx),
+            'days_at_current_step' => $this->etaService->getDaysAtCurrentStep($tx),
+            'expected_days' => $tx->currentStep?->expected_days,
+            'idle_days' => $tx->latestAction
+                ? $this->etaService->businessDaysBetween($tx->latestAction->created_at, now()) : 0,
+            'reason' => $this->etaService->getDelayDays($tx) > 0 ? 'overdue' : 'idle',
+            'awaiting_receipt' => $tx->received_at === null,
+            'purchase_request_id' => $tx->purchaseRequest?->id,
+            'purchase_order_id' => $tx->purchaseOrder?->id,
+            'voucher_id' => $tx->voucher?->id,
+            'url' => $this->documentUrl($tx),
+
+        ];
+    }
+
+    /** Paginated register. Processing remains on the existing document pages. */
+    public function getDocuments(int $year, array $filters, ?User $user = null, string $pageName = 'page'): LengthAwarePaginator
+    {
+        $query = $this->documentQuery()
+            ->whereYear('created_at', $year)
+            ->when($filters['office_id'], fn ($q, $id) => $q->where('current_office_id', $id))
+            ->when($filters['category'] !== 'all', fn ($q) => $q->where('category', $filters['category']))
+            ->when($filters['active_only'], fn ($q) => $q->whereIn('status', ['Created', 'In Progress']))
+            ->when($filters['search'] !== '', fn ($q) => $q->where(fn ($q) => $q
+                ->where('reference_number', 'like', '%'.$filters['search'].'%')
+                ->orWhereHas('currentOffice', fn ($q) => $q->withTrashed()
+                    ->where('name', 'like', '%'.$filters['search'].'%')
+                    ->orWhere('abbreviation', 'like', '%'.$filters['search'].'%'))));
+
+        match ($filters['sort'] ?? 'newest') {
+            'reference_asc' => $query->orderBy('reference_number'),
+            'reference_desc' => $query->orderByDesc('reference_number'),
+            default => $query->orderByDesc('created_at'),
+        };
+
+        return $query->orderByDesc('id')->paginate(10, ['*'], $pageName)->withQueryString()
+            ->through(fn (Transaction $tx) => $this->mapDocument($tx, $user));
+    }
+
+    /** A selected activity or attention record may be outside the current register scope. */
+    public function getSelectedDocument(int $id, ?User $user = null): ?array
+    {
+        $transaction = $this->documentQuery()->find($id);
+
+        return $transaction ? $this->mapDocument($transaction, $user) : null;
+    }
+
+    /** Pending receipts belong to the eligible user's office, across selected years. */
+    public function getPendingDocuments(?User $user): array
+    {
+        if (! $user?->canProcessTransactions()) {
+            return [];
+        }
+
+        return $this->documentQuery()
+            ->where('current_office_id', $user->office_id)
+            ->where('status', 'In Progress')->whereNull('received_at')
+            ->orderByDesc('created_at')->orderByDesc('id')->limit(50)->get()
+            ->map(fn (Transaction $tx) => $this->mapDocument($tx, $user))->all();
+    }
+
+    private function documentQuery(): Builder
+    {
+        return Transaction::query()->whereHas('procurement')
+            ->with(['procurement:id,purpose', 'currentStep', 'latestAction',
+                'currentOffice' => fn ($q) => $q->withTrashed()->select('id', 'name', 'abbreviation'),
+                'workflow.steps.office' => fn ($q) => $q->withTrashed()->select('id', 'name', 'abbreviation'),
+                'purchaseRequest:id,transaction_id',
+                'purchaseOrder:id,transaction_id', 'voucher:id,transaction_id']);
+    }
+
+    /** Present a document whose workflow and document relations have been eager loaded. */
+    public function mapDocument(Transaction $transaction, ?User $user = null): array
+    {
+        return [
+            'id' => $transaction->id,
+            'reference_number' => $transaction->reference_number,
+            'category' => $transaction->category,
+            'status' => $transaction->status,
+            'procurement_id' => $transaction->procurement_id,
+            'purpose' => $transaction->procurement?->purpose,
+            'current_office_id' => $transaction->current_office_id,
+            'current_office_name' => $transaction->currentOffice?->name,
+            'current_office_abbreviation' => $transaction->currentOffice?->abbreviation,
+            'created_at' => $transaction->created_at?->toISOString(),
+            'received_at' => $transaction->received_at?->toISOString(),
+            'url' => $this->documentUrl($transaction),
+            'next_action' => $this->nextAction($transaction, $user),
+            'attention' => in_array($transaction->status, ['Created', 'In Progress'], true)
+                && $transaction->current_office_id !== null && $this->etaService->isStagnant($transaction)
+                    ? $this->mapAttention($transaction) : null,
+            'current_step_id' => $transaction->current_step_id,
+            'workflow_steps' => $transaction->workflow?->steps->sortBy('step_order')->map(fn ($step) => [
+                'id' => $step->id,
+                'step_order' => $step->step_order,
+                'office_id' => $step->office_id,
+                'office_name' => $step->office?->name,
+                'office_abbreviation' => $step->office?->abbreviation,
+                'expected_days' => $step->expected_days,
+            ])->values()->all() ?? [],
+        ];
+    }
+
+    /** Links only. Destination policies and existing confirmation forms recheck eligibility. */
+    private function nextAction(Transaction $transaction, ?User $user): ?array
+    {
+        $documentUrl = $this->documentUrl($transaction);
+        if (! $user?->canProcessTransactions() || $user->office_id !== $transaction->current_office_id
+            || ! in_array($transaction->status, ['Created', 'In Progress'], true) || ! $documentUrl) {
+            return null;
+        }
+
+        if ($this->endorsementService->canReceive($transaction, $user)) {
+            return ['label' => 'Review receipt', 'url' => $documentUrl];
+        }
+
+        if ($transaction->currentStep?->is_final_step && $this->endorsementService->canComplete($transaction, $user)) {
+            return ['label' => 'Review completion', 'url' => $documentUrl];
+        }
+
+        if ($this->endorsementService->canEndorse($transaction, $user)) {
+            $nextOffice = $this->endorsementService->getExpectedNextOffice($transaction);
+
+            return [
+                'label' => $nextOffice?->abbreviation ? 'Endorse to '.$nextOffice->abbreviation : 'Endorse document',
+                'url' => route('transactions.endorse.create', $transaction->id),
+            ];
+        }
+
+        return null;
+    }
+
+    private function documentUrl(Transaction $transaction): ?string
+    {
+        [$route, $id] = match ($transaction->category) {
+            'PR' => ['purchase-requests.show', $transaction->purchaseRequest?->id],
+            'PO' => ['purchase-orders.show', $transaction->purchaseOrder?->id],
+            'VCH' => ['vouchers.show', $transaction->voucher?->id],
+            default => [null, null],
+        };
+
+        return $id ? route($route, $id) : null;
     }
 
     /**
@@ -224,7 +365,7 @@ class DashboardService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function getOfficePerformance(int $days = 30, ?int $year = null): array
+    public function getOfficePerformance(int $days = 30, ?int $year = null, ?int $officeId = null): array
     {
         $cutoff = $year
             ? \Illuminate\Support\Carbon::create($year, 1, 1)->startOfYear()
@@ -232,8 +373,14 @@ class DashboardService
 
         // Get receive actions within the period
         $receives = DB::table('transaction_actions')
+            ->whereExists(fn ($q) => $q->selectRaw('1')->from('transactions')
+                ->join('procurements', 'procurements.id', '=', 'transactions.procurement_id')
+                ->whereColumn('transactions.id', 'transaction_actions.transaction_id')
+                ->whereNull('transactions.deleted_at')->whereNull('procurements.deleted_at'))
             ->where('action_type', 'receive')
             ->where('created_at', '>=', $cutoff)
+            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
+            ->when($officeId, fn ($q) => $q->where('to_office_id', $officeId))
             ->whereNotNull('to_office_id')
             ->select('id', 'transaction_id', 'to_office_id', 'created_at')
             ->orderBy('id')
@@ -332,20 +479,24 @@ class DashboardService
      *
      * @return array{current_month: int, previous_month: int, trend_percentage: float}
      */
-    public function getIncidentSummary(?int $year = null): array
+    public function getIncidentSummary(?int $year = null, ?int $officeId = null): array
     {
         $currentMonthStart = now()->startOfMonth();
         $previousMonthStart = now()->subMonth()->startOfMonth();
         $previousMonthEnd = now()->subMonth()->endOfMonth();
 
-        $currentMonth = (int) DB::table('transaction_actions')
+        $currentMonth = (int) TransactionAction::query()->whereHas('transaction.procurement')
             ->where('is_out_of_workflow', true)
+            ->when($officeId, fn ($q) => $q->where(fn ($q) => $q
+                ->where('from_office_id', $officeId)->orWhere('to_office_id', $officeId)))
             ->where('created_at', '>=', $currentMonthStart)
             ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->count();
 
-        $previousMonth = (int) DB::table('transaction_actions')
+        $previousMonth = (int) TransactionAction::query()->whereHas('transaction.procurement')
             ->where('is_out_of_workflow', true)
+            ->when($officeId, fn ($q) => $q->where(fn ($q) => $q
+                ->where('from_office_id', $officeId)->orWhere('to_office_id', $officeId)))
             ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
             ->when($year, fn ($q) => $q->whereYear('created_at', $year))
             ->count();
@@ -366,13 +517,16 @@ class DashboardService
      *
      * @return array<int, array{category: string, current_month: int, previous_month: int, trend_percentage: float}>
      */
-    public function getVolumeSummary(?int $year = null): array
+    public function getVolumeSummary(?int $year = null, ?int $officeId = null): array
     {
         $currentMonthStart = now()->startOfMonth();
         $previousMonthStart = now()->subMonth()->startOfMonth();
         $previousMonthEnd = now()->subMonth()->endOfMonth();
 
         $currentCounts = DB::table('transactions')
+            ->whereExists(fn ($q) => $q->selectRaw('1')->from('procurements')
+                ->whereColumn('procurements.id', 'transactions.procurement_id')->whereNull('procurements.deleted_at'))
+            ->when($officeId, fn ($q) => $q->where('current_office_id', $officeId))
             ->whereNull('deleted_at')
             ->where('created_at', '>=', $currentMonthStart)
             ->when($year, fn ($q) => $q->whereYear('created_at', $year))
@@ -381,6 +535,9 @@ class DashboardService
             ->pluck('count', 'category');
 
         $previousCounts = DB::table('transactions')
+            ->whereExists(fn ($q) => $q->selectRaw('1')->from('procurements')
+                ->whereColumn('procurements.id', 'transactions.procurement_id')->whereNull('procurements.deleted_at'))
+            ->when($officeId, fn ($q) => $q->where('current_office_id', $officeId))
             ->whereNull('deleted_at')
             ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
             ->when($year, fn ($q) => $q->whereYear('created_at', $year))
@@ -405,6 +562,16 @@ class DashboardService
                 'trend_percentage' => $trendPercentage,
             ];
         })->all();
+    }
+
+    public function getAnnualIncidentCount(int $year, ?int $officeId = null): int
+    {
+        return TransactionAction::query()->whereHas('transaction.procurement')
+            ->where('is_out_of_workflow', true)
+            ->whereYear('created_at', $year)
+            ->when($officeId, fn ($q) => $q->where(fn ($q) => $q
+                ->where('from_office_id', $officeId)->orWhere('to_office_id', $officeId)))
+            ->count();
     }
 
     /**

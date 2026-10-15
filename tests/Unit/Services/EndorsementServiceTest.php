@@ -200,6 +200,7 @@ class EndorsementServiceTest extends TestCase
             $setup['user'],
             $actionTaken->id,
             $setup['office2']->id,
+            $setup['transaction']->reference_number,
             'Test notes'
         );
 
@@ -224,7 +225,8 @@ class EndorsementServiceTest extends TestCase
             $setup['transaction'],
             $setup['user'],
             $actionTaken->id,
-            $setup['office2']->id
+            $setup['office2']->id,
+            $setup['transaction']->reference_number
         );
 
         $setup['transaction']->refresh();
@@ -244,7 +246,8 @@ class EndorsementServiceTest extends TestCase
             $setup['transaction'],
             $setup['user'],
             $actionTaken->id,
-            $setup['office2']->id // This is the expected next office
+            $setup['office2']->id,
+            $setup['transaction']->reference_number
         );
 
         $this->assertFalse($action->is_out_of_workflow);
@@ -261,7 +264,8 @@ class EndorsementServiceTest extends TestCase
             $setup['transaction'],
             $setup['user'],
             $actionTaken->id,
-            $unexpectedOffice->id
+            $unexpectedOffice->id,
+            $setup['transaction']->reference_number
         );
 
         $this->assertTrue($action->is_out_of_workflow);
@@ -276,7 +280,8 @@ class EndorsementServiceTest extends TestCase
             $setup['transaction'],
             $setup['user'],
             $actionTaken->id,
-            $setup['office2']->id
+            $setup['office2']->id,
+            $setup['transaction']->reference_number
         );
 
         $this->assertEquals($setup['step1']->id, $action->workflow_step_id);
@@ -505,7 +510,12 @@ class EndorsementServiceTest extends TestCase
         $receiver = User::factory()->create(['office_id' => $setup['office2']->id]);
         $receiver->assignRole('Endorser');
 
-        $action = $this->service->receive($setup['transaction'], $receiver, 'Test receive');
+        $action = $this->service->receive(
+            $setup['transaction'],
+            $receiver,
+            $setup['transaction']->reference_number,
+            'Test receive'
+        );
 
         $this->assertInstanceOf(TransactionAction::class, $action);
         $this->assertEquals(TransactionAction::TYPE_RECEIVE, $action->action_type);
@@ -541,7 +551,11 @@ class EndorsementServiceTest extends TestCase
         $receiver = User::factory()->create(['office_id' => $setup['office2']->id]);
         $receiver->assignRole('Endorser');
 
-        $this->service->receive($setup['transaction'], $receiver);
+        $this->service->receive(
+            $setup['transaction'],
+            $receiver,
+            $setup['transaction']->reference_number
+        );
 
         $setup['transaction']->refresh();
 
@@ -580,7 +594,8 @@ class EndorsementServiceTest extends TestCase
 
         $results = $this->service->receiveBulk(
             [$setup['transaction']->id, 99999],
-            $receiver
+            $receiver,
+            [$setup['transaction']->id => $setup['transaction']->reference_number]
         );
 
         $this->assertCount(1, $results['success']);

@@ -147,6 +147,7 @@ class TransactionEndorseTest extends TestCase
 
         $response = $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $setup['office2']->id,
                 'notes' => 'Approved for processing',
@@ -173,6 +174,7 @@ class TransactionEndorseTest extends TestCase
 
         $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $setup['office2']->id,
             ]);
@@ -195,6 +197,7 @@ class TransactionEndorseTest extends TestCase
 
         $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $nonWorkflowOffice->id,
             ]);
@@ -212,6 +215,7 @@ class TransactionEndorseTest extends TestCase
 
         $response = $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => '',
                 'to_office_id' => '',
                 'notes' => str_repeat('a', 1001), // Exceeds 1000 char limit
@@ -230,6 +234,7 @@ class TransactionEndorseTest extends TestCase
 
         $response = $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $setup['office2']->id,
             ]);
@@ -269,6 +274,7 @@ class TransactionEndorseTest extends TestCase
 
         $response = $this->actingAs($user)
             ->post(route('transactions.endorse.store', $transaction), [
+                'scanned_reference' => $transaction->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $office->id,
             ]);
@@ -286,6 +292,7 @@ class TransactionEndorseTest extends TestCase
 
         $response = $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $setup['office2']->id,
             ]);
@@ -300,6 +307,7 @@ class TransactionEndorseTest extends TestCase
 
         $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $setup['office2']->id,
             ]);
@@ -322,6 +330,7 @@ class TransactionEndorseTest extends TestCase
 
         $response = $this->actingAs($admin)
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $setup['office2']->id,
             ]);
@@ -342,6 +351,7 @@ class TransactionEndorseTest extends TestCase
 
         $response = $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $setup['office2']->id,
                 // No notes provided
@@ -378,6 +388,7 @@ class TransactionEndorseTest extends TestCase
 
         $response = $this->actingAs($setup['user'])
             ->post(route('transactions.endorse.store', $setup['transaction']), [
+                'scanned_reference' => $setup['transaction']->reference_number,
                 'action_taken_id' => $actionTaken->id,
                 'to_office_id' => $setup['office2']->id,
             ]);

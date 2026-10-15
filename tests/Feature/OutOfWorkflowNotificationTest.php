@@ -112,6 +112,7 @@ class OutOfWorkflowNotificationTest extends TestCase
             $setup['endorser'],
             $setup['actionTaken']->id,
             $setup['office3']->id,
+            $setup['transaction']->reference_number,
             'Test notes'
         );
 
@@ -130,6 +131,7 @@ class OutOfWorkflowNotificationTest extends TestCase
             $setup['endorser'],
             $setup['actionTaken']->id,
             $setup['office2']->id,
+            $setup['transaction']->reference_number,
             'Test notes'
         );
 
@@ -144,7 +146,8 @@ class OutOfWorkflowNotificationTest extends TestCase
             $setup['transaction'],
             $setup['endorser'],
             $setup['actionTaken']->id,
-            $setup['office3']->id
+            $setup['office3']->id,
+            $setup['transaction']->reference_number
         );
 
         $this->assertTrue($action->is_out_of_workflow);
@@ -158,7 +161,8 @@ class OutOfWorkflowNotificationTest extends TestCase
             $setup['transaction'],
             $setup['endorser'],
             $setup['actionTaken']->id,
-            $setup['office2']->id
+            $setup['office2']->id,
+            $setup['transaction']->reference_number
         );
 
         $this->assertFalse($action->is_out_of_workflow);

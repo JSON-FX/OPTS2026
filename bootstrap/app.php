@@ -17,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../routes/channels.php',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->replace(\Illuminate\Foundation\Http\Middleware\TrimStrings::class, \App\Http\Middleware\TrimStrings::class);
+
         $middleware->trustProxies(at: env('TRUSTED_PROXIES', '127.0.0.1'));
 
         $middleware->web(append: [

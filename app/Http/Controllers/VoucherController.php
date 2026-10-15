@@ -16,8 +16,10 @@ use App\Services\ProcurementBusinessRules;
 use App\Services\ReferenceNumberService;
 use App\Services\TimelineService;
 use App\Services\WorkflowAssignmentService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -51,6 +53,7 @@ class VoucherController extends Controller
             'purchaseRequest.fundType:id,name,abbreviation', // For PR card display
             'purchaseOrder.transaction',
             'purchaseOrder.supplier:id,name', // For PO card display
+            'voucher.transaction',
         ])->makeVisible(['abc_amount']);
 
         $workflows = \App\Models\Workflow::where('is_active', true)
@@ -67,6 +70,7 @@ class VoucherController extends Controller
             'purchaseOrder' => $procurement->purchaseOrder, // Includes transaction + supplier + contract_price
             'workflows' => $workflows,
             'workflowPreview' => $this->workflowService->getWorkflowPreview('VCH'),
+            'referenceNumbering' => $this->refNumberService->nextNumberingDefaults('VCH'),
         ]);
     }
 
@@ -83,13 +87,19 @@ class VoucherController extends Controller
         }
 
         try {
-            // AC#8 - Manual reference number input (validated in Form Request)
-            $referenceNumber = $request->input('reference_number');
-
-            DB::transaction(function () use ($request, $procurement, $referenceNumber) {
+            $referenceNumber = DB::transaction(function () use ($request, $procurement) {
                 $lockedProcurement = Procurement::whereKey($procurement->id)->lockForUpdate()->firstOrFail();
                 if (! $this->businessRules->canCreateVCH($lockedProcurement)) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['procurement' => 'The procurement already contains this document or its prerequisite is missing.']);
+                }
+
+                if ($request->boolean('manual_reference')) {
+                    $referenceNumber = $request->string('reference_number')->toString();
+                    $this->refNumberService->trackManualReference('VCH', $referenceNumber);
+                } else {
+                    $referenceNumber = $this->refNumberService->allocateDocumentReference(
+                        'VCH', $request->string('ref_year')->toString(), $request->string('ref_month')->toString()
+                    );
                 }
 
                 $transaction = Transaction::create([
@@ -115,12 +125,22 @@ class VoucherController extends Controller
                 if ($procurement->status === 'Created') {
                     $procurement->update(['status' => 'In Progress']);
                 }
-            });
+
+                return $referenceNumber;
+            }, 5);
 
             // AC#16 - Success toast notification
             return redirect()
                 ->route('procurements.show', $procurement)
                 ->with('success', "Voucher {$referenceNumber} created successfully for Payee: {$request->input('payee')}");
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (QueryException $e) {
+            if ($this->refNumberService->isDuplicateReferenceException($e)) {
+                throw ValidationException::withMessages(['reference_number' => 'This reference number is already in use. Enter a different reference number.']);
+            }
+
+            throw $e;
         } catch (\Exception $e) {
             return redirect()
                 ->back()
@@ -137,20 +157,23 @@ class VoucherController extends Controller
         $voucher = Voucher::with([
             'transaction.procurement.endUser:id,name,abbreviation',
             'transaction.procurement.particular:id,description',
+            'transaction.procurement.purchaseRequest.transaction',
+            'transaction.procurement.purchaseOrder.transaction',
+            'transaction.procurement.voucher.transaction',
             'transaction.currentStep.office',
-            'transaction.currentOffice:id,name',
+            'transaction.currentOffice:id,name,abbreviation',
             'transaction.createdBy:id,name',
         ])->findOrFail($id);
 
         // Load related PR and PO
         $purchaseRequest = $voucher->transaction->procurement->purchaseRequest;
         if ($purchaseRequest) {
-            $purchaseRequest->load('transaction:id,reference_number');
+            $purchaseRequest->loadMissing('transaction');
         }
 
         $purchaseOrder = $voucher->transaction->procurement->purchaseOrder;
         if ($purchaseOrder) {
-            $purchaseOrder->load(['transaction:id,reference_number', 'supplier:id,name']);
+            $purchaseOrder->loadMissing(['transaction', 'supplier:id,name']);
         }
 
         $user = auth()->user();
@@ -217,8 +240,14 @@ class VoucherController extends Controller
     public function edit(int $id): Response
     {
         $voucher = Voucher::with([
-            'transaction.procurement.endUser:id,name',
+            'transaction.procurement.endUser:id,name,abbreviation',
             'transaction.procurement.particular:id,description',
+            'transaction.procurement.purchaseRequest.transaction',
+            'transaction.procurement.purchaseOrder.transaction',
+            'transaction.procurement.voucher.transaction',
+            'transaction.currentOffice:id,name,abbreviation',
+            'transaction.createdBy:id,name',
+            'transaction.workflow.steps.office:id,name,abbreviation',
         ])->findOrFail($id);
 
         if (! auth()->user()->canProcessTransactions()) {
@@ -237,16 +266,25 @@ class VoucherController extends Controller
     {
         $voucher = Voucher::with('transaction')->findOrFail($id);
 
-        DB::transaction(function () use ($request, $voucher) {
-            $voucher->update([
-                'payee' => $request->input('payee'),
-            ]);
+        try {
+            DB::transaction(function () use ($request, $voucher) {
+                $this->refNumberService->trackManualReference('VCH', $request->string('reference_number')->toString());
+                $voucher->update([
+                    'payee' => $request->input('payee'),
+                ]);
 
-            $voucher->transaction->update([
-                'reference_number' => $request->input('reference_number'),
-                'workflow_id' => $request->input('workflow_id'),
-            ]);
-        });
+                $voucher->transaction->update([
+                    'reference_number' => $request->input('reference_number'),
+                    'workflow_id' => $request->has('workflow_id') ? $request->input('workflow_id') : $voucher->transaction->workflow_id,
+                ]);
+            }, 5);
+        } catch (QueryException $e) {
+            if ($this->refNumberService->isDuplicateReferenceException($e)) {
+                throw ValidationException::withMessages(['reference_number' => 'This reference number is already in use. Enter a different reference number.']);
+            }
+
+            throw $e;
+        }
 
         return redirect()
             ->route('vouchers.show', $id)

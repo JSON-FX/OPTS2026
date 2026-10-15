@@ -73,7 +73,7 @@ class ProcurementControllerTest extends TestCase
             'date_of_entry' => now()->format('Y-m-d'),
         ]);
 
-        $response->assertRedirect(route('procurements.index'));
+        $response->assertRedirect(route('procurements.show', Procurement::latest('id')->first()));
 
         $this->assertDatabaseHas('procurements', [
             'end_user_id' => $office->id,
@@ -97,7 +97,7 @@ class ProcurementControllerTest extends TestCase
             'purpose' => 'Updated historical procurement',
             'abc_amount' => 1000,
             'date_of_entry' => now()->toDateString(),
-        ])->assertSessionHasNoErrors()->assertRedirect(route('procurements.index'));
+        ])->assertSessionHasNoErrors()->assertRedirect(route('procurements.show', $procurement));
 
         $this->assertSame('Updated historical procurement', $procurement->fresh()->purpose);
         $this->assertSame($historical->id, $procurement->fresh()->end_user_id);
@@ -144,7 +144,7 @@ class ProcurementControllerTest extends TestCase
             'date_of_entry' => now()->format('Y-m-d'),
         ]);
 
-        $response->assertRedirect(route('procurements.index'));
+        $response->assertRedirect(route('procurements.show', $procurement));
 
         $procurement->refresh();
         $this->assertEquals($officeA->id, $procurement->end_user_id);
