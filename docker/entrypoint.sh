@@ -15,11 +15,11 @@ echo "MySQL is ready."
 echo "Running migrations..."
 php artisan migrate --force
 
-# Seed reference data on first boot; users are provisioned only through SSO.
+# Bootstrap business roles only. Suppliers and other reference data are operator-managed.
 ROLE_COUNT=$(php artisan tinker --execute="echo \Spatie\Permission\Models\Role::count();" 2>/dev/null || echo "0")
 if [ "$ROLE_COUNT" = "0" ]; then
     echo "Seeding database..."
-    php artisan db:seed --force
+    php artisan db:seed --class=RoleSeeder --force
 fi
 
 # Cache configuration and routes
@@ -29,6 +29,9 @@ php artisan view:cache
 
 # Create storage link
 php artisan storage:link --force 2>/dev/null || true
+
+# CLI startup may create log/cache files before PHP-FPM and workers start.
+chown -R www-data:www-data storage bootstrap/cache
 
 echo "Starting OPTS2026 services..."
 exec "$@"

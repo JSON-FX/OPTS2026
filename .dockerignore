@@ -5,6 +5,13 @@ vendor
 tests
 .env
 .env.backup
+.env.*
+!.env.example
+**/*.env
+.impeccable
+.playwright-mcp
+docs/design
+image.tar*
 .phpunit.result.cache
 storage/logs/*
 storage/framework/cache/data/*

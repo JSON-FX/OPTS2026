@@ -4,6 +4,14 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        @if(config('broadcasting.connections.reverb.public.host'))
+        <meta name="opts-reverb" content="{{ json_encode([
+            'key' => config('broadcasting.connections.reverb.key'),
+            'host' => config('broadcasting.connections.reverb.public.host'),
+            'port' => config('broadcasting.connections.reverb.public.port'),
+            'scheme' => config('broadcasting.connections.reverb.public.scheme'),
+        ]) }}">
+        @endif
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 

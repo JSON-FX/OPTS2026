@@ -1,0 +1,38 @@
+{
+  "app": "opts",
+  "repository": "JSON-FX/OPTS2026",
+  "workflow": "mis-image.yml",
+  "branch": "staging",
+  "image_repository": "mis-opts",
+  "schema_compatible": true,
+  "staging": {
+    "project": "mis-staging-opts",
+    "compose": "/srv/mis-deployment/opts/staging/compose.yml",
+    "image_env_file": "/srv/mis-deployment/opts/staging/image.env",
+    "image_variable": "APP_IMAGE",
+    "services": [
+      "web"
+    ],
+    "health_timeout": 240,
+    "migrate_argv": [],
+    "smoke_argv": [
+      "/srv/mis-deployment/opts/smoke.sh",
+      "staging"
+    ]
+  },
+  "production": {
+    "project": "mis-production-opts",
+    "compose": "/srv/mis-deployment/opts/production/compose.yml",
+    "image_env_file": "/srv/mis-deployment/opts/production/image.env",
+    "image_variable": "APP_IMAGE",
+    "services": [
+      "web"
+    ],
+    "health_timeout": 240,
+    "migrate_argv": [],
+    "smoke_argv": [
+      "/srv/mis-deployment/opts/smoke.sh",
+      "production"
+    ]
+  }
+}

@@ -32,6 +32,11 @@ return [
 
         'reverb' => [
             'driver' => 'reverb',
+            'public' => [
+                'host' => env('REVERB_PUBLIC_HOST'),
+                'port' => (int) env('REVERB_PUBLIC_PORT', 443),
+                'scheme' => env('REVERB_PUBLIC_SCHEME', 'https'),
+            ],
             'key' => env('REVERB_APP_KEY'),
             'secret' => env('REVERB_APP_SECRET'),
             'app_id' => env('REVERB_APP_ID'),
