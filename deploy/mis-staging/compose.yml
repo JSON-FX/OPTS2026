@@ -43,6 +43,7 @@ services:
       start_period: 60s
     networks:
       data: {}
+      egress: {}
       ingress:
         aliases: [mis-staging-edts-app]
     dns: [192.168.32.6]
@@ -63,6 +64,10 @@ services:
 networks:
   data:
     internal: true
+  # The shared ingress is internal; only the app needs outbound DNS/SSO access.
+  egress:
+    driver: bridge
+    internal: false
   ingress:
     external: true
     name: lgu-staging-app

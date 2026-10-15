@@ -29,3 +29,11 @@ The default 128 MB PHP CLI limit exhausted memory while writing PHPUnit's result
 ## Remaining release gates
 
 The parent task owns independent review completion, source commit/push, main CI artifact provenance, MIS registration/provisioning/deployment, and live browser acceptance. Remote acceptance must cover SSO login/logout, two-user widget chat, unread/seen/group behavior, revocation, host logout isolation, immutable image identity, and production isolation. Concurrent-user capacity and recovery remain explicit acceptance gates. No production deployment is included.
+
+## Staging egress correction
+
+The first staging attempt at main `f4fe0bc` completed migrations and local application health, but failed the SSO readiness smoke. Parent runtime inspection confirmed both attached networks were internal, so the app had no default route. Office DNS requests timed out and SSO reported a connection error.
+
+Added a project-owned egress bridge for the app only. The existing internal data network and shared ingress remain unchanged. MySQL still joins only the internal data network and exposes no host ports. Validate the resolved Compose network topology, then require the running staging app's default route, office DNS resolution, and trusted SSO/Connect HTTPS readiness before acceptance. Local image health alone does not prove office connectivity.
+
+Validation: Docker Compose schema resolution passed with disposable synthetic environment files. Assertions passed for app membership in data/ingress/egress, MySQL membership in data only, internal data isolation, non-internal bridge egress, unchanged external lgu-staging-app ingress, and no published app or MySQL ports. Whitespace validation passed. Live MIS route/DNS/HTTPS recovery remains for the parent deployment retry. No MIS mutation was performed by this correction subtask.
