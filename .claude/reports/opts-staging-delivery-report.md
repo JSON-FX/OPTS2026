@@ -33,3 +33,7 @@ Existing feature plans, reviews and implementation reports are committed as deli
 ## Final image check
 
 Final native local image built successfully. Inner Nginx and both prepared proxy snippets pass nginx -t using an isolated disposable certificate fixture; its key was removed. This proves syntax, not trusted live TLS. The public Reverb build-ARG warning concerns a public client key, not a server secret; MIS supplies no build arguments.
+
+## CI portability correction
+
+Initial run38664452353 passed PHP8.2/8.3/8.4, amount checks and frontend build. GitHub’s Compose version still required private env-file paths despite --no-env-resolution. The contract check now verifies those exact paths, then renders temporary secret-free copies with empty env-file lists. Real deployment files still require their private files. No app behavior or deployment credentials changed.

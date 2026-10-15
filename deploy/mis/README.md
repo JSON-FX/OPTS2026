@@ -63,4 +63,4 @@ php -d memory_limit=512M vendor/bin/phpunit --colors=never
 npm run build
 ```
 
-The Compose contract check uses `config --no-env-resolution` and placeholder APP_IMAGE, never runtime secrets. Source tests for runtime public configuration and deployment readiness cover mixed-host rejection, insecure sessions, upstream failure redaction and same-image host changes.
+The Compose contract check validates exact private env-file paths, then renders temporary copies with empty env-file lists and placeholder APP_IMAGE. It never reads runtime secrets or requires server paths on CI. Source tests for runtime public configuration and deployment readiness cover mixed-host rejection, insecure sessions, upstream failure redaction and same-image host changes.

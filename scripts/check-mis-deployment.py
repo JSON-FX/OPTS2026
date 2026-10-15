@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 
 root = Path(__file__).resolve().parents[1]
 registration = json.loads((root / 'deploy/mis/opts.json').read_text())
@@ -17,12 +18,19 @@ for environment, prefix in [('staging', 'staging.'), ('production', '')]:
     assert target['services'] == ['web']
     assert target['migrate_argv'] == []  # The existing app entrypoint migrates once.
     assert target['image_env_file'] == f'/srv/mis-deployment/opts/{environment}/image.env'
-    command = ['docker', 'compose', '-f', str(root / f'deploy/mis/{environment}.compose.yml'),
-               'config', '--no-env-resolution', '--format', 'json']
-    config = json.loads(subprocess.check_output(command, env={**os.environ, 'APP_IMAGE': 'mis-opts:check'}))
+    source = (root / f'deploy/mis/{environment}.compose.yml').read_text()
+    # Some Compose versions still stat env_file paths with --no-env-resolution.
+    # Validate their exact production paths, then render a secret-free fixture.
+    for name in ['runtime', 'database']:
+        entry = f'env_file: /srv/mis-deployment/opts/{environment}/{name}.env'
+        assert source.count(entry) == 1
+        source = source.replace(entry, 'env_file: []')
+    with tempfile.TemporaryDirectory(prefix='opts-compose-check-') as directory:
+        fixture = Path(directory) / 'compose.yml'
+        fixture.write_text(source)
+        command = ['docker', 'compose', '-f', str(fixture), 'config', '--format', 'json']
+        config = json.loads(subprocess.check_output(command, env={**os.environ, 'APP_IMAGE': 'mis-opts:check'}))
     web = config['services']['web']
-    assert web['env_file'][0]['path'].endswith(f'/{environment}/runtime.env')
-    assert config['services']['mysql']['env_file'][0]['path'].endswith(f'/{environment}/database.env')
     values = web['environment']
     host = f'{prefix}opts.lguquezon.local'
     assert values['APP_URL'] == f'https://{host}'
