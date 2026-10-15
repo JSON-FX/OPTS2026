@@ -1,0 +1,29 @@
+{
+  "base": "e83ece8902c26ee903d0bc890d42c8096125f54a",
+  "branch": "codex/opts-connect-production",
+  "recorded_at": "2026-10-15T04:10:01.878918+00:00",
+  "files": {
+    ".claude/plans/opts-connect-production-preparation.md": "1a2ef620697201db9e5e9b2f16553e596f06e9d9d2cafff284724898d65196b4",
+    ".env.example": "fd612922efb7ca4b8cbb59e1e96670894c4d357988eb9764fd994ff6d143d919",
+    ".github/workflows/mis-image.yml": "c47431615bb06b0c1fde7ad3fd37899c78cdc11a3bcb53a913270747635cce57",
+    "app/Http/Controllers/Auth/SSOController.php": "ef70a2d4bf549f796b3205822d49517297638a317bb178311e3a70e05cde230b",
+    "app/Http/Controllers/ConnectPilotController.php": "8bb23f334c9b37749a2206a5b4ce7570f24fb6e121fecec76b68f532bca48dbb",
+    "app/Http/Middleware/EnsureSsoEligibility.php": "e66703afe5199e0cba3081ecf4cf23895989eef045a38ff57a3258198a7736db",
+    "app/Http/Middleware/HandleInertiaRequests.php": "d05e72cd7b4a5c7b8c7117a1205b07a03bd8bd7a1ce2d4eab74af8765e6e7340",
+    "app/Services/ConnectPilotHost.php": "5468977eaf3b34110b4c706a19fdc0fa13e896e3e3bd6231ef24045daa1f506f",
+    "config/connect_pilot.php": "0bf6c747954732da40e2a8dbef8b82c014994f74221b9d0e898cc75b491d1856",
+    "database/migrations/2026_10_09_000000_create_connect_pilot_revocations_table.php": "0b54573aa51d3ed1dbb4a70b0bd04c8e4f22ae974b67293dd7e3ad80eafca8f9",
+    "deploy/connect-widget/loader-manifest.json": "884fa91ea66db4eeb012571be4e5dc436d2237339581fb398a1e4fd274d19f4a",
+    "deploy/connect-widget/production.env.example": "386a33a62ede4b08a3d21796646d28bb27080721f4ddb4a185ea0ba7ce5aad3f",
+    "deploy/connect-widget/staging.env.example": "cd4188dc9e23bcac9251897a609f9b11b21628e243ddbe6b18c770b29e999e71",
+    "docs/connect-widget-rollout.md": "288a07a197bbaa35534f301188e80d0f81db689dc47a287e6eeb5255f8139e45",
+    "public/js/lgu-connect-widget.js": "0a9ddcdf1dcda9a46c66712e91b5443678ddb1c5911d78038bc9b51366f53c81",
+    "resources/js/app.tsx": "4f182a8484ca5857c9de9d5fb2cccd3e4a9baeabf40b37867a4239d106356877",
+    "resources/js/connect-widget.ts": "fa5d272b642d60a7346f682d7fc7a1da1c7177d43488f618a4ccc916267277cc",
+    "routes/connect.php": "d3beee2ee8b2df9d76964154660b14b3d748158239e7068de53dc85b54743e38",
+    "routes/web.php": "4a335915c7ddc670d0af88896d4ebad5e507a958b5f60087269ea013d2d1f475",
+    "scripts/check-mis-deployment.py": "8b68807ec8b7acfdbb80545e7a8d2b8d35fbc16c1db2511589ea594b9f9a7865",
+    "tests/Feature/ConnectPilotTest.php": "98a81dfb63927b2d757b3f86b392c408beced5d16e0f38c823e5054719066464",
+    "tests/frontend/connect-widget.test.cjs": "e53817f13bc8be8a968927603e791e7df7e597372c9d6ff20e87a52f57a4c0ec"
+  }
+}

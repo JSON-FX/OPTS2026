@@ -2,6 +2,7 @@ import '../css/app.css';
 import '../css/dashboard.css';
 import '../css/dashboard-motion.css';
 import './bootstrap';
+import { initializeConnectWidget } from './connect-widget';
 
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -20,6 +21,7 @@ createInertiaApp({
         const root = createRoot(el);
 
         root.render(<App {...props} />);
+        initializeConnectWidget(props.initialPage.props);
     },
     progress: {
         color: '#235a7c',

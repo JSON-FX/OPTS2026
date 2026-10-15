@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Transaction;
+use App\Services\ConnectPilotHost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
@@ -33,6 +34,12 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+            'connectWidget' => $request->user()?->is_active && app(ConnectPilotHost::class)->configured()
+                ? [
+                    'origin' => config('connect_pilot.connect_origin'),
+                    'launchUrl' => route('connect.pilot.launch', absolute: false),
+                    'identity' => $request->user()->sso_uuid,
+                ] : null,
             'auth' => [
                 'user' => $request->user() ? [
                     'id' => $request->user()->id,

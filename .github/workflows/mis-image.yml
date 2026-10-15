@@ -32,7 +32,12 @@ jobs:
       - run: php artisan key:generate
       - run: php -d memory_limit=512M vendor/bin/phpunit --colors=never
       - name: Check delivery PHP formatting
-        run: vendor/bin/pint --test app/Console/Commands/DeploymentCheck.php tests/Feature/DeploymentCheckTest.php tests/Feature/ReverbRuntimeConfigTest.php
+        run: |
+          vendor/bin/pint --test app/Console/Commands/DeploymentCheck.php tests/Feature/DeploymentCheckTest.php tests/Feature/ReverbRuntimeConfigTest.php \
+            app/Services/ConnectPilotHost.php app/Http/Controllers/ConnectPilotController.php \
+            app/Http/Controllers/Auth/SSOController.php app/Http/Middleware/EnsureSsoEligibility.php \
+            app/Http/Middleware/HandleInertiaRequests.php config/connect_pilot.php routes/connect.php \
+            tests/Feature/ConnectPilotTest.php database/migrations/2026_10_09_000000_create_connect_pilot_revocations_table.php
 
   frontend:
     runs-on: ubuntu-latest
@@ -44,6 +49,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/check-php-amount.cjs
+      - run: node --test tests/frontend/connect-widget.test.cjs
       - run: npm run build
       - name: Check deployment contract
         run: python3 scripts/check-mis-deployment.py

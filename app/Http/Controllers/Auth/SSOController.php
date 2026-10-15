@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Exceptions\SSOUnavailableException;
 use App\Http\Controllers\Controller;
+use App\Services\ConnectPilotHost;
 use App\Services\SSOIdentityService;
 use App\Services\SSOService;
 use Illuminate\Http\RedirectResponse;
@@ -67,6 +68,8 @@ class SSOController extends Controller
         // Update last SSO login timestamp
         $user->update(['last_sso_login_at' => now()]);
 
+        app(ConnectPilotHost::class)->revoke($request);
+
         // Store JWT in session for logout
         $request->session()->put('sso_token', $token);
 
@@ -78,6 +81,8 @@ class SSOController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
+        app(ConnectPilotHost::class)->revoke($request);
+
         // Best-effort SSO logout
         $ssoToken = $request->session()->get('sso_token');
         if ($ssoToken) {

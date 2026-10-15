@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Verify the operator templates with Compose without reading runtime secrets."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -73,3 +74,23 @@ for file in ['docker/nginx.conf', 'deploy/mis/staging.nginx.conf', 'deploy/mis/p
     assert '$request_method $uri $server_protocol' in text
     assert '$http_referer' not in text and '$request"' not in text
 print('MIS staging/production isolation, parity and image delivery contract passed.')
+
+# A prepared adapter must not activate through copied deployment examples.
+loader = json.loads((root / 'deploy/connect-widget/loader-manifest.json').read_text())
+assert loader['sha256'] == '0a9ddcdf1dcda9a46c66712e91b5443678ddb1c5911d78038bc9b51366f53c81'
+assert hashlib.sha256((root / loader['asset']).read_bytes()).hexdigest() == loader['sha256']
+for environment, prefix in [('staging', 'staging.'), ('production', '')]:
+    lines = (root / f'deploy/connect-widget/{environment}.env.example').read_text().splitlines()
+    values = dict(line.split('=', 1) for line in lines if line and not line.startswith('#'))
+    assert values['CONNECT_PILOT_ENABLED'] == 'false'
+    assert values['CONNECT_PILOT_SECRET'] == ''
+    assert values['APP_URL'] == f'https://{prefix}opts.lguquezon.local'
+    assert values['CONNECT_PILOT_ORIGIN'] == f'https://{prefix}connect.lguquezon.local'
+    assert values['CONNECT_PILOT_HOST_ID'] == f'opts-{environment}'
+    assert values['CONNECT_PILOT_KEY_ID'] == f'opts-{environment}-v1'
+    assert values['SSO_API_URL'] == f'https://{prefix}api.sso.lguquezon.local'
+    assert values['SSO_UI_URL'] == f'https://{prefix}sso.lguquezon.local'
+    assert values['SSO_REDIRECT_URI'] == values['APP_URL'] + '/auth/sso/callback'
+assert 'CONNECT_PILOT_ENABLED=false' in (root / '.env.example').read_text()
+assert 'node --test tests/frontend/connect-widget.test.cjs' in workflow
+print('Connect disabled defaults, environment separation and pinned loader passed.')

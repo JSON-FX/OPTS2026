@@ -1,0 +1,9 @@
+{
+  "source_repository": "JSON-FX/lgu-communication",
+  "source_commit": "5c7ef4a324a6976fa42724e8dd9acd073ad4c7ca",
+  "source_path": "frontend/public/lgu-connect-widget.js",
+  "asset": "public/js/lgu-connect-widget.js",
+  "sha256": "0a9ddcdf1dcda9a46c66712e91b5443678ddb1c5911d78038bc9b51366f53c81",
+  "protocol": "lgu-connect.widget.*.v1",
+  "production_source_url": "https://connect.lguquezon.local/lgu-connect-widget.js"
+}
