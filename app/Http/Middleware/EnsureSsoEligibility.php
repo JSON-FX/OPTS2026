@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Exceptions\SSOUnavailableException;
+use App\Services\ConnectPilotHost;
 use App\Services\SSOIdentityService;
 use App\Services\SSOOfficeService;
 use App\Services\SSOService;
@@ -39,6 +40,7 @@ class EnsureSsoEligibility
         }
 
         if (! $identity) {
+            app(ConnectPilotHost::class)->revoke($request);
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

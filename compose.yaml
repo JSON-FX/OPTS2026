@@ -25,7 +25,7 @@ services:
       SESSION_SECURE_COOKIE: "true"
       SESSION_SAME_SITE: lax
       TRUSTED_PROXIES: "*"
-      SSO_API_URL: http://lgu-sso:8000
+      SSO_API_URL: https://sso.lgu.lan
       SSO_UI_URL: https://sso-portal.lgu.lan
       SSO_REDIRECT_URI: https://opts.lgu.lan/auth/sso/callback
       REVERB_HOST: 127.0.0.1
@@ -35,8 +35,14 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:18086:8080"
+    # Local trusted HTTPS paths; remote MIS deployment owns its DNS and CA mounts.
+    extra_hosts:
+      - "connect.lgu.lan:host-gateway"
+      - "sso.lgu.lan:host-gateway"
     volumes:
       - opts_storage:/var/www/html/storage
+      - "${LGU_LOCAL_CA_FILE:?Set the public local CA certificate path}:/etc/ssl/certs/lgu-local-rootCA.pem:ro"
+      - ./docker/connect-local-ca.ini:/usr/local/etc/php/conf.d/zz-connect-local-ca.ini:ro
     healthcheck:
       test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:8080/up"]
       interval: 30s
