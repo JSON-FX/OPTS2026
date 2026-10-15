@@ -102,6 +102,80 @@ class ConnectPilotTest extends TestCase
         ];
     }
 
+    public function test_browser_launch_reuses_only_this_requests_authorization_and_next_request_detects_revocation(): void
+    {
+        $this->enablePilot();
+        $this->seed(\Database\Seeders\RoleSeeder::class);
+        $office = \App\Models\Office::factory()->create(['sso_id' => 27]);
+        $user = $this->signIn();
+        $this->withMiddleware(EnsureSsoEligibility::class);
+        $this->mock(\App\Services\SSOOfficeService::class)->shouldReceive('refreshIfStale')->once()->andReturnNull();
+        $denied = false;
+        Http::fake([
+            '*/api/v1/sso/authorize' => function () use (&$denied) {
+                return Http::response(['authorized' => true, 'role' => 'administrator',
+                    'employee' => ['uuid' => self::UUID]], $denied ? 403 : 200);
+            },
+            '*/api/v1/sso/directory/*' => Http::response(['data' => [
+                'uuid' => self::UUID, 'full_name' => 'Synthetic employee', 'initials' => 'SE',
+                'role' => 'administrator', 'office_id' => 27, 'office_name' => $office->name,
+                'office_abbreviation' => $office->abbreviation, 'position_id' => null, 'position_title' => null,
+            ]]),
+            '*/api/widget/host-launches' => Http::response([
+                'launch_ref' => rtrim(strtr(base64_encode(str_repeat('c', 32)), '+/', '-_'), '='), 'expires_in' => 30,
+            ], 201),
+            '*/api/widget/host-revocations' => Http::response(['status' => 'revoked']),
+        ]);
+        $launch = $this->post('/connect/pilot/launch')->assertOk();
+        $binding = $this->launchBinding();
+        $this->assertCount(1, Http::recorded(fn ($request) => str_ends_with($request->url(), '/sso/authorize')));
+        $this->assertCount(1, Http::recorded(fn ($request) => str_contains($request->url(), '/sso/directory/')));
+        $this->assertSame($office->id, $user->fresh()->office_id);
+        $this->assertTrue($user->fresh()->hasRole('Administrator'));
+
+        $denied = true;
+        $hostCookie = collect($launch->headers->getCookies())
+            ->first(fn ($cookie) => $cookie->getName() === config('session.cookie'))?->getValue();
+        $this->withUnencryptedCookie(config('session.cookie'), $hostCookie)
+            ->post('/connect/pilot/launch')->assertRedirect(route('login'));
+        $this->assertCount(2, Http::recorded(fn ($request) => str_ends_with($request->url(), '/sso/authorize')));
+        $this->assertGuest();
+        $this->assertDatabaseHas('connect_pilot_revocations', ['host_session_digest' => hash('sha256', $binding['host_session_ref'])]);
+    }
+
+    public function test_introspection_propagates_retry_delay_without_session_writes_or_revocation_and_recovers(): void
+    {
+        $this->enablePilot();
+        $this->signIn();
+        $this->fakeUpstream();
+        $this->post('/connect/pilot/launch')->assertOk();
+        $binding = $this->launchBinding();
+        $sessions = DB::table('sessions')->orderBy('id')->get()->toArray();
+        Http::swap(new Factory);
+        Http::fake(['*/api/v1/sso/authorize' => Http::response([], 429, ['Retry-After' => '17'])]);
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $nonce = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+            $response = $this->withHeaders($this->signedHeaders($binding, $nonce))
+                ->postJson('/connect/pilot/introspect', $binding)
+                ->assertServiceUnavailable()->assertJson(['active' => false])->assertHeader('Retry-After', '17');
+            $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+            $this->assertCount(0, $response->headers->getCookies());
+            $this->assertEquals($sessions, DB::table('sessions')->orderBy('id')->get()->toArray());
+            $this->postJson('/connect/pilot/introspect', $binding)->assertForbidden();
+        }
+        Http::assertSentCount(1);
+        $this->assertDatabaseCount('connect_pilot_revocations', 0);
+        $this->assertAuthenticated();
+
+        $this->travel(17)->seconds();
+        Http::swap(new Factory);
+        $this->fakeUpstream();
+        $nonce = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+        $this->withHeaders($this->signedHeaders($binding, $nonce))
+            ->postJson('/connect/pilot/introspect', $binding)->assertOk()->assertJsonPath('active', true);
+        Http::assertSentCount(1);
+    }
+
     public function test_disabled_or_insecure_pilot_never_calls_connect(): void
     {
         $this->signIn();
@@ -294,6 +368,51 @@ class ConnectPilotTest extends TestCase
             ->postJson('/connect/pilot/introspect', $binding)->assertForbidden();
     }
 
+    public function test_server_introspection_never_creates_sessions_or_returns_browser_cookies(): void
+    {
+        $this->enablePilot();
+        $this->signIn();
+        $this->fakeUpstream();
+        $this->post('/connect/pilot/launch')->assertOk()->assertCookie(config('session.cookie'));
+        $binding = $this->launchBinding();
+        $sessions = DB::table('sessions')->orderBy('id')->get()->toArray();
+        $this->assertNotEmpty($sessions);
+        // Model a new server request with no browser cookie or in-memory session.
+        Auth::forgetGuards();
+        $this->app['session']->forgetDrivers();
+        $this->app->forgetInstance('session.store');
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $nonce = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+            $headers = $this->signedHeaders($binding, $nonce);
+            $response = $this->withHeaders($headers)->postJson('/connect/pilot/introspect', $binding)
+                ->assertOk()->assertJsonPath('active', true);
+            $this->assertDatabaseCount('sessions', count($sessions));
+            $this->assertCount(0, $response->headers->getCookies());
+            $this->assertEquals($sessions, DB::table('sessions')->orderBy('id')->get()->toArray());
+
+            $replay = $this->postJson('/connect/pilot/introspect', $binding)->assertForbidden();
+            $this->assertCount(0, $replay->headers->getCookies());
+            $this->assertEquals($sessions, DB::table('sessions')->orderBy('id')->get()->toArray());
+        }
+
+        $invalid = $this->withHeader('X-Connect-Signature', str_repeat('0', 64))
+            ->postJson('/connect/pilot/introspect', $binding)->assertForbidden();
+        $this->assertCount(0, $invalid->headers->getCookies());
+        $this->assertEquals($sessions, DB::table('sessions')->orderBy('id')->get()->toArray());
+    }
+
+    public function test_browser_launch_keeps_csrf_protection(): void
+    {
+        $this->enablePilot();
+        $this->signIn();
+        $this->fakeUpstream();
+        // Laravel skips CSRF in the testing environment; exercise the real gate.
+        $this->app['env'] = 'local';
+        $this->postJson('/connect/pilot/launch')->assertStatus(419);
+        Http::assertNothingSent();
+    }
+
     public function test_introspection_denies_revoked_grant_and_logout_survives_connect_outage(): void
     {
         $this->enablePilot();
@@ -400,6 +519,7 @@ class ConnectPilotTest extends TestCase
             ->postJson('/connect/pilot/introspect', $binding)->assertServiceUnavailable();
         $this->assertAuthenticated();
 
+        $this->travel(2)->seconds();
         Http::swap(new Factory);
         $this->fakeUpstream();
         $nextNonce = rtrim(strtr(base64_encode(str_repeat('l', 32)), '+/', '-_'), '=');

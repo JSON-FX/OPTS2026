@@ -82,6 +82,27 @@ class SSOAuthenticationTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_upstream_retry_delay_preserves_login_and_recovery_checks_the_current_role(): void
+    {
+        $user = $this->localUser();
+        $this->actingAs($user)->withSession(['sso_token' => 'valid-token']);
+        Http::fake(['*/api/v1/sso/authorize' => Http::response([], 503, ['Retry-After' => '30'])]);
+
+        $response = $this->get('/dashboard')->assertServiceUnavailable()->assertHeader('Retry-After', '30');
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $this->get('/dashboard')->assertServiceUnavailable()->assertHeader('Retry-After', '30');
+        Http::assertSentCount(1);
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame('valid-token', session('sso_token'));
+
+        $this->travel(30)->seconds();
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        $this->fakeSso('guest');
+        $this->get('/dashboard')->assertOk();
+        $this->assertTrue($user->fresh()->hasRole('Viewer'));
+        Http::assertSentCount(2);
+    }
+
     public function test_entry_page_preserves_the_callback_error_for_retry(): void
     {
         $this->get('/auth/sso/callback?state=wrong&code=invalid')->assertRedirect('/login');
