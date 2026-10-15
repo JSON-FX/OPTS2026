@@ -96,6 +96,134 @@ class SSOServiceTest extends TestCase
         $this->assertNull($result);
     }
 
+    public function test_authorization_reuse_is_bound_to_the_request_token_and_client(): void
+    {
+        Http::fake(['*/api/v1/sso/authorize' => Http::response(['authorized' => true, 'role' => 'standard'])]);
+        $request = \Illuminate\Http\Request::create('/connect/pilot/launch', 'POST');
+
+        $this->service->authorizeForRequest($request, 'first-token');
+        app(SSOService::class)->authorizeForRequest($request, 'first-token');
+        Http::assertSentCount(1);
+
+        $this->service->authorizeForRequest($request, 'replacement-token');
+        $this->service->authorizeForRequest(\Illuminate\Http\Request::create('/next'), 'first-token');
+        config(['services.lgu_sso.client_secret' => 'replacement-client-secret']);
+        app(SSOService::class)->authorizeForRequest($request, 'first-token');
+        Http::assertSentCount(4);
+
+        // Callers without an inbound request always verify authorization anew.
+        $this->service->authorize('first-token');
+        $this->service->authorize('first-token');
+        Http::assertSentCount(6);
+    }
+
+    public function test_denials_are_not_reused_as_successful_request_authorization(): void
+    {
+        Http::fake(['*/api/v1/sso/authorize' => Http::sequence()
+            ->push(['authorized' => false])->push(['authorized' => true, 'role' => 'standard'])]);
+        $request = \Illuminate\Http\Request::create('/example');
+
+        $this->assertFalse($this->service->authorizeForRequest($request, 'token')['authorized']);
+        $this->assertTrue($this->service->authorizeForRequest($request, 'token')['authorized']);
+        Http::assertSentCount(2);
+    }
+
+    public static function retryHints(): array
+    {
+        return [
+            'seconds' => ['30', 30],
+            'date' => ['Thu, 15 Oct 2026 07:00:45 GMT', 45],
+            'past date' => ['Thu, 15 Oct 2026 06:00:00 GMT', 1],
+            'zero' => ['0', 1],
+            'bounded' => ['9999999999', 300],
+            'missing' => [null, 2],
+            'invalid' => ['not a delay', 2],
+            'negative' => ['-1', 2],
+        ];
+    }
+
+    #[DataProvider('retryHints')]
+    public function test_failure_cooldown_honors_retry_hints_and_recovers_without_caching_grants(?string $hint, int $delay): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-15 07:00:00 UTC'));
+        Http::fake(['*/api/v1/sso/authorize' => Http::sequence()
+            ->push([], 429, $hint === null ? [] : ['Retry-After' => $hint])
+            ->push(['authorized' => true, 'role' => 'standard'])
+            ->push(['authorized' => false])]);
+
+        try {
+            $this->service->authorize('token');
+            $this->fail('Rate-limited authorization must fail closed.');
+        } catch (SSOUnavailableException $exception) {
+            $this->assertSame($delay, $exception->retryAfter);
+            $this->assertSame((string) $delay, $exception->retryHeaders()['Retry-After']);
+        }
+        try {
+            app(SSOService::class)->offices();
+            $this->fail('Another service instance must respect the shared cooldown.');
+        } catch (SSOUnavailableException $exception) {
+            $this->assertSame($delay, $exception->retryAfter);
+        }
+        Http::assertSentCount(1);
+
+        $this->travel($delay - 1)->seconds();
+        try {
+            $this->service->authorize('token');
+            $this->fail('The cooldown must last until its deadline.');
+        } catch (SSOUnavailableException $exception) {
+            $this->assertSame(1, $exception->retryAfter);
+        }
+        Http::assertSentCount(1);
+        $this->travel(1)->seconds();
+        $this->assertTrue($this->service->authorize('token')['authorized']);
+        $this->assertFalse($this->service->authorize('token')['authorized']);
+        Http::assertSentCount(3);
+    }
+
+    public function test_upstream_cooldown_is_scoped_to_the_application_client(): void
+    {
+        Http::fake(['*/api/v1/sso/authorize' => Http::sequence()
+            ->push([], 503, ['Retry-After' => '20'])
+            ->push(['authorized' => true, 'role' => 'standard'])]);
+        try {
+            $this->service->authorize('token');
+            $this->fail('The first client must fail closed.');
+        } catch (SSOUnavailableException $exception) {
+            $this->assertSame(20, $exception->retryAfter);
+        }
+        config(['services.lgu_sso.client_id' => 'different-application']);
+        $this->assertTrue(app(SSOService::class)->authorize('token')['authorized']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_denied_employee_does_not_start_a_client_wide_cooldown(): void
+    {
+        Http::fake(['*/api/v1/sso/authorize' => Http::sequence()
+            ->push([], 401)->push([], 403)->push(['authorized' => true, 'role' => 'standard'])]);
+        $this->assertNull($this->service->authorize('expired-token'));
+        $this->assertNull($this->service->authorize('removed-grant-token'));
+        $this->assertTrue($this->service->authorize('other-employee-token')['authorized']);
+        Http::assertSentCount(3);
+    }
+
+    public function test_connection_failure_is_not_automatically_retried(): void
+    {
+        $attempts = 0;
+        Http::fake(function () use (&$attempts) {
+            $attempts++;
+            throw new ConnectionException('synthetic outage');
+        });
+        foreach (['authorize', 'offices'] as $method) {
+            try {
+                $method === 'authorize' ? $this->service->authorize('token') : $this->service->offices();
+                $this->fail('The request must fail closed.');
+            } catch (SSOUnavailableException $exception) {
+                $this->assertSame(2, $exception->retryAfter);
+            }
+        }
+        $this->assertSame(1, $attempts);
+    }
+
     public function test_logout_returns_true_on_success(): void
     {
         Http::fake([

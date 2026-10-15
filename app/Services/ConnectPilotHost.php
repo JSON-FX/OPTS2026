@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Exceptions\SSOUnavailableException;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
@@ -60,7 +59,7 @@ class ConnectPilotHost
             $this->revoke($request);
             throw new RuntimeException('Current SSO authorization is required.');
         }
-        $status = $this->authorizationStatus($sso, $token, $user->sso_uuid);
+        $status = $this->authorizationStatus($request, $sso, $token, $user->sso_uuid);
         if ($status === 'denied') {
             $this->revoke($request);
         }
@@ -192,7 +191,7 @@ class ConnectPilotHost
             $this->markRevoked($binding);
             throw new HttpException(403, 'Host user is inactive.');
         }
-        $status = $this->authorizationStatus($sso, $token, $uuid);
+        $status = $this->authorizationStatus($request, $sso, $token, $uuid);
         if ($status === 'denied') {
             $this->markRevoked($binding);
             try {
@@ -201,9 +200,6 @@ class ConnectPilotHost
                 Log::warning('Connect pilot binding cleanup unavailable.');
             }
             throw new HttpException(403, 'Host SSO grant is inactive.');
-        }
-        if ($status === 'unavailable') {
-            throw new HttpException(503, 'Host SSO authorization is unavailable.');
         }
 
         return [
@@ -214,14 +210,10 @@ class ConnectPilotHost
         ];
     }
 
-    /** @return 'granted'|'denied'|'unavailable' */
-    private function authorizationStatus(SSOService $sso, string $token, string $uuid): string
+    /** @return 'granted'|'denied' */
+    private function authorizationStatus(Request $request, SSOService $sso, string $token, string $uuid): string
     {
-        try {
-            $data = $sso->authorize($token);
-        } catch (SSOUnavailableException) {
-            return 'unavailable';
-        }
+        $data = $sso->authorizeForRequest($request, $token);
 
         return ($data['authorized'] ?? false) === true
             && ($data['employee']['uuid'] ?? null) === $uuid ? 'granted' : 'denied';

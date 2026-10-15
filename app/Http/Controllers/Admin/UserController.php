@@ -26,7 +26,7 @@ class UserController extends Controller
                 'per_page' => 20,
             ]);
         } catch (SSOUnavailableException $exception) {
-            abort(503, 'The SSO user directory is unavailable. Please try again.');
+            abort(503, 'The SSO user directory is unavailable. Please try again.', $exception->retryHeaders());
         }
 
         $users = collect($directory['data'])->map(fn (array $user) => [

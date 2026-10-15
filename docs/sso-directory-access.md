@@ -45,6 +45,16 @@ Set the OPTS consumer application in SSO to **100 requests per minute** in every
 
 The limit is shared by all users of this consumer. Fresh session and directory eligibility checks remain mandatory; throttling fails closed and does not enable a cached permission fallback. Capacity should be checked during the pilot.
 
+## Request efficiency and failure handling
+
+Browser eligibility and widget launch reuse a successful authorization response only within the same inbound request and exact token/client context. A new request, replacement token or changed client credentials always requires a new check. Current directory identity, role and office enforcement remain separate and fresh. No successful grants are placed in a cross-request cache.
+
+Temporary authorization/directory failures return sanitized 503 responses with `Cache-Control: no-store` and bounded numeric `Retry-After`. Numeric and standard HTTP-date hints are normalized to 1–300 seconds; absent or malformed hints use 2 seconds. A shared upstream/client cooldown stores only a failure deadline. Requests during that deadline remain unavailable without contacting SSO. Confirmed 401/403 denials do not start a client-wide cooldown, and cooldown expiry performs fresh verification. One-use codes, launch requests and signed introspection are never automatically replayed.
+
+Signed widget introspection excludes the complete web middleware group. It verifies the persisted encrypted host session directly and must neither create browser sessions nor return browser cookies. Launch retains normal host authentication and CSRF enforcement.
+
+This correction introduces no limit, registration, grant, office-mapping or activation changes. Deploying it does not enable the widget or its host/key, and does not establish 300–500-user capacity. Full-office reads retain their one-minute freshness rule, and business/workflow writes still require a fresh snapshot. Coordination of forced/CLI snapshot writers and optional directory protocol optimizations are separate follow-ups.
+
 ## Testing
 
 Domain test fixtures use synthetic SSO IDs and disable only the external-session middleware. `SSOAuthenticationTest` enables it and tests real enforcement with fake HTTP responses. Directory/client/sync tests cover privacy, pagination, conflicting mappings, failed reads, inactive offices, and role changes. Browser MVP tests use local SSO demo accounts, with no real purchase or payment.

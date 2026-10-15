@@ -25,7 +25,7 @@ class EnsureSsoEligibility
 
         $token = $request->session()->get('sso_token');
         try {
-            $authorization = is_string($token) && $token !== '' ? $this->sso->authorize($token) : null;
+            $authorization = is_string($token) && $token !== '' ? $this->sso->authorizeForRequest($request, $token) : null;
             $identity = null;
             if (($authorization['authorized'] ?? false) === true) {
                 if ($this->requiresFreshOfficeSnapshot($request)) {
@@ -36,7 +36,7 @@ class EnsureSsoEligibility
                 $identity = $this->identities->synchronize($authorization, $user, refreshOffice: false);
             }
         } catch (SSOUnavailableException $exception) {
-            abort(503, 'SSO is temporarily unavailable. Please retry.');
+            abort(503, 'SSO is temporarily unavailable. Please retry.', $exception->retryHeaders());
         }
 
         if (! $identity) {

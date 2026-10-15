@@ -3,12 +3,17 @@
 namespace App\Services;
 
 use App\Exceptions\SSOUnavailableException;
+use DateTimeImmutable;
+use DateTimeZone;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Throwable;
 
 class SSOService
 {
@@ -88,8 +93,26 @@ class SSOService
         }
     }
 
+    public function authorizeForRequest(Request $request, string $token): ?array
+    {
+        $key = self::class.':authorization:'.hash('sha256', json_encode([
+            $this->apiUrl, $this->clientId, $this->clientSecret, $token,
+        ], JSON_THROW_ON_ERROR));
+        if ($request->attributes->has($key)) {
+            return $request->attributes->get($key);
+        }
+
+        $authorization = $this->authorize($token);
+        if (($authorization['authorized'] ?? false) === true) {
+            $request->attributes->set($key, $authorization);
+        }
+
+        return $authorization;
+    }
+
     public function authorize(string $token): ?array
     {
+        $this->checkCooldown();
         try {
             $response = Http::acceptJson()->connectTimeout(3)->timeout(10)->withHeaders([
                 'X-Client-ID' => $this->clientId,
@@ -97,7 +120,7 @@ class SSOService
             ])->post($this->apiUrl.'/api/v1/sso/authorize', ['token' => $token]);
         } catch (ConnectionException $e) {
             Log::warning('SSO upstream request failed.', ['endpoint' => '/sso/authorize', 'status' => 'connection_error']);
-            throw new SSOUnavailableException('SSO authorization is unavailable. Please retry.', 0, $e);
+            throw $this->unavailable('SSO authorization is unavailable. Please retry.', previous: $e);
         }
 
         if (! $response->successful()) {
@@ -111,7 +134,7 @@ class SSOService
             return null;
         }
         if (! $response->successful() || ! is_array($response->json()) || ! is_bool($response->json('authorized'))) {
-            throw new SSOUnavailableException('SSO authorization is unavailable. Please retry.');
+            throw $this->unavailable('SSO authorization is unavailable. Please retry.', $response->header('Retry-After'));
         }
 
         return $response->json();
@@ -167,6 +190,7 @@ class SSOService
 
     private function directoryRequest(string $path, array $query = [], bool $allowMissing = false): ?array
     {
+        $this->checkCooldown();
         try {
             $response = Http::acceptJson()->connectTimeout(3)->timeout(10)->withHeaders([
                 'X-Client-ID' => $this->clientId,
@@ -174,7 +198,7 @@ class SSOService
             ])->get($this->apiUrl.'/api/v1'.$path, $query);
         } catch (ConnectionException $e) {
             Log::warning('SSO upstream request failed.', ['endpoint' => $this->safeEndpoint($path), 'status' => 'connection_error']);
-            throw new SSOUnavailableException('SSO directory is unavailable. Please retry.', 0, $e);
+            throw $this->unavailable('SSO directory is unavailable. Please retry.', previous: $e);
         }
         if (! $response->successful()) {
             Log::warning('SSO upstream request failed.', [
@@ -187,10 +211,66 @@ class SSOService
             return null;
         }
         if (! $response->successful() || ! is_array($response->json())) {
-            throw new SSOUnavailableException('SSO directory is unavailable. Please retry.');
+            // A denied employee/client is not evidence of a shared upstream outage.
+            if (in_array($response->status(), [401, 403], true)) {
+                throw new SSOUnavailableException('SSO directory is unavailable. Please retry.');
+            }
+            throw $this->unavailable('SSO directory is unavailable. Please retry.', $response->header('Retry-After'));
         }
 
         return $response->json();
+    }
+
+    private function cooldownKey(): string
+    {
+        return 'opts:sso-unavailable:'.hash('sha256', $this->apiUrl.'|'.$this->clientId);
+    }
+
+    private function checkCooldown(): void
+    {
+        try {
+            $until = Cache::get($this->cooldownKey());
+        } catch (Throwable $exception) {
+            throw new SSOUnavailableException('SSO availability checks are unavailable. Please retry.', previous: $exception, retryAfter: 2);
+        }
+        if (is_int($until) && $until > now()->timestamp) {
+            throw new SSOUnavailableException('SSO is temporarily unavailable. Please retry.', retryAfter: min(300, $until - now()->timestamp));
+        }
+    }
+
+    private function unavailable(string $message, ?string $retryAfter = null, ?Throwable $previous = null): SSOUnavailableException
+    {
+        $delay = $this->retryDelay($retryAfter);
+        try {
+            // Store failures only. Concurrent short failures must not shorten a rate-limit delay.
+            Cache::lock($this->cooldownKey().':lock', 5)->block(1, function () use (&$delay) {
+                $existing = Cache::get($this->cooldownKey());
+                $delay = max($delay, is_int($existing) ? min(300, $existing - now()->timestamp) : 0);
+                Cache::put($this->cooldownKey(), now()->timestamp + $delay, $delay);
+            });
+        } catch (Throwable) {
+            Log::warning('SSO failure cooldown could not be stored.');
+        }
+
+        return new SSOUnavailableException($message, previous: $previous, retryAfter: $delay);
+    }
+
+    private function retryDelay(?string $value): int
+    {
+        $value = trim($value ?? '');
+        if (strlen($value) > 128 || str_contains($value, "\0")) {
+            return 2;
+        }
+        if (preg_match('/\A[0-9]{1,10}\z/', $value)) {
+            return max(1, min(300, (int) $value));
+        }
+        $date = DateTimeImmutable::createFromFormat(DATE_RFC7231, $value, new DateTimeZone('UTC'));
+        $errors = DateTimeImmutable::getLastErrors();
+        if ($date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+            return max(1, min(300, $date->getTimestamp() - now()->timestamp));
+        }
+
+        return 2;
     }
 
     private function safeEndpoint(string $path): string

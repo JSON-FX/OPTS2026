@@ -20,7 +20,7 @@ class OfficeController extends Controller
         try {
             $offices->refreshIfStale();
         } catch (SSOUnavailableException $exception) {
-            abort(503, 'The SSO office directory is unavailable. Please try again.');
+            abort(503, 'The SSO office directory is unavailable. Please try again.', $exception->retryHeaders());
         }
 
         return Inertia::render('Admin/Repositories/Offices/Index', [

@@ -20,7 +20,7 @@ class ProfileController extends Controller
     public function updateSelectedYear(Request $request): RedirectResponse
     {
         $request->validate([
-            'year' => 'required|integer|min:2020|max:' . (now()->year + 1),
+            'year' => 'required|integer|min:2020|max:'.(now()->year + 1),
         ]);
 
         $request->user()->update(['selected_year' => $request->integer('year')]);
